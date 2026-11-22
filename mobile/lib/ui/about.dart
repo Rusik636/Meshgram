@@ -14,6 +14,9 @@ import 'page_route.dart';
 import 'profile_page.dart';
 import 'style.dart';
 
+const agreementAsset = 'assets/about/license-agreement.md';
+const privacyAsset = 'assets/about/privacy-policy.md';
+const agplAsset = 'assets/about/agpl-3.0.txt';
 const _assetDir = 'assets/about';
 const _appInfo = MethodChannel('meshgrame/app_info');
 
@@ -155,18 +158,12 @@ class _AboutPageState extends State<AboutPage> {
                     _row(
                       agreement,
                       Icons.article_outlined,
-                      _DocumentPage(
-                        title: agreement,
-                        asset: '$_assetDir/license-agreement.md',
-                      ),
+                      DocumentPage(title: agreement, asset: agreementAsset),
                     ),
                     _row(
                       privacy,
                       Icons.privacy_tip_outlined,
-                      _DocumentPage(
-                        title: privacy,
-                        asset: '$_assetDir/privacy-policy.md',
-                      ),
+                      DocumentPage(title: privacy, asset: privacyAsset),
                     ),
                     _row(
                       licenses,
@@ -208,17 +205,23 @@ Future<void> _openLink(BuildContext context, String url) async {
   }
 }
 
-class _DocumentPage extends StatefulWidget {
-  const _DocumentPage({required this.title, this.asset, this.text, this.url});
+class DocumentPage extends StatefulWidget {
+  const DocumentPage({
+    super.key,
+    required this.title,
+    this.asset,
+    this.text,
+    this.url,
+  });
 
   final String title;
   final String? asset, text, url;
 
   @override
-  State<_DocumentPage> createState() => _DocumentPageState();
+  State<DocumentPage> createState() => _DocumentPageState();
 }
 
-class _DocumentPageState extends State<_DocumentPage> {
+class _DocumentPageState extends State<DocumentPage> {
   late final _content = widget.asset == null
       ? Future.value(widget.text ?? '')
       : rootBundle
@@ -254,6 +257,20 @@ class _DocumentPageState extends State<_DocumentPage> {
                   if (!block.startsWith('# ')) _legalBlock(block, style),
               ] else if (body.isNotEmpty)
                 _paragraph(body, style),
+              if (widget.asset == agreementAsset)
+                TextButton(
+                  onPressed: () => _push(
+                    context,
+                    const DocumentPage(title: 'GNU AGPLv3', asset: agplAsset),
+                  ),
+                  child: Text(
+                    tr(
+                      context,
+                      'Полный текст GNU AGPLv3',
+                      'Full GNU AGPLv3 text',
+                    ),
+                  ),
+                ),
               if (widget.url case final url?)
                 TextButton(
                   onPressed: () => _openLink(context, url),
@@ -449,7 +466,7 @@ class _LicensesPageState extends State<_LicensesPage> {
                       tint: style.accent,
                       onTap: () => _push(
                         context,
-                        _DocumentPage(
+                        DocumentPage(
                           title: notice.title,
                           asset: notice.asset,
                           text: notice.text,

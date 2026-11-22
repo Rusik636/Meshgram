@@ -18,6 +18,7 @@ import 'radio/lan_transport.dart';
 import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
 import 'ui/home.dart';
+import 'ui/legal_consent.dart';
 import 'ui/style.dart';
 
 Future<void> main() async {
@@ -26,6 +27,37 @@ Future<void> main() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
   final preferences = await SharedPreferences.getInstance();
+  final revision = await legalRevision(rootBundle);
+  if (preferences.getString(legalConsentKey) != revision) {
+    runApp(
+      MaterialApp(
+        title: appName,
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('ru'), Locale('en')],
+        theme: const MeshStyle(false).theme(),
+        darkTheme: const MeshStyle(true).theme(),
+        themeMode: switch (MeshStore(preferences).appearance) {
+          'light' => ThemeMode.light,
+          'dark' => ThemeMode.dark,
+          _ => ThemeMode.system,
+        },
+        home: LegalConsentPage(
+          onAccept: () async {
+            if (!await preferences.setString(legalConsentKey, revision)) {
+              throw StateError('Could not save legal consent');
+            }
+            await _startMessenger(preferences);
+          },
+        ),
+      ),
+    );
+    return;
+  }
+  await _startMessenger(preferences);
+}
+
+Future<void> _startMessenger(SharedPreferences preferences) async {
   await BleTransport.enableStateRestoration();
   final notifications = LocalMessageNotifications();
   final controller = MeshController(
