@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru" data-design="v2">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#F2F5FA">
+    <title>MeshGrame — дизайн-система V2</title>
+    <link rel="stylesheet" href="../../design/meshgrame.css">
+    <link rel="stylesheet" href="tokens.css">
+    <link rel="stylesheet" href="preview.css">
+    <script defer src="../../design/demo-data.js"></script>
+    <script defer src="../../design/prototype.js"></script>
+    <script defer src="library.js"></script>
+  </head>
+  <body>
+    <header class="studio-header">
+      <div class="studio-wrap header-inner">
+        <div class="brand"><span class="brand-icon" id="brand-icon"></span><span>MeshGrame</span></div>
+        <div class="studio-controls">
+          <div class="theme-control" id="theme-control" role="group" aria-label="Оформление прототипа"></div>
+          <a href="MASTER.md" class="spec-link">Спецификация <span id="spec-icon"></span></a>
+        </div>
+      </div>
+    </header>
+    <main class="studio-wrap">
+      <section class="studio-intro" aria-labelledby="studio-title">
+        <div>
+          <p class="studio-kicker">Дизайн-система V2</p>
+          <h1 id="studio-title">MeshGrame</h1>
+          <p class="studio-description">Интерфейс iPhone для Meshtastic и MeshCore.</p>
+        </div>
+        <div class="studio-network">
+          <span>Активная сеть</span>
+          <div class="protocol-control" id="protocol-control" role="group" aria-label="Активная сеть"></div>
+        </div>
+      </section>
+      <div class="studio-toolbar">
+        <nav id="scenes" aria-label="Экраны прототипа"></nav>
+        <div class="test-control"><label class="material-control"><input id="material-control" type="checkbox"> Плотные панели</label><label for="demo-state">Состояние</label><select id="demo-state" aria-label="Демонстрационное состояние"></select></div>
+      </div>
+      <div class="previews" id="previews">
+        <section class="preview" data-slot="0"><h2 class="preview-label"></h2><div class="phone" aria-label="Первый экран"></div></section>
+        <section class="preview" data-slot="1"><h2 class="preview-label"></h2><div class="phone" aria-label="Второй экран"></div></section>
+        <section class="preview" data-slot="2"><h2 class="preview-label"></h2><div class="phone" aria-label="Третий экран"></div></section>
+      </div>
+      <section class="library" id="components" aria-labelledby="library-title">
+        <div class="library-heading"><h2 id="library-title">Компоненты</h2><a href="../../design/index.html">Версия 1</a></div>
+        <div class="library-panel" id="palette"></div>
+        <div class="library-grid">
+          <section class="library-panel"><h3>Подключение</h3><div id="radio-catalog"></div></section>
+          <section class="library-panel"><h3>Статусы сообщений</h3><div id="status-catalog"></div></section>
+          <section class="library-panel"><h3>Группировка сообщений</h3><div class="demo-bubbles" id="bubble-catalog"></div></section>
+        </div>
+      </section>
+      <footer class="studio-footer"><span>MeshGrame V2</span><span>Интерактивные макеты · демо-данные</span></footer>
+    </main>
+  </body>
+</html>

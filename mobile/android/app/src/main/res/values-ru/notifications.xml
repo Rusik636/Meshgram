@@ -1,0 +1,7 @@
+<resources>
+    <string name="mesh_message_notifications">Сообщения сети</string>
+    <string name="mesh_radio_notifications">Подключение к рации</string>
+    <string name="mesh_radio_background">Meshgram принимает сообщения с рации</string>
+    <string name="mesh_message_notifications_quiet">Сообщения без звука</string>
+    <string name="mesh_radio_stop">Стоп</string>
+</resources>

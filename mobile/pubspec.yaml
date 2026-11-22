@@ -1,0 +1,46 @@
+name: meshgrame
+description: Universal LoRa mesh messenger
+publish_to: none
+version: 0.3.55+60
+environment:
+  sdk: ^3.13.7
+  flutter: 3.47.9
+dependencies:
+  characters: ^1.4.1
+  nsd: ^5.0.1
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  crypto: ^3.0.7
+  fixnum: ^1.1.1
+  mobile_scanner: ^7.5.0
+  flutter_blue_plus: ^2.3.15
+  protobuf: ^6.1.0
+  shared_preferences: ^2.5.6
+  qr_flutter: ^4.1.0
+  share_plus: ^13.3.1
+  gal: ^3.0.1
+  pointycastle: ^4.0.0
+  flutter_secure_storage: ^11.2.0
+  flutter_map: ^8.3.2
+  leap_sliver_list: ^0.6.0
+  latlong2: ^0.10.1
+  url_launcher: ^6.3.3
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true
+  shaders:
+    - shaders/chat_edge.frag
+  assets:
+    - assets/emoji/
+    - assets/boards/
+    - assets/about/
+    - assets/sounds/message.wav
+  fonts:
+    - family: MeshgramNotoColorEmoji
+      fonts:
+        - asset: assets/fonts/NotoColorEmoji.ttf

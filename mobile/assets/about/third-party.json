@@ -1,0 +1,71 @@
+[
+  {
+    "title": "Material Icons",
+    "license": "Apache-2.0",
+    "asset": "assets/about/apache-2.0.txt",
+    "url": "https://github.com/google/material-design-icons"
+  },
+  {
+    "title": "Unicode Emoji 17.0 / CLDR 48",
+    "license": "Unicode License v3",
+    "asset": "assets/emoji/UNICODE-LICENSE.txt",
+    "url": "https://unicode.org/license.txt"
+  },
+  {
+    "title": "Noto Color Emoji 2.051",
+    "license": "SIL Open Font License 1.1",
+    "asset": "assets/emoji/NOTO-EMOJI-OFL.txt",
+    "url": "https://github.com/googlefonts/noto-emoji/releases/tag/v2.051"
+  },
+  {
+    "title": "Meshtastic Web Flasher",
+    "license": "GPL-3.0",
+    "asset": "assets/boards/LICENSE.txt",
+    "text": "Иллюстрации плат из Meshtastic Web Flasher. Изображения адаптированы по размерам и преобразованы в WebP. Исходные ресурсы доступны в репозитории проекта.\n\nBoard illustrations from Meshtastic Web Flasher, resized and converted to WebP. Source assets are available in the project repository.",
+    "url": "https://github.com/meshtastic/web-flasher"
+  },
+  {
+    "title": "OpenStreetMap",
+    "license": "ODbL 1.0",
+    "text": "© OpenStreetMap contributors. Map data is made available under the Open Database License. Map images are requested from the OpenStreetMap Foundation tile service.",
+    "url": "https://www.openstreetmap.org/copyright",
+    "asset": "assets/about/odbl-1.0.txt"
+  },
+  {
+    "title": "FlutterBluePlus contributors",
+    "license": "BSD-3-Clause",
+    "asset": "assets/about/flutter-blue-plus-notice.txt",
+    "url": "https://pub.dev/packages/flutter_blue_plus"
+  },
+  {
+    "title": "AndroidX, CameraX, Kotlin и библиотеки Android",
+    "license": "Apache-2.0",
+    "platform": "android",
+    "text": "androidx.activity:activity:1.9.0\nandroidx.activity:activity-ktx:1.9.0\nandroidx.annotation:annotation:1.10.0\nandroidx.annotation:annotation-experimental:1.4.1\nandroidx.annotation:annotation-jvm:1.10.0\nandroidx.appcompat:appcompat:1.6.1\nandroidx.appcompat:appcompat-resources:1.6.1\nandroidx.arch.core:core-common:2.2.0\nandroidx.arch.core:core-runtime:2.2.0\nandroidx.asynclayoutinflater:asynclayoutinflater:1.0.0\nandroidx.browser:browser:1.9.0\nandroidx.camera.featurecombinationquery:featurecombinationquery:1.6.1\nandroidx.camera:camera-camera2:1.6.1\nandroidx.camera:camera-camera2-pipe:1.6.1\nandroidx.camera:camera-core:1.6.1\nandroidx.camera:camera-lifecycle:1.6.1\nandroidx.collection:collection:1.4.2\nandroidx.collection:collection-jvm:1.4.2\nandroidx.collection:collection-ktx:1.4.2\nandroidx.concurrent:concurrent-futures:1.1.0\nandroidx.concurrent:concurrent-futures-ktx:1.1.0\nandroidx.coordinatorlayout:coordinatorlayout:1.0.0\nandroidx.core:core:1.17.0\nandroidx.core:core-backported-fixes:1.0.0\nandroidx.core:core-ktx:1.17.0\nandroidx.core:core-viewtree:1.0.0\nandroidx.cursoradapter:cursoradapter:1.0.0\nandroidx.customview:customview:1.1.0\nandroidx.datastore:datastore:1.2.1\nandroidx.datastore:datastore-android:1.2.1\nandroidx.datastore:datastore-core:1.2.1\nandroidx.datastore:datastore-core-android:1.2.1\nandroidx.datastore:datastore-core-okio:1.2.1\nandroidx.datastore:datastore-core-okio-jvm:1.2.1\nandroidx.datastore:datastore-preferences:1.2.1\nandroidx.datastore:datastore-preferences-android:1.2.1\nandroidx.datastore:datastore-preferences-core:1.2.1\nandroidx.datastore:datastore-preferences-core-android:1.2.1\nandroidx.datastore:datastore-preferences-proto:1.2.1\nandroidx.documentfile:documentfile:1.0.0\nandroidx.drawerlayout:drawerlayout:1.0.0\nandroidx.emoji2:emoji2:1.2.0\nandroidx.emoji2:emoji2-views-helper:1.2.0\nandroidx.exifinterface:exifinterface:1.4.2\nandroidx.fragment:fragment:1.7.1\nandroidx.fragment:fragment-ktx:1.7.1\nandroidx.interpolator:interpolator:1.0.0\nandroidx.legacy:legacy-support-core-ui:1.0.0\nandroidx.legacy:legacy-support-core-utils:1.0.0\nandroidx.lifecycle:lifecycle-common:2.7.0\nandroidx.lifecycle:lifecycle-common-java8:2.7.0\nandroidx.lifecycle:lifecycle-livedata:2.7.0\nandroidx.lifecycle:lifecycle-livedata-core:2.7.0\nandroidx.lifecycle:lifecycle-livedata-core-ktx:2.7.0\nandroidx.lifecycle:lifecycle-process:2.7.0\nandroidx.lifecycle:lifecycle-runtime:2.7.0\nandroidx.lifecycle:lifecycle-runtime-ktx:2.7.0\nandroidx.lifecycle:lifecycle-viewmodel:2.7.0\nandroidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0\nandroidx.lifecycle:lifecycle-viewmodel-savedstate:2.7.0\nandroidx.loader:loader:1.0.0\nandroidx.localbroadcastmanager:localbroadcastmanager:1.0.0\nandroidx.preference:preference:1.2.1\nandroidx.print:print:1.0.0\nandroidx.profileinstaller:profileinstaller:1.3.1\nandroidx.recyclerview:recyclerview:1.0.0\nandroidx.resourceinspection:resourceinspection-annotation:1.0.1\nandroidx.savedstate:savedstate:1.2.1\nandroidx.savedstate:savedstate-ktx:1.2.1\nandroidx.slidingpanelayout:slidingpanelayout:1.2.0\nandroidx.startup:startup-runtime:1.1.1\nandroidx.swiperefreshlayout:swiperefreshlayout:1.0.0\nandroidx.tracing:tracing:1.3.0\nandroidx.tracing:tracing-android:1.3.0\nandroidx.tracing:tracing-ktx:1.3.0\nandroidx.transition:transition:1.4.1\nandroidx.vectordrawable:vectordrawable:1.1.0\nandroidx.vectordrawable:vectordrawable-animated:1.1.0\nandroidx.versionedparcelable:versionedparcelable:1.1.1\nandroidx.viewpager:viewpager:1.0.0\nandroidx.window.extensions.core:core:1.0.0\nandroidx.window:window:1.2.0\nandroidx.window:window-java:1.2.0\ncom.getkeepsafe.relinker:relinker:1.4.5\ncom.google.android.datatransport:transport-api:2.2.1\ncom.google.android.datatransport:transport-backend-cct:2.3.3\ncom.google.android.datatransport:transport-runtime:2.2.6\ncom.google.auto.value:auto-value-annotations:1.6.3\ncom.google.code.findbugs:jsr305:3.0.2\ncom.google.code.gson:gson:2.13.2\ncom.google.crypto.tink:tink-android:1.23.0\ncom.google.dagger:dagger:2.59\ncom.google.errorprone:error_prone_annotations:2.41.0\ncom.google.firebase:firebase-annotations:16.0.0\ncom.google.firebase:firebase-components:16.1.0\ncom.google.firebase:firebase-encoders:16.1.0\ncom.google.firebase:firebase-encoders-json:17.1.0\ncom.google.guava:listenablefuture:1.0\ncom.squareup.okio:okio:3.9.1\ncom.squareup.okio:okio-jvm:3.9.1\njavax.inject:javax.inject:1\norg.jetbrains.kotlin:kotlin-stdlib:2.4.0\norg.jetbrains.kotlinx:atomicfu:0.28.0\norg.jetbrains.kotlinx:atomicfu-jvm:0.28.0\norg.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0\norg.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0\norg.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0\norg.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3\norg.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3\norg.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3\norg.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3\norg.jetbrains:annotations:23.0.0\norg.jspecify:jspecify:1.0.0",
+    "asset": "assets/about/apache-2.0.txt",
+    "url": "https://www.apache.org/licenses/LICENSE-2.0"
+  },
+  {
+    "title": "AndroidX DataStore Protobuf",
+    "license": "BSD-3-Clause",
+    "platform": "android",
+    "text": "androidx.datastore:datastore-preferences-external-protobuf:1.2.1",
+    "asset": "assets/about/android-protobuf-license.txt",
+    "url": "https://opensource.org/license/bsd-3-clause"
+  },
+  {
+    "title": "Jakarta Dependency Injection",
+    "license": "Apache-2.0",
+    "platform": "android",
+    "text": "jakarta.inject:jakarta.inject-api:2.0.1",
+    "asset": "assets/about/jakarta-inject-notice.txt",
+    "url": "https://github.com/jakartaee/inject"
+  },
+  {
+    "title": "Google ML Kit / Google Play services",
+    "license": "Google ML Kit / Android SDK terms",
+    "platform": "android",
+    "text": "Google предоставляет эти компоненты на условиях своих SDK. Сканирование QR-кодов выполняется на устройстве. Сведения об использовании и диагностике описаны в условиях Google ML Kit. Полный текст условий открывается в приложении по кнопке ниже.\n\ncom.google.android.gms:play-services-base:18.5.0\ncom.google.android.gms:play-services-basement:18.4.0\ncom.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1\ncom.google.android.gms:play-services-tasks:18.2.0\ncom.google.android.odml:image:1.0.0-beta1\ncom.google.mlkit:barcode-scanning:17.3.0\ncom.google.mlkit:barcode-scanning-common:17.0.0\ncom.google.mlkit:common:18.11.0\ncom.google.mlkit:vision-common:17.3.0\ncom.google.mlkit:vision-interfaces:16.3.0",
+    "url": "https://developers.google.com/ml-kit/terms"
+  }
+]

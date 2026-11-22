@@ -1,0 +1,7 @@
+<resources>
+    <string name="mesh_message_notifications">Mesh messages</string>
+    <string name="mesh_radio_notifications">Radio connection</string>
+    <string name="mesh_radio_background">Listening for messages from your radio</string>
+    <string name="mesh_message_notifications_quiet">Quiet messages</string>
+    <string name="mesh_radio_stop">Stop</string>
+</resources>

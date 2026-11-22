@@ -1,0 +1,1 @@
+Board illustrations from the Meshtastic Web Flasher (Meshtastic project), GNU GPL v3. Resized, converted to WebP. Original editable artwork and official catalog at https://github.com/meshtastic/web-flasher/tree/fd65d5cb324d677c52a15b8aa4bf8eb7b076908b/public/

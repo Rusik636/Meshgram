@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#F3F4F9">
+    <title>MeshGrame — мобильный прототип</title>
+    <link rel="stylesheet" href="meshgrame.css">
+    <script defer src="demo-data.js"></script>
+    <script defer src="prototype.js"></script>
+  </head>
+  <body>
+    <header class="studio-header">
+      <div class="studio-wrap header-inner">
+        <div class="brand"><span class="brand-icon" id="brand-icon"></span><span>MeshGrame</span></div>
+        <div class="studio-controls">
+          <div class="theme-control" id="theme-control" role="group" aria-label="Оформление прототипа"></div>
+          <a href="DESIGN_SPEC.md" class="spec-link">Спецификация <span id="spec-icon"></span></a>
+        </div>
+      </div>
+    </header>
+    <main class="studio-wrap">
+      <section class="studio-intro" aria-labelledby="studio-title">
+        <div>
+          <p class="studio-kicker">Прототип для iPhone</p>
+          <h1 id="studio-title">MeshGrame</h1>
+          <p class="studio-description">Чаты, узлы и карта для двух LoRa-сетей.</p>
+        </div>
+        <div class="studio-network">
+          <span>Активная сеть</span>
+          <div class="protocol-control" id="protocol-control" role="group" aria-label="Активная сеть"></div>
+        </div>
+      </section>
+      <div class="studio-toolbar">
+        <nav id="scenes" aria-label="Экраны прототипа"></nav>
+        <div class="test-control"><label for="demo-state">Состояние</label><select id="demo-state" aria-label="Демонстрационное состояние"></select></div>
+      </div>
+      <div class="previews" id="previews">
+        <section class="preview" data-slot="0"><h2 class="preview-label"></h2><div class="phone" aria-label="Первый экран"></div></section>
+        <section class="preview" data-slot="1"><h2 class="preview-label"></h2><div class="phone" aria-label="Второй экран"></div></section>
+        <section class="preview" data-slot="2"><h2 class="preview-label"></h2><div class="phone" aria-label="Третий экран"></div></section>
+      </div>
+      <footer class="studio-footer"><span>Интерактивные макеты</span><span>Демо-данные · iOS</span></footer>
+    </main>
+  </body>
+</html>

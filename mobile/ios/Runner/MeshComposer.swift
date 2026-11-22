@@ -1,0 +1,293 @@
+import Flutter
+import UIKit
+
+final class MeshComposerFactory: NSObject, FlutterPlatformViewFactory {
+  private let messenger: FlutterBinaryMessenger
+
+  init(_ messenger: FlutterBinaryMessenger) {
+    self.messenger = messenger
+  }
+
+  func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+    FlutterStandardMessageCodec.sharedInstance()
+  }
+
+  func create(withFrame frame: CGRect, viewIdentifier id: Int64, arguments args: Any?) -> FlutterPlatformView {
+    MeshComposer(frame: frame, id: id, input: args as? [String: Any] ?? [:], messenger: messenger)
+  }
+}
+
+private class MeshInputGlass: UIVisualEffectView {
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if #available(iOS 26.0, *) {
+      cornerConfiguration = .capsule()
+    } else {
+      layer.cornerRadius = bounds.height / 2
+    }
+  }
+
+  func applyMaterial(surface: UIColor) {
+    backgroundColor = .clear
+    if UIAccessibility.isReduceTransparencyEnabled {
+      effect = nil
+      backgroundColor = surface
+    } else if #available(iOS 26.0, *) {
+      let material = UIGlassEffect(style: .regular)
+      material.tintColor = surface.withAlphaComponent(0.22)
+      effect = material
+    } else {
+      effect = UIBlurEffect(style: .systemThickMaterial)
+    }
+  }
+}
+
+private final class ComposerTextView: UITextView {
+  var onLayout: (() -> Void)?
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    onLayout?()
+  }
+}
+
+private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate {
+  private let glass = MeshInputGlass(effect: nil)
+  private var surface: UIColor = .secondarySystemBackground
+  private let textView: ComposerTextView
+  private let placeholder = UILabel()
+  private let channel: FlutterMethodChannel
+  private var reportedHeight: CGFloat = 0
+
+  init(frame: CGRect, id: Int64, input: [String: Any], messenger: FlutterBinaryMessenger) {
+    textView = ComposerTextView(frame: frame)
+    channel = FlutterMethodChannel(name: "meshgrame/composer/\(id)", binaryMessenger: messenger)
+    super.init()
+    glass.frame = frame
+    glass.clipsToBounds = true
+    glass.layer.cornerCurve = .continuous
+    glass.contentView.addSubview(textView)
+    textView.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      textView.leadingAnchor.constraint(equalTo: glass.contentView.leadingAnchor),
+      textView.trailingAnchor.constraint(equalTo: glass.contentView.trailingAnchor),
+      textView.topAnchor.constraint(equalTo: glass.contentView.topAnchor),
+      textView.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
+    ])
+    NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
+      name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
+    textView.delegate = self
+    textView.backgroundColor = .clear
+    textView.textContainerInset = UIEdgeInsets(top: 12, left: 22, bottom: 12, right: 22)
+    textView.textContainer.lineFragmentPadding = 0
+    textView.autocapitalizationType = .sentences
+    textView.adjustsFontForContentSizeCategory = true
+    textView.font = .preferredFont(forTextStyle: .body)
+    textView.text = input["text"] as? String ?? ""
+
+    placeholder.translatesAutoresizingMaskIntoConstraints = false
+    placeholder.font = textView.font
+    placeholder.adjustsFontForContentSizeCategory = true
+    placeholder.isAccessibilityElement = false
+    placeholder.isUserInteractionEnabled = false
+    textView.addSubview(placeholder)
+    NSLayoutConstraint.activate([
+      placeholder.leadingAnchor.constraint(equalTo: textView.frameLayoutGuide.leadingAnchor, constant: 22),
+      placeholder.topAnchor.constraint(equalTo: textView.frameLayoutGuide.topAnchor, constant: 12),
+      placeholder.trailingAnchor.constraint(lessThanOrEqualTo: textView.frameLayoutGuide.trailingAnchor, constant: -22),
+    ])
+    textView.onLayout = { [weak self] in self?.updateHeight() }
+    updateAppearance(input)
+    updatePlaceholder()
+
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else { result(nil); return }
+      switch call.method {
+      case "appearance":
+        if let appearance = call.arguments as? [String: Any] { self.updateAppearance(appearance) }
+      case "dismissKeyboard":
+        self.textView.resignFirstResponder()
+      case "focus":
+        self.textView.becomeFirstResponder()
+      case "replaceText":
+        if let value = call.arguments as? String, value != self.textView.text {
+          self.textView.text = value
+          self.updatePlaceholder()
+          self.updateHeight()
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      result(nil)
+    }
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+    channel.setMethodCallHandler(nil)
+  }
+
+  func view() -> UIView { glass }
+
+  @objc private func updateGlass() {
+    glass.applyMaterial(surface: surface)
+  }
+
+  func textViewDidChange(_ textView: UITextView) {
+    updatePlaceholder()
+    updateHeight()
+    channel.invokeMethod("text", arguments: textView.text ?? "")
+  }
+
+  private func updatePlaceholder() {
+    placeholder.isHidden = !textView.text.isEmpty
+  }
+
+  private func updateHeight() {
+    guard textView.bounds.width > 36 else { return }
+    let lineHeight = textView.font?.lineHeight ?? 22
+    let maximum = min(160, ceil(lineHeight * 4 + 24))
+    let measured = textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height
+    let desired = min(maximum, max(46, ceil(measured)))
+    if textView.isScrollEnabled != (measured > maximum) { textView.isScrollEnabled = measured > maximum }
+    guard desired != reportedHeight else { return }
+    reportedHeight = desired
+    channel.invokeMethod("height", arguments: Double(desired))
+  }
+
+  private func updateAppearance(_ input: [String: Any]) {
+    let dark = input["dark"] as? Bool ?? false
+    glass.overrideUserInterfaceStyle = dark ? .dark : .light
+    surface = color(input["surface"], .secondarySystemBackground)
+    updateGlass()
+    textView.keyboardAppearance = dark ? .dark : .light
+    textView.textColor = color(input["foreground"], .label)
+    textView.tintColor = color(input["accent"], .systemBlue)
+    placeholder.textColor = color(input["secondary"], .placeholderText)
+    placeholder.text = input["placeholder"] as? String
+    textView.accessibilityLabel = placeholder.text
+  }
+
+  private func color(_ input: Any?, _ fallback: UIColor) -> UIColor {
+    guard let n = (input as? NSNumber)?.uint32Value else { return fallback }
+    return UIColor(red: CGFloat(n >> 16 & 255) / 255, green: CGFloat(n >> 8 & 255) / 255,
+                   blue: CGFloat(n & 255) / 255, alpha: CGFloat(n >> 24 & 255) / 255)
+  }
+}
+
+private final class SearchGlass: MeshInputGlass {
+  var onAttach: (() -> Void)?
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window != nil { onAttach?() }
+  }
+}
+
+final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate {
+  private let glass = SearchGlass(effect: nil)
+  private let field = UITextField()
+  private let icon = UIImageView(image: UIImage(systemName: "magnifyingglass",
+    withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)))
+  private let channel: FlutterMethodChannel
+  private var surface: UIColor = .secondarySystemBackground
+  private var pendingFocus = true
+
+  init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
+    self.channel = channel
+    super.init()
+    glass.frame = frame
+    glass.clipsToBounds = true
+    glass.layer.cornerCurve = .continuous
+    glass.onAttach = { [weak self] in
+      DispatchQueue.main.async {
+        guard let self, self.pendingFocus, self.glass.window != nil else { return }
+        self.pendingFocus = false
+        self.field.becomeFirstResponder()
+      }
+    }
+
+    icon.frame = CGRect(x: 0, y: 0, width: 28, height: 22)
+    icon.contentMode = .left
+    icon.isAccessibilityElement = false
+    field.leftView = icon
+    field.leftViewMode = .always
+    field.clearButtonMode = .always
+    field.autocapitalizationType = .none
+    field.returnKeyType = .search
+    field.delegate = self
+    field.addTarget(self, action: #selector(textDidChange), for: .editingChanged)
+    field.translatesAutoresizingMaskIntoConstraints = false
+    glass.contentView.addSubview(field)
+    NSLayoutConstraint.activate([
+      field.leadingAnchor.constraint(equalTo: glass.contentView.leadingAnchor, constant: 14),
+      field.trailingAnchor.constraint(equalTo: glass.contentView.trailingAnchor, constant: -12),
+      field.topAnchor.constraint(equalTo: glass.contentView.topAnchor),
+      field.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
+    ])
+    NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
+      name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
+    update(input)
+    channel.setMethodCallHandler { [weak self] call, result in
+      switch (call.method, call.arguments) {
+      case ("update", let input as [String: Any]): self?.update(input)
+      case ("dismissKeyboard", _): self?.dismissKeyboard()
+      default: return result(FlutterMethodNotImplemented)
+      }
+      result(nil)
+    }
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+    channel.setMethodCallHandler(nil)
+  }
+
+  func view() -> UIView { glass }
+
+  func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+    dismissKeyboard()
+    return false
+  }
+
+  func textFieldShouldClear(_ textField: UITextField) -> Bool {
+    textField.text = ""
+    textDidChange()
+    return false
+  }
+
+  private func dismissKeyboard() {
+    pendingFocus = false
+    field.resignFirstResponder()
+  }
+
+  @objc private func textDidChange() {
+    channel.invokeMethod("text", arguments: field.text ?? "")
+  }
+
+  @objc private func updateGlass() {
+    glass.applyMaterial(surface: surface)
+  }
+
+  private func update(_ input: [String: Any]) {
+    let dark = input["dark"] as? Bool == true
+    glass.overrideUserInterfaceStyle = dark ? .dark : .light
+    field.keyboardAppearance = dark ? .dark : .light
+    let titleSize = (input["titleSize"] as? NSNumber)?.doubleValue ?? 17
+    field.font = .systemFont(ofSize: titleSize)
+    field.textColor = meshColor(input["foreground"], .label)
+    field.tintColor = meshColor(input["accent"], .systemBlue)
+    let secondary = meshColor(input["secondary"], .secondaryLabel)
+    icon.tintColor = secondary
+    let placeholder = input["placeholder"] as? String ?? ""
+    field.accessibilityLabel = placeholder
+    field.attributedPlaceholder = NSAttributedString(string: placeholder,
+      attributes: [.foregroundColor: secondary])
+    let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
+    if nextSurface != surface || glass.effect == nil {
+      surface = nextSurface
+      updateGlass()
+    }
+  }
+}

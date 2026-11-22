@@ -1,0 +1,2 @@
+// Requires an approved App Push Provider entitlement on both App IDs.
+MESHGRAM_LOCAL_PUSH = YES
