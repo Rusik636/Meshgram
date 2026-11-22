@@ -2,6 +2,19 @@ Meshgram
 Copyright © 2026 Прокшин Руслан Владимирович (Rusik636)
 Original project: https://github.com/Rusik636/Meshgram
 
+Дополнительное условие Meshgram об указании авторства (раздел 7(b) AGPLv3)
+
+При передаче копий кода Meshgram, его изменённых версий или произведений,
+содержащих охраняемые авторским правом фрагменты этого кода, сохраняйте
+приведённые выше три строки с названием проекта, именем автора и ссылкой
+на оригинальный проект. Их можно сохранить в самом материале либо
+в надлежащих правовых уведомлениях, отображаемых произведением.
+Рядом можно указать авторов последующих изменений.
+
+При расхождении русской и английской редакций этого дополнительного условия
+об указании авторства применяется его русская редакция. Это правило касается
+только условия Meshgram об указании авторства.
+
 The copyright holder licenses original Meshgram code under the GNU Affero
 General Public License, version 3 only (AGPL-3.0-only). See LICENSE.
 
@@ -10,5 +23,8 @@ or works containing copyrightable portions of that code, preserve the three
 attribution lines above (project, author, and original project URL) with the
 covered material or in the Appropriate Legal Notices displayed by the work.
 The attribution may appear alongside credits for subsequent contributors.
+
+If the Russian and English versions of this additional attribution term differ,
+the Russian version prevails for this term alone.
 
 Third-party material remains subject to its respective notices and licenses.
