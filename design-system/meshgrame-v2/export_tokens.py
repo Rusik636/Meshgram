@@ -1,3 +1,6 @@
+# Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
+# AGPL-3.0-only with attribution under section 7(b); see NOTICE.
+
 """Export the MeshGrame V2 DTCG tokens to CSS and Dart."""
 import argparse
 import json
@@ -53,7 +56,7 @@ def main():
     source = json.loads((ROOT / "tokens.json").read_text())
     common = list(flatten(source["foundation"]))
     palettes = {mode: list(flatten(source["color"][mode], "color", "color")) for mode in ("light", "dark")}
-    css = ["/* Generated from tokens.json by export_tokens.py. */"]
+    css = ["/* Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram. AGPL-3.0-only with attribution under section 7(b); see NOTICE. */", "/* Generated from tokens.json by export_tokens.py. */"]
     for mode, tokens in palettes.items():
         selector = ':root[data-design="v2"]'
         if mode == "dark":
@@ -65,7 +68,7 @@ def main():
             css.append(f"  --mg-{name}: {css_token};")
         css.append("}")
     # Dart uses ARGB integers. The app can wrap them in const Color().
-    dart = ["// Generated from tokens.json by export_tokens.py.", ""]
+    dart = ["// Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram", "// AGPL-3.0-only with attribution under section 7(b); see NOTICE.", "// Generated from tokens.json by export_tokens.py.", ""]
     for class_name, tokens in [("MeshGrameV2", common), *[
         ("MeshGrameV2" + mode.title(), tokens) for mode, tokens in palettes.items()
     ]]:

@@ -1,5 +1,12 @@
 [
   {
+    "title": "Meshgram",
+    "license": "AGPL-3.0-only",
+    "text": "Meshgram\nCopyright © 2026 Прокшин Руслан Владимирович (Rusik636)\nOriginal project: https://github.com/Rusik636/Meshgram\n\nThe copyright holder licenses original Meshgram code under the GNU Affero\nGeneral Public License, version 3 only (AGPL-3.0-only). See LICENSE.\n\nAdditional term under section 7(b): when conveying copies, modified versions,\nor works containing copyrightable portions of that code, preserve the three\nattribution lines above (project, author, and original project URL) with the\ncovered material or in the Appropriate Legal Notices displayed by the work.\nThe attribution may appear alongside credits for subsequent contributors.\n\nThird-party material remains subject to its respective notices and licenses.",
+    "asset": "assets/about/agpl-3.0.txt",
+    "url": "https://github.com/Rusik636/Meshgram/blob/main/NOTICE"
+  },
+  {
     "title": "Material Icons",
     "license": "Apache-2.0",
     "asset": "assets/about/apache-2.0.txt",
