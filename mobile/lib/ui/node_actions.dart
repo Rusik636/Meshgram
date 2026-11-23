@@ -256,11 +256,7 @@ class _NodeActionsPanelState extends State<NodeActionsPanel> {
                 padding: const EdgeInsets.all(8),
                 child: MeshLocationPreview(
                   position: position,
-                  title: tr(
-                    context,
-                    'Последние координаты',
-                    'Last known position',
-                  ),
+                  showDetails: false,
                   pin: MeshMapPin.node(
                     position: position,
                     id: peer.id,
