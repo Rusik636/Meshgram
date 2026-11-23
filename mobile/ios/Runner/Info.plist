@@ -6,6 +6,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Meshgram scans QR codes for contacts and channel invitations.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Meshgram puts your current position on the map when you choose My location, so you can decide which point to send.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Meshgram saves contact QR cards to your photos when you choose Save.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>

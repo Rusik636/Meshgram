@@ -1449,6 +1449,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             detail: '${controller.peers.where((peer) => !peer.channel).length}',
             onTap: _nodes,
           ),
+        ]),
+        const SizedBox(height: 14),
+        _settingsGroup([
           MeshRow(
             title: tr(context, 'Оформление', 'Appearance'),
             icon: Icons.dark_mode_outlined,

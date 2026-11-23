@@ -7,6 +7,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'contact_attachment.dart';
 import 'network.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
@@ -1182,19 +1183,99 @@ class MeshController extends ChangeNotifier {
     return (adapter as NetworkContactCodes).contactCode(peer, identity);
   }
 
-  Peer? findContactCode(String raw) {
+  ContactAttachment? contactAttachment(String raw) {
     if (raw.length > 8192) return null;
-    final adapter = adapters[active?.network];
-    final uri = Uri.tryParse(raw);
-    if (adapter is! NetworkContactCodes || uri == null) return null;
-    final target = (adapter as NetworkContactCodes).readContactCode(uri);
+    final link = raw.trim();
+    if (RegExp(r'\s').hasMatch(link)) return null;
+    final uri = Uri.tryParse(link);
+    if (uri == null || !uri.hasScheme) return null;
+    try {
+      final compact = readCompactContact(uri);
+      if (compact != null) return compact;
+      for (final adapter in adapters.values.whereType<NetworkContactCodes>()) {
+        final contact = adapter.readContactAttachment(uri);
+        if (contact != null) return contact;
+      }
+    } on FormatException {
+      return null;
+    } on ArgumentError {
+      return null;
+    }
+    return null;
+  }
+
+  Peer? findContactCode(String raw) {
+    final target = contactAttachment(raw);
     final current = cache;
     if (target == null ||
+        target.network != active?.network ||
         current == null ||
         current.identities[target.id]?.publicKey != target.publicKey) {
       return null;
     }
     return current.peers[target.id];
+  }
+
+  String? shareContactAttachment(Peer peer, int maxBytes) {
+    final link = contactCode(peer)?.toString();
+    if (link == null) return null;
+    if (utf8.encode(link).length <= maxBytes) return link;
+    final contact = contactAttachment(link);
+    return contact == null ? null : compactContactLink(contact, maxBytes);
+  }
+
+  Future<Peer?> importContactAttachment(String raw) async {
+    final contact = contactAttachment(raw);
+    final radio = active;
+    final current = cache;
+    final session = _session;
+    if (contact == null ||
+        radio == null ||
+        current == null ||
+        contact.network != radio.network ||
+        contact.publicKey == current.radioPublicKey ||
+        contact.id == 'node:${current.radioNodeNumber}') {
+      return null;
+    }
+    final existing = current.identities[contact.id];
+    if (existing != null && existing.publicKey != contact.publicKey) {
+      throw StateError('contact-key-conflict');
+    }
+    if (!connected) return findContactCode(raw);
+    final Peer peer;
+    if (preview) {
+      peer =
+          current.peers[contact.id] ??
+          (
+            id: contact.id,
+            name: contact.name,
+            writable: contact.type == null || contact.type == 1,
+            channel: false,
+          );
+    } else {
+      if (session is! RadioContactSession) return null;
+      peer = await (session as RadioContactSession).importContact(contact);
+      final selected = active;
+      if (_closed ||
+          selected == null ||
+          radioKey(radio) != radioKey(selected) ||
+          session != _session ||
+          !connected) {
+        return null;
+      }
+    }
+    current.peers[peer.id] = peer;
+    current.identities.putIfAbsent(
+      peer.id,
+      () => (
+        publicKey: contact.publicKey,
+        type: contact.type,
+        shortName: contact.shortName,
+      ),
+    );
+    _save(radio);
+    _changed();
+    return peer;
   }
 
   RadioSettingsCatalog? radioSettingsCatalog(Radio radio) {
@@ -1908,14 +1989,23 @@ class MeshController extends ChangeNotifier {
     return null;
   }
 
-  Future<bool> send(Peer peer, String text, {MeshMessage? reply}) async {
+  Future<bool> send(
+    Peer peer,
+    String text, {
+    MeshMessage? reply,
+    bool suppressLinkPreview = false,
+  }) async {
     if (reply != null && !canUseMessageActions(peer, reply)) return false;
     return _sendMessage(
       peer,
       text,
       replyTo: reply == null ? null : referenceFor(reply),
+      suppressLinkPreview: suppressLinkPreview,
     );
   }
+
+  Future<bool> sendAttachment(Peer peer, String text) =>
+      _sendMessage(peer, text, isAttachment: true);
 
   Future<bool> retryMessage(Peer peer, String messageId) async {
     final failed = cache?.messages
@@ -1932,6 +2022,8 @@ class MeshController extends ChangeNotifier {
       failed.text,
       replyTo: failed.replyTo,
       retryId: messageId,
+      isAttachment: failed.isAttachment,
+      suppressLinkPreview: failed.suppressLinkPreview,
     );
   }
 
@@ -1940,6 +2032,8 @@ class MeshController extends ChangeNotifier {
     String text, {
     String? replyTo,
     String? retryId,
+    bool isAttachment = false,
+    bool suppressLinkPreview = false,
   }) async {
     final radio = active;
     final session = _session;
@@ -1963,6 +2057,8 @@ class MeshController extends ChangeNotifier {
       time: now,
       delivery: Delivery.queued,
       replyTo: replyTo,
+      isAttachment: isAttachment,
+      suppressLinkPreview: suppressLinkPreview,
       remoteId: session is NetworkMessageActions
           ? (session as NetworkMessageActions).nextMessageReference()
           : preview
@@ -1970,7 +2066,7 @@ class MeshController extends ChangeNotifier {
           : null,
     );
     if (retryId == null) {
-      current.drafts.remove(peer.id);
+      if (!isAttachment) current.drafts.remove(peer.id);
     } else {
       _receipts.remove(retryId)?.timer.cancel();
       current.messages.removeWhere((message) => message.id == retryId);
@@ -2005,12 +2101,14 @@ class MeshController extends ChangeNotifier {
       }
     }
     if (index >= 0 &&
+        !isAttachment &&
         retryId == null &&
         result == Delivery.failed &&
         (current.drafts[peer.id] ?? '').isEmpty) {
       current.drafts[peer.id] = text;
     }
     if (index >= 0 &&
+        !isAttachment &&
         retryId != null &&
         result != Delivery.failed &&
         previousDraft?.trim() == text &&

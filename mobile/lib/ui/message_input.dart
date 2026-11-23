@@ -79,7 +79,6 @@ class MessageInputState extends State<MessageInput> {
       'foreground': style.text.toARGB32(),
       'secondary': style.secondary.toARGB32(),
       'accent': style.accent.toARGB32(),
-      'surface': style.surface.toARGB32(),
     };
     if (!mapEquals(appearance, _appearance)) {
       _appearance = appearance;
@@ -163,23 +162,20 @@ class MessageInputState extends State<MessageInput> {
         ),
       );
     }
-    return GlassSurface(
-      radius: 25,
-      child: TextField(
-        controller: widget.controller,
-        focusNode: _focus,
-        minLines: 1,
-        maxLines: 4,
-        textCapitalization: TextCapitalization.sentences,
-        onChanged: widget.onChanged,
-        decoration: InputDecoration(
-          hintText: tr(context, 'Сообщение', 'Message'),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
+    return TextField(
+      controller: widget.controller,
+      focusNode: _focus,
+      minLines: 1,
+      maxLines: 4,
+      textCapitalization: TextCapitalization.sentences,
+      onChanged: widget.onChanged,
+      decoration: InputDecoration(
+        hintText: tr(context, 'Сообщение', 'Message'),
+        border: InputBorder.none,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
         ),
       ),
     );

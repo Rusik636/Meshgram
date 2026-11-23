@@ -55,8 +55,7 @@ private final class ComposerTextView: UITextView {
 }
 
 private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate {
-  private let glass = MeshInputGlass(effect: nil)
-  private var surface: UIColor = .secondarySystemBackground
+  private let container = UIView()
   private let textView: ComposerTextView
   private let placeholder = UILabel()
   private let channel: FlutterMethodChannel
@@ -66,19 +65,16 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
     textView = ComposerTextView(frame: frame)
     channel = FlutterMethodChannel(name: "meshgrame/composer/\(id)", binaryMessenger: messenger)
     super.init()
-    glass.frame = frame
-    glass.clipsToBounds = true
-    glass.layer.cornerCurve = .continuous
-    glass.contentView.addSubview(textView)
+    container.frame = frame
+    container.backgroundColor = .clear
+    container.addSubview(textView)
     textView.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      textView.leadingAnchor.constraint(equalTo: glass.contentView.leadingAnchor),
-      textView.trailingAnchor.constraint(equalTo: glass.contentView.trailingAnchor),
-      textView.topAnchor.constraint(equalTo: glass.contentView.topAnchor),
-      textView.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
+      textView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      textView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      textView.topAnchor.constraint(equalTo: container.topAnchor),
+      textView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
-    NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
-      name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
     textView.delegate = self
     textView.backgroundColor = .clear
     textView.textContainerInset = UIEdgeInsets(top: 12, left: 22, bottom: 12, right: 22)
@@ -127,15 +123,10 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
   }
 
   deinit {
-    NotificationCenter.default.removeObserver(self)
     channel.setMethodCallHandler(nil)
   }
 
-  func view() -> UIView { glass }
-
-  @objc private func updateGlass() {
-    glass.applyMaterial(surface: surface)
-  }
+  func view() -> UIView { container }
 
   func textViewDidChange(_ textView: UITextView) {
     updatePlaceholder()
@@ -161,9 +152,7 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
 
   private func updateAppearance(_ input: [String: Any]) {
     let dark = input["dark"] as? Bool ?? false
-    glass.overrideUserInterfaceStyle = dark ? .dark : .light
-    surface = color(input["surface"], .secondarySystemBackground)
-    updateGlass()
+    container.overrideUserInterfaceStyle = dark ? .dark : .light
     textView.keyboardAppearance = dark ? .dark : .light
     textView.textColor = color(input["foreground"], .label)
     textView.tintColor = color(input["accent"], .systemBlue)

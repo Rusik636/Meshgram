@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:pointycastle/export.dart' show AESEngine, KeyParameter;
 
 import '../app_name.dart';
+import '../mesh/contact_attachment.dart';
 import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
@@ -71,13 +72,18 @@ class MeshCoreAdapter
   @override
   Uri? contactCode(Peer peer, NodeIdentity identity) {
     final type = identity.type;
-    if (type == null || type < 1 || type > 4) return null;
+    if (type == null ||
+        type < 1 ||
+        type > 4 ||
+        !validContactKey(identity.publicKey)) {
+      return null;
+    }
     return Uri(
       scheme: 'meshcore',
       host: 'contact',
       path: '/add',
       queryParameters: {
-        'name': peer.name,
+        'name': fitContactName(peer.name, 31),
         'public_key': identity.publicKey,
         'type': '$type',
       },
@@ -86,14 +92,41 @@ class MeshCoreAdapter
 
   @override
   ({String id, String publicKey})? readContactCode(Uri uri) {
+    final contact = readContactAttachment(uri);
+    return contact == null
+        ? null
+        : (id: contact.id, publicKey: contact.publicKey);
+  }
+
+  @override
+  ContactAttachment? readContactAttachment(Uri uri) {
     if (uri.scheme != 'meshcore' ||
         uri.host != 'contact' ||
-        uri.path != '/add') {
+        uri.path != '/add' ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasPort ||
+        uri.hasFragment) {
       return null;
     }
     final key = uri.queryParameters['public_key']?.toLowerCase();
-    if (key == null || !RegExp(r'^[a-f0-9]{64}$').hasMatch(key)) return null;
-    return (id: 'node:${key.substring(0, 12)}', publicKey: key);
+    final type = int.tryParse(uri.queryParameters['type'] ?? '');
+    if (key == null ||
+        !validContactKey(key) ||
+        type == null ||
+        type < 1 ||
+        type > 4) {
+      return null;
+    }
+    final prefix = key.substring(0, 12);
+    final name = fitContactName(uri.queryParameters['name'] ?? '', 31);
+    return (
+      network: id,
+      id: 'node:$prefix',
+      name: name.isNotEmpty ? name : prefix,
+      publicKey: key,
+      type: type,
+      shortName: null,
+    );
   }
 
   @override
@@ -369,6 +402,7 @@ class _CoreSession
         RadioOnboardingSession,
         RadioChannelSession,
         RadioConversationSession,
+        RadioContactSession,
         RadioPositionSession,
         RadioRestartSession {
   _CoreSession(this.link);
@@ -1175,6 +1209,49 @@ class _CoreSession
     _publish();
     return peer;
   }
+
+  @override
+  Future<Peer> importContact(ContactAttachment contact) => _serial(() async {
+    if (!_ready || _closed || contact.network != 'meshcore') {
+      throw StateError('contact-import-unavailable');
+    }
+    final type = contact.type;
+    final publicKey = contact.publicKey;
+    if (!validContactKey(publicKey) ||
+        type == null ||
+        type < 1 ||
+        type > 4 ||
+        publicKey == _publicKey ||
+        contact.id != 'node:${publicKey.substring(0, 12)}') {
+      throw const FormatException('Invalid MeshCore contact');
+    }
+    final existing = _identities[contact.id];
+    if (existing != null) {
+      if (existing.publicKey != publicKey) {
+        throw StateError('contact-key-conflict');
+      }
+      return _directory[contact.id]!;
+    }
+    final key = _keyBytes(publicKey);
+    final name = utf8.encode(fitContactName(contact.name, 31));
+    await _expectNodeCommand([
+      9,
+      ...key,
+      type,
+      0, // Flags.
+      0xff, // Unknown route, flood discovery on first send.
+      ...List.filled(64, 0),
+      ...name,
+      ...List.filled(32 - name.length, 0),
+      ...List.filled(8, 0), // No advertisement timestamp or shared position.
+    ]);
+    final stored = await _command([30, ...key], {3});
+    if (stored.length < 132 ||
+        MeshCoreFrames.hex(stored.sublist(1, 33)) != publicKey) {
+      throw StateError('contact-import-unconfirmed');
+    }
+    return _directory[contact.id]!;
+  });
 
   @override
   bool canRemovePeer(Peer peer) =>

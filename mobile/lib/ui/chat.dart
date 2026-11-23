@@ -13,9 +13,11 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:leap_sliver_list/leap_sliver_list.dart';
 
 import '../app_name.dart';
+import '../mesh/chat_position.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import 'channel_avatars.dart';
+import 'chat_attachments.dart';
 import 'style.dart';
 import 'page_route.dart';
 import 'ios_control.dart';
@@ -25,11 +27,13 @@ import 'emoji_text.dart';
 import 'radio_settings.dart';
 import 'profile_page.dart';
 import 'message_input.dart';
+import 'message_links.dart';
 import 'message_details.dart';
 import 'message_menu.dart';
 import 'message_reactions.dart';
 import 'navigation.dart';
 import 'node_actions.dart';
+import 'position_picker.dart';
 import '../mesh/store.dart';
 
 class MeshChatPage extends StatefulWidget {
@@ -72,6 +76,7 @@ class _ChatState extends State<MeshChatPage>
   );
   late bool _searching = widget.initialSearch;
   bool _sending = false;
+  Uri? _dismissedDraftLink;
   bool _menuVisible = false;
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
@@ -188,7 +193,14 @@ class _ChatState extends State<MeshChatPage>
     if (reply != null && !controller.canUseMessageActions(peer, reply)) return;
     setState(() => _sending = true);
     try {
-      final sent = await controller.send(peer, text, reply: reply);
+      final dismissed = _dismissedDraftLink;
+      final sent = await controller.send(
+        peer,
+        text,
+        reply: reply,
+        suppressLinkPreview:
+            dismissed != null && firstMessageLink(text) == dismissed,
+      );
       if (mounted &&
           sent &&
           reply != null &&
@@ -197,10 +209,101 @@ class _ChatState extends State<MeshChatPage>
       }
       if (mounted && sent && _draft.text.trim() == text) {
         _draft.clear();
+        _dismissedDraftLink = null;
         widget.controller.setDraft(peer.id, '');
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _notice(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _attach(Peer peer) async {
+    final controller = widget.controller;
+    final radio = controller.active;
+    final budget = controller.limit(peer);
+    if (_sending || radio == null || budget == null) return;
+    _dismissKeyboard();
+    final contacts =
+        [
+          for (final node in controller.nodes)
+            (peer: node, link: controller.shareContactAttachment(node, budget)),
+        ]..sort(
+          (a, b) =>
+              a.peer.name.toLowerCase().compareTo(b.peer.name.toLowerCase()),
+        );
+    final text = await pickChatAttachment(
+      context,
+      contacts: contacts,
+      initialPosition: controller.cache?.localPosition,
+    );
+    if (!mounted || text == null || _sending) return;
+    if (controller.active != radio || !controller.connected) {
+      _notice(
+        tr(
+          context,
+          'Рация отключилась. Подключите её и повторите отправку.',
+          'The radio disconnected. Reconnect it and send again.',
+        ),
+      );
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      if (!await controller.sendAttachment(peer, text) && mounted) {
+        _notice(
+          tr(
+            context,
+            'Не удалось отправить вложение',
+            'Could not send attachment',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  final _importing = <String>{};
+
+  Future<void> _useContact(String link, {required bool openChat}) async {
+    if (!_importing.add(link)) return;
+    try {
+      final controller = widget.controller;
+      final peer = await controller.importContactAttachment(link);
+      if (!mounted) return;
+      if (peer == null) {
+        _notice(
+          tr(
+            context,
+            'Контакт недоступен для выбранной рации',
+            'This contact is unavailable for the selected radio',
+          ),
+        );
+      } else if (openChat &&
+          controller.canOpenChat(peer) &&
+          peer.writable &&
+          peer.id != widget.peer.id) {
+        await showMeshChat(context, controller, peer);
+      } else if (!openChat) {
+        _notice(
+          tr(context, 'Контакт добавлен в узлы', 'Contact added to nodes'),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _notice(
+          tr(
+            context,
+            'Не удалось добавить контакт. Проверьте соединение с рацией и ключ узла.',
+            'Could not add contact. Check the radio connection and node key.',
+          ),
+        );
+      }
+    } finally {
+      _importing.remove(link);
     }
   }
 
@@ -223,12 +326,14 @@ class _ChatState extends State<MeshChatPage>
       );
       return;
     }
-    if (_draft.text.trim() == message.text) {
+    if (!message.isAttachment && _draft.text.trim() == message.text) {
       _draft.clear();
       controller.setDraft(peer.id, '');
     }
     final reply = controller.replyDraft(peer.id);
-    if (reply != null && controller.referenceFor(reply) == message.replyTo) {
+    if (!message.isAttachment &&
+        reply != null &&
+        controller.referenceFor(reply) == message.replyTo) {
       controller.setReplyDraft(peer.id, null);
     }
   }
@@ -397,6 +502,12 @@ class _ChatState extends State<MeshChatPage>
       final peer = controller.cache?.peers[widget.peer.id] ?? widget.peer;
       final style = MeshStyle.of(context);
       final outgoing = _draft.text.trim();
+      final draftLink =
+          chatPosition(outgoing) == null &&
+              controller.contactAttachment(outgoing) == null
+          ? firstMessageLink(outgoing)
+          : null;
+      final previewLink = draftLink == _dismissedDraftLink ? null : draftLink;
       final bytes = utf8.encode(outgoing).length;
       final characters = outgoing.characters.length;
       final limit = controller.limit(peer);
@@ -526,44 +637,114 @@ class _ChatState extends State<MeshChatPage>
                               item.replyTo,
                             );
                             final emoji = emojiCatalog?.singleEmoji(item.text);
-                            _Bubble bubble([ValueChanged<Rect>? onMenu]) =>
-                                _Bubble(
-                                  item: item,
-                                  emoji: emoji,
-                                  channel: peer.channel,
-                                  joinsPrevious: _joins(previous, item),
-                                  joinsNext: _joins(item, next),
-                                  quoted: quote,
-                                  onQuote: onMenu == null || quote == null
-                                      ? null
-                                      : () => unawaited(_revealQuote(quote)),
-                                  highlight:
-                                      onMenu != null && _highlighted == item.id
-                                      ? _highlightOpacity
+                            final contact = controller.contactAttachment(
+                              item.text,
+                            );
+                            final location = contact == null
+                                ? chatPosition(item.text)
+                                : null;
+                            final knownContact = contact == null
+                                ? null
+                                : controller.findContactCode(item.text);
+                            final link = contact == null
+                                ? firstMessageLink(item.text)
+                                : null;
+                            Widget? card(bool interactive) {
+                              if (contact != null) {
+                                final canWrite =
+                                    knownContact?.writable ??
+                                    (contact.type == null || contact.type == 1);
+                                return _ContactCard(
+                                  name: knownContact?.name ?? contact.name,
+                                  id: contact.id,
+                                  onAdd:
+                                      interactive &&
+                                          contact.network ==
+                                              controller.active?.network &&
+                                          knownContact == null
+                                      ? () => unawaited(
+                                          _useContact(
+                                            item.text,
+                                            openChat: false,
+                                          ),
+                                        )
                                       : null,
-                                  reactions: reactions,
-                                  onMenu: onMenu,
-                                  onAuthor: onMenu == null
-                                      ? null
-                                      : () => openChannelAuthorProfile(
-                                          context,
-                                          item,
-                                          controller.messageAuthor(item),
-                                          _openAuthorProfile,
-                                        ),
-                                  onReact:
-                                      onMenu != null &&
-                                          controller.canReact(peer, item)
-                                      ? (emoji) =>
-                                            unawaited(_react(peer, item, emoji))
-                                      : null,
-                                  onRetry:
-                                      canSend &&
-                                          item.delivery.canRetry &&
-                                          onMenu != null
-                                      ? () => unawaited(_retry(peer, item))
+                                  onWrite:
+                                      interactive &&
+                                          contact.network ==
+                                              controller.active?.network &&
+                                          canWrite
+                                      ? () => unawaited(
+                                          _useContact(
+                                            item.text,
+                                            openChat: true,
+                                          ),
+                                        )
                                       : null,
                                 );
+                              }
+                              if (location != null) {
+                                return MeshLocationPreview(
+                                  position: location.point,
+                                  loadTiles: false,
+                                );
+                              }
+                              return link == null || item.suppressLinkPreview
+                                  ? null
+                                  : MessageLinkPreview(
+                                      uri: link,
+                                      foreground: style.text,
+                                    );
+                            }
+
+                            _Bubble bubble([ValueChanged<Rect>? onMenu]) {
+                              final attachment = card(onMenu != null);
+                              return _Bubble(
+                                item: item,
+                                emoji: emoji,
+                                hideText:
+                                    contact != null ||
+                                    location?.standalone == true,
+                                preview: attachment == null || onMenu != null
+                                    ? attachment
+                                    : IgnorePointer(child: attachment),
+                                link: link,
+                                channel: peer.channel,
+                                joinsPrevious: _joins(previous, item),
+                                joinsNext: _joins(item, next),
+                                quoted: quote,
+                                onQuote: onMenu == null || quote == null
+                                    ? null
+                                    : () => unawaited(_revealQuote(quote)),
+                                highlight:
+                                    onMenu != null && _highlighted == item.id
+                                    ? _highlightOpacity
+                                    : null,
+                                reactions: reactions,
+                                onMenu: onMenu,
+                                onAuthor: onMenu == null
+                                    ? null
+                                    : () => openChannelAuthorProfile(
+                                        context,
+                                        item,
+                                        controller.messageAuthor(item),
+                                        _openAuthorProfile,
+                                      ),
+                                onReact:
+                                    onMenu != null &&
+                                        controller.canReact(peer, item)
+                                    ? (emoji) =>
+                                          unawaited(_react(peer, item, emoji))
+                                    : null,
+                                onRetry:
+                                    canSend &&
+                                        item.delivery.canRetry &&
+                                        onMenu != null
+                                    ? () => unawaited(_retry(peer, item))
+                                    : null,
+                              );
+                            }
+
                             return Column(
                               key: ValueKey(item.id),
                               mainAxisSize: MainAxisSize.min,
@@ -704,44 +885,6 @@ class _ChatState extends State<MeshChatPage>
                                 ),
                               )
                             else ...[
-                              if (reply != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 5),
-                                  child: GlassSurface(
-                                    radius: 16,
-                                    child: Row(
-                                      children: [
-                                        const SizedBox(width: 12),
-                                        Icon(
-                                          Icons.reply_rounded,
-                                          color: style.accent,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: _MessageQuote(
-                                            message: reply,
-                                            onTap: () =>
-                                                unawaited(_revealQuote(reply)),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: tr(
-                                            context,
-                                            'Отменить ответ',
-                                            'Cancel reply',
-                                          ),
-                                          onPressed: () => controller
-                                              .setReplyDraft(peer.id, null),
-                                          icon: const Icon(
-                                            Icons.close_rounded,
-                                            size: 18,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(8, 0, 7, 5),
                                 child: Row(
@@ -814,31 +957,12 @@ class _ChatState extends State<MeshChatPage>
                                   ],
                                 ),
                               ),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Expanded(
-                                    child: MessageInput(
-                                      key: _input,
-                                      hidePlatformView: _menuVisible,
-                                      controller: _draft,
-                                      onChanged: (value) {
-                                        controller.setDraft(peer.id, value);
-                                        setState(() {});
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GlassButton(
-                                    preferNative: !_menuVisible,
-                                    icon: Icons.arrow_upward_rounded,
-                                    primary: send,
-                                    label: tr(context, 'Отправить', 'Send'),
-                                    onTap: send
-                                        ? () => unawaited(_send(peer))
-                                        : null,
-                                  ),
-                                ],
+                              _composerControls(
+                                peer,
+                                reply,
+                                previewLink,
+                                canSend: canSend,
+                                send: send,
                               ),
                             ],
                           ],
@@ -853,6 +977,96 @@ class _ChatState extends State<MeshChatPage>
       );
     },
   );
+
+  Widget _composerControls(
+    Peer peer,
+    MeshMessage? reply,
+    Uri? previewLink, {
+    required bool canSend,
+    required bool send,
+  }) {
+    final controller = widget.controller;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        GlassButton(
+          preferNative: !_menuVisible,
+          icon: Icons.attach_file_rounded,
+          label: tr(context, 'Вложения', 'Attachments'),
+          onTap: controller.connected && canSend && !_sending
+              ? () => unawaited(_attach(peer))
+              : null,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GlassSurface(
+            radius: 23,
+            modal: !_menuVisible,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (reply != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 3, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _MessageQuote(
+                            message: reply,
+                            onTap: () => unawaited(_revealQuote(reply)),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: tr(
+                            context,
+                            'Отменить ответ',
+                            'Cancel reply',
+                          ),
+                          onPressed: () =>
+                              controller.setReplyDraft(peer.id, null),
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (previewLink != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(7, 7, 7, 0),
+                    child: MessageLinkPreview(
+                      uri: previewLink,
+                      compact: true,
+                      onDismiss: () =>
+                          setState(() => _dismissedDraftLink = previewLink),
+                    ),
+                  ),
+                MessageInput(
+                  key: _input,
+                  hidePlatformView: _menuVisible,
+                  controller: _draft,
+                  onChanged: (value) {
+                    controller.setDraft(peer.id, value);
+                    setState(() {
+                      if (firstMessageLink(value) != _dismissedDraftLink) {
+                        _dismissedDraftLink = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GlassButton(
+          preferNative: !_menuVisible,
+          icon: Icons.arrow_upward_rounded,
+          primary: send,
+          label: tr(context, 'Отправить', 'Send'),
+          onTap: send ? () => unawaited(_send(peer)) : null,
+        ),
+      ],
+    );
+  }
 
   Widget _heading(Peer peer, MeshStyle style) {
     final title = peer.channel
@@ -1075,6 +1289,9 @@ class _Bubble extends StatelessWidget {
     required this.joinsNext,
     required this.quoted,
     required this.reactions,
+    required this.hideText,
+    this.preview,
+    this.link,
     this.onMenu,
     this.onReact,
     this.onRetry,
@@ -1085,6 +1302,9 @@ class _Bubble extends StatelessWidget {
   final VoidCallback? onAuthor;
   final MeshMessage item;
   final String? emoji;
+  final bool hideText;
+  final Widget? preview;
+  final Uri? link;
   final bool channel, joinsPrevious, joinsNext;
   final MeshMessage? quoted;
   final List<ChatReaction> reactions;
@@ -1168,6 +1388,9 @@ class _Bubble extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(12, 7, 9, 5),
                       child: _MessageContent(
                         item: item,
+                        hideText: hideText,
+                        preview: preview,
+                        link: link,
                         stateLabel: subtitle,
                         showAuthor: showAuthor,
                         quoted: quoted,
@@ -1350,6 +1573,9 @@ class _MessageContent extends StatelessWidget {
     required this.showAuthor,
     required this.quoted,
     required this.reactions,
+    required this.hideText,
+    this.preview,
+    this.link,
     this.onTap,
     this.onReact,
     this.onRetry,
@@ -1360,6 +1586,9 @@ class _MessageContent extends StatelessWidget {
   final VoidCallback? onAuthor;
   final MeshMessage item;
   final String stateLabel;
+  final bool hideText;
+  final Widget? preview;
+  final Uri? link;
   final bool showAuthor;
   final MeshMessage? quoted;
   final List<ChatReaction> reactions;
@@ -1414,7 +1643,7 @@ class _MessageContent extends StatelessWidget {
 
         final maxWidth = constraints.maxWidth;
         final stampWidth = math.min(stampSize.width, maxWidth);
-        final body = measure(item.text, textStyle, maxWidth);
+        final body = measure(hideText ? '' : item.text, textStyle, maxWidth);
         final lastLine = body.computeLineMetrics().lastOrNull;
         final bodyWidth = body.width;
         body.dispose();
@@ -1424,6 +1653,7 @@ class _MessageContent extends StatelessWidget {
             : (lastLine.left + lastLine.width + gap + stampWidth)
                   .ceilToDouble();
         final textHasRoom =
+            preview == null &&
             lastLine != null &&
             inlineWidth <= maxWidth &&
             lastLine.height >= stampSize.height;
@@ -1482,21 +1712,36 @@ class _MessageContent extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 5),
                     child: _MessageQuote(message: quoted, onTap: onQuote),
                   ),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTap,
-                  onDoubleTap: onReact == null ? null : () => onReact!('❤️'),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minWidth: chips == null ? textMinWidth : bubbleWidth,
-                    ),
-                    child: EmojiText(
-                      item.text,
-                      style: textStyle,
-                      textAlign: TextAlign.left,
+                if (!hideText)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTap,
+                    onDoubleTap: onReact == null ? null : () => onReact!('❤️'),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: chips == null ? textMinWidth : bubbleWidth,
+                      ),
+                      child: link == null
+                          ? EmojiText(
+                              item.text,
+                              style: textStyle,
+                              textAlign: TextAlign.left,
+                            )
+                          : MessageLinkifiedText(
+                              text: item.text,
+                              style: textStyle,
+                              linkColor: item.outgoing && style.dark
+                                  ? style.text
+                                  : style.accent,
+                              textAlign: TextAlign.left,
+                            ),
                     ),
                   ),
-                ),
+                if (preview case final card?)
+                  Padding(
+                    padding: EdgeInsets.only(top: hideText ? 0 : 7, bottom: 3),
+                    child: SizedBox(width: maxWidth, child: card),
+                  ),
                 ?chips,
                 if (!inlineText && !inlineReactions)
                   SizedBox(height: stampSize.height + 2),
@@ -1521,6 +1766,83 @@ class _MessageContent extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({
+    required this.name,
+    required this.id,
+    this.onAdd,
+    this.onWrite,
+  });
+
+  final String name, id;
+  final VoidCallback? onAdd, onWrite;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MeshStyle.of(context);
+    return Material(
+      color: style.text.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(13),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.badge_outlined, color: style.accent, size: 24),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: style.text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        id,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: style.secondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (onAdd != null || onWrite != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Wrap(
+                  spacing: 5,
+                  children: [
+                    if (onWrite != null)
+                      TextButton(
+                        onPressed: onWrite,
+                        child: Text(tr(context, 'Написать', 'Message')),
+                      ),
+                    if (onAdd != null)
+                      TextButton(
+                        onPressed: onAdd,
+                        child: Text(tr(context, 'Добавить', 'Add contact')),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

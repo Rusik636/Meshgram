@@ -12,6 +12,7 @@ import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/rendering.dart'
     show RenderParagraph, RenderRepaintBoundary;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -21,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:meshgrame/main.dart';
 import 'package:meshgrame/local_notifications.dart';
+import 'package:meshgrame/mesh/contact_attachment.dart';
 import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/message_packet.dart';
 import 'package:meshgrame/mesh/network.dart';
@@ -385,6 +387,7 @@ class _FrameSubscription implements StreamSubscriptionHandle {
 class _CoreSettingsLink extends _TestLink {
   late void Function(Uint8List) reply;
   final commands = <List<int>>[];
+  List<int>? importedContact;
   var power = 14;
   var batteryMillivolts = 3754;
   var name = 'Field node';
@@ -475,7 +478,14 @@ class _CoreSettingsLink extends _TestLink {
       reply(peer);
       if (bytes.first == 30) return;
     }
-    if (bytes.first == 9) storedContactFlags = bytes[34];
+    if (bytes.first == 9) {
+      storedContactFlags = bytes[34];
+      importedContact = [3, ...bytes.skip(1)];
+    }
+    if (bytes.first == 30 && importedContact != null) {
+      reply(Uint8List.fromList(importedContact!));
+      return;
+    }
     if (bytes.first == 13) staleAdminPath = false;
     if (bytes.first == 52) {
       expect(bytes, [52, 0, ...repeaterKey]);
@@ -660,6 +670,7 @@ Future<List<RadioField>> _traceResult(
 
 class _TasticSettingsLink extends _TestLink {
   final frames = <Uint8List>[];
+  List<int>? importedContact;
   var deviceRead = false;
   bool includeRemote = false;
   bool delayRouteReply = false;
@@ -854,6 +865,12 @@ class _TasticSettingsLink extends _TestLink {
               .toBuffer(),
         );
       }
+      if (importedContact case final contact?) {
+        frames.add(
+          (CodedBufferWriter()..writeField(4, PbFieldType.OY, contact))
+              .toBuffer(),
+        );
+      }
       frames.add(
         (CodedBufferWriter()
               ..writeField(3, PbFieldType.OY, identity.toBuffer())
@@ -915,6 +932,10 @@ class _TasticSettingsLink extends _TestLink {
     expect(_varint(packet, 17), remote ? 1 : 0);
     final passkey = remote ? remoteKey : key;
     final admin = _fields(_buffer(payload, 2));
+    if (admin.hasField(66)) {
+      importedContact = _buffer(admin, 66);
+      return;
+    }
     if (admin.hasField(41)) {
       final position = _fields(_buffer(admin, 41));
       fixedPosition = (
@@ -2861,6 +2882,101 @@ void main() {
     expect(invite.queryParameters['type'], '2');
     expect(core.readContactCode(invite), (id: repeater.id, publicKey: key));
   });
+
+  test(
+    'MeshCore writes a contact without a saved route and confirms it',
+    () async {
+      final link = _CoreSettingsLink();
+      final adapter = const MeshCoreAdapter();
+      final session = adapter.createSession(link);
+      addTearDown(session.close);
+      await session.start();
+      const peer = (
+        id: 'node:121212121212',
+        name: 'Полевой узел',
+        writable: true,
+        channel: false,
+      );
+      final code = adapter.contactCode(peer, (
+        publicKey: '12' * 32,
+        type: 1,
+        shortName: null,
+      ))!;
+      final contact = adapter.readContactAttachment(code)!;
+      expect(
+        await (session as RadioContactSession).importContact(contact),
+        peer,
+      );
+      final add = link.commands.singleWhere((item) => item.first == 9);
+      expect(add.sublist(33, 36), [1, 0, 0xff]);
+      expect(link.commands.singleWhere((item) => item.first == 30), [
+        30,
+        ...List.filled(32, 0x12),
+      ]);
+      expect(
+        await (session as RadioContactSession).importContact(contact),
+        peer,
+      );
+      expect(link.commands.where((item) => item.first == 9), hasLength(1));
+    },
+  );
+
+  test('a compact contact fits the smallest channel payload', () {
+    final code = const MeshCoreAdapter().contactCode(
+      (
+        id: 'node:121212121212',
+        name: 'Полевой узел',
+        writable: true,
+        channel: false,
+      ),
+      (publicKey: '12' * 32, type: 1, shortName: null),
+    )!;
+    final source = const MeshCoreAdapter().readContactAttachment(code)!;
+    expect(code.toString().length, greaterThan(80));
+    final invite = compactContactLink(source, 80)!;
+    expect(invite.length, lessThanOrEqualTo(80));
+    final parsed = readCompactContact(Uri.parse(invite))!;
+    expect(parsed.id, source.id);
+    expect(parsed.publicKey, source.publicKey);
+    expect(parsed.name, 'Поле');
+    expect(compactContactLink(source, 10), isNull);
+  });
+
+  test(
+    'Meshtastic imports a contact without marking its key as verified',
+    () async {
+      final link = _TasticSettingsLink();
+      final adapter = const MeshtasticAdapter();
+      final session = adapter.createSession(link);
+      addTearDown(session.close);
+      await session.start();
+      const node = (
+        id: 'node:51',
+        name: 'Mira',
+        writable: true,
+        channel: false,
+      );
+      ContactAttachment details(String key) => adapter.readContactAttachment(
+        adapter.contactCode(node, (
+          publicKey: key,
+          type: null,
+          shortName: 'MR',
+        ))!,
+      )!;
+      final importer = session as RadioContactSession;
+      final original = details('09' * 32);
+      expect(await importer.importContact(original), node);
+      final written = _fields(link.importedContact!);
+      expect(_varint(written, 1), 51);
+      expect(_buffer(_fields(_buffer(written, 2)), 8), List.filled(32, 9));
+      expect(written.hasField(3), isFalse);
+      expect(written.hasField(4), isFalse);
+      await expectLater(
+        importer.importContact(details('10' * 32)),
+        throwsStateError,
+      );
+    },
+  );
 
   testWidgets(
     'contact QR expands from its entry point and closes back to it',
@@ -4870,6 +4986,141 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(find.textContaining('TERMS AND CONDITIONS FOR USE'), findsOneWidget);
+  });
+
+  testWidgets('node map opens the profile of a located node', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshCoreAdapter(), MeshtasticAdapter()],
+      preview: true,
+    );
+    Peer? opened;
+    try {
+      final positioned = controller.nodes.first;
+      final unmapped = controller.nodes.last;
+      controller.cache!.observations.remove(unmapped.id);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: const MeshStyle(true).theme(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: MeshNodesPage(
+            controller: controller,
+            openChat: (_) async {},
+            openProfile: (peer) async => opened = peer,
+          ),
+        ),
+      );
+      final map = find.byTooltip('Node map');
+      expect(map, findsOneWidget);
+      final sort = find.byTooltip('Sort by');
+      expect(sort, findsOneWidget);
+      expect(tester.getRect(map).right, lessThan(tester.getRect(sort).left));
+
+      await tester.tap(map);
+      await tester.pumpAndSettle();
+      expect(find.text('Node map'), findsOneWidget);
+      expect(find.byType(MeshMap), findsOneWidget);
+      expect(find.text(unmapped.name), findsNothing);
+
+      await tester.tap(find.text(positioned.name));
+      expect(opened, positioned);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    }
+  });
+
+  testWidgets('known position in a contact opens the interactive map', (
+    tester,
+  ) async {
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshCoreAdapter(), MeshtasticAdapter()],
+      preview: true,
+    );
+    try {
+      final peer = controller.nodes.first;
+      final position = controller.nodeObservation(peer.id)!.position!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: NodeActionsPanel(controller: controller, peer: peer),
+            ),
+          ),
+        ),
+      );
+
+      final preview = find.byType(MeshLocationPreview);
+      expect(preview, findsOneWidget);
+      await tester.ensureVisible(preview);
+      await tester.tap(find.text('Last known position'));
+      await tester.pumpAndSettle();
+      expect(find.text(peer.name), findsOneWidget);
+      final map = tester.widget<MeshMap>(find.byType(MeshMap));
+      expect(map.interactive, isTrue);
+      expect(map.pins.single.position, position);
+      expect(
+        find.text(formatMapCoordinates(position, digits: 6)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    }
+  });
+
+  testWidgets('map tap and pan keep the selected longitude in range', (
+    tester,
+  ) async {
+    const initial = (latitude: 55.75, longitude: 179.999);
+    NodePosition? tapped;
+    NodePosition? moved;
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MeshMap(
+              center: initial,
+              zoom: 15,
+              showCrosshair: true,
+              loadTiles: false,
+              onMapTap: (position) => tapped = position,
+              onCenterChanged: (position) => moved = position,
+            ),
+          ),
+        ),
+      );
+      final map = find.byType(FlutterMap);
+      final layer = tester.widget<TileLayer>(find.byType(TileLayer));
+      expect(layer.tileProvider, isNot(isA<NetworkTileProvider>()));
+      await tester.tapAt(tester.getCenter(map) + const Offset(100, -55));
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(tapped, isNotNull);
+      expect(tapped!.longitude, inInclusiveRange(-180, -179.99));
+      expect(tapped!.latitude, greaterThan(initial.latitude));
+      await tester.drag(map, const Offset(-100, 55));
+      await tester.pumpAndSettle();
+      expect(moved, isNotNull);
+      expect(moved!.longitude, inInclusiveRange(-180, -179.99));
+      expect(moved!.latitude, greaterThan(initial.latitude));
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 
   testWidgets('map attribution stays centered at the bottom safe edge', (

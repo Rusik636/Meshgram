@@ -68,6 +68,8 @@ class MeshMessage {
     this.remoteId,
     this.replyTo,
     this.packet,
+    this.isAttachment = false,
+    this.suppressLinkPreview = false,
   });
 
   final String id, chat, author, text;
@@ -75,6 +77,8 @@ class MeshMessage {
   final Delivery delivery;
   final String? remoteId, replyTo;
   final MessagePacket? packet;
+  final bool isAttachment;
+  final bool suppressLinkPreview;
   bool get outgoing => delivery != Delivery.received;
 
   MeshMessage withDelivery(Delivery value) => withUpdate(delivery: value);
@@ -92,6 +96,8 @@ class MeshMessage {
     delivery: delivery ?? this.delivery,
     remoteId: reference ?? remoteId,
     replyTo: replyTo,
+    isAttachment: isAttachment,
+    suppressLinkPreview: suppressLinkPreview,
     packet: packet == null ? this.packet : this.packet?.merge(packet) ?? packet,
   );
 
@@ -104,6 +110,8 @@ class MeshMessage {
     'delivery': delivery.name,
     'remoteId': ?remoteId,
     'replyTo': ?replyTo,
+    if (isAttachment) 'isAttachment': true,
+    if (suppressLinkPreview) 'suppressLinkPreview': true,
     'packet': ?packet?.toJson(),
   };
 
@@ -116,6 +124,8 @@ class MeshMessage {
     delivery: Delivery.values.byName(json['delivery'] as String),
     remoteId: json['remoteId'] as String?,
     replyTo: json['replyTo'] as String?,
+    isAttachment: json['isAttachment'] == true,
+    suppressLinkPreview: json['suppressLinkPreview'] == true,
     packet: switch (json['packet']) {
       final Map value => MessagePacket.fromJson(value),
       _ => null,
@@ -538,9 +548,23 @@ abstract interface class RadioOnboardingSession {
 
 typedef NodeIdentity = ({String publicKey, int? type, String? shortName});
 
+typedef ContactAttachment = ({
+  String network,
+  String id,
+  String name,
+  String publicKey,
+  int? type,
+  String? shortName,
+});
+
 abstract interface class NetworkContactCodes {
   Uri? contactCode(Peer peer, NodeIdentity identity);
   ({String id, String publicKey})? readContactCode(Uri uri);
+  ContactAttachment? readContactAttachment(Uri uri);
+}
+
+abstract interface class RadioContactSession {
+  Future<Peer> importContact(ContactAttachment contact);
 }
 
 abstract interface class RemoteAdminSession {

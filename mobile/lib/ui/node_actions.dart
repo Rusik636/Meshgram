@@ -4,12 +4,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart' hide Radio;
-import 'package:flutter/services.dart';
 
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import '../mesh/route_trace.dart';
+import 'mesh_map.dart';
 import 'style.dart';
 import 'signal.dart';
 
@@ -252,18 +252,19 @@ class _NodeActionsPanelState extends State<NodeActionsPanel> {
             ?action(NodeAction.environment),
             ?action(NodeAction.position),
             if (observation?.position case final position?)
-              MeshRow(
-                title: tr(
-                  context,
-                  'Последние координаты',
-                  'Last known position',
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: MeshLocationPreview(
+                  position: position,
+                  title: tr(
+                    context,
+                    'Последние координаты',
+                    'Last known position',
+                  ),
+                  onTap: () => unawaited(
+                    openMeshLocation(context, position, title: peer.name),
+                  ),
                 ),
-                subtitle:
-                    '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}',
-                icon: Icons.location_on_outlined,
-                tint: const Color(0xff168a87),
-                showChevron: false,
-                onTap: () => unawaited(_copyPosition(position)),
               ),
           ],
         ),
@@ -365,15 +366,6 @@ class _NodeActionsPanelState extends State<NodeActionsPanel> {
         },
       ),
     );
-  }
-
-  Future<void> _copyPosition(NodePosition position) async {
-    await Clipboard.setData(
-      ClipboardData(text: '${position.latitude}, ${position.longitude}'),
-    );
-    if (mounted) {
-      _notify(tr(context, 'Координаты скопированы', 'Coordinates copied'));
-    }
   }
 
   Widget _section(BuildContext context, String title, List<Widget> rows) {

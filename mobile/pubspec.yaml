@@ -27,6 +27,8 @@ dependencies:
   leap_sliver_list: ^0.6.0
   latlong2: ^0.10.1
   url_launcher: ^6.3.3
+  geolocator: ^14.1.1
+  html: ^0.15.6
 dev_dependencies:
   flutter_test:
     sdk: flutter

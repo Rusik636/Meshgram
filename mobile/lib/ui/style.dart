@@ -242,6 +242,8 @@ class GlassButton extends StatelessWidget {
         Icons.edit_outlined => 'pencil',
         Icons.close_rounded => 'xmark',
         Icons.sort_rounded => 'line.3.horizontal.decrease',
+        Icons.map_outlined => 'map',
+        Icons.attach_file_rounded => 'paperclip',
         Icons.qr_code_2_rounded => 'qrcode',
         Icons.qr_code_scanner_rounded => 'qrcode.viewfinder',
         Icons.ios_share_rounded => 'square.and.arrow.up',

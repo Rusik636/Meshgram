@@ -10,6 +10,7 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:protobuf/protobuf.dart';
 
+import '../mesh/contact_attachment.dart';
 import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
@@ -98,28 +99,26 @@ class MeshtasticAdapter
     if (number == null ||
         number <= 0 ||
         number >= meshBroadcast ||
-        !RegExp(r'^[a-f0-9]{64}$').hasMatch(key)) {
+        !validContactKey(key)) {
       return null;
     }
-    final id = '!${number.toRadixString(16).padLeft(8, '0')}';
-    final user = CodedBufferWriter()
-      ..writeField(1, PbFieldType.OY, utf8.encode(id))
-      ..writeField(2, PbFieldType.OY, utf8.encode(peer.name))
-      ..writeField(3, PbFieldType.OY, utf8.encode(identity.shortName ?? ''))
-      ..writeField(8, PbFieldType.OY, [
-        for (var i = 0; i < key.length; i += 2)
-          int.parse(key.substring(i, i + 2), radix: 16),
-      ]);
-    final contact = CodedBufferWriter()
-      ..writeField(1, PbFieldType.OU3, number)
-      ..writeField(2, PbFieldType.OY, user.toBuffer());
-    return Uri.https('meshtastic.org', '/v/').replace(
-      fragment: base64Url.encode(contact.toBuffer()).replaceAll('=', ''),
-    );
+    final contact = _sharedContact(number, peer.name, identity.shortName, key);
+    return Uri.https(
+      'meshtastic.org',
+      '/v/',
+    ).replace(fragment: base64Url.encode(contact).replaceAll('=', ''));
   }
 
   @override
   ({String id, String publicKey})? readContactCode(Uri uri) {
+    final contact = readContactAttachment(uri);
+    return contact == null
+        ? null
+        : (id: contact.id, publicKey: contact.publicKey);
+  }
+
+  @override
+  ContactAttachment? readContactAttachment(Uri uri) {
     final segments = uri.pathSegments.where((part) => part.isNotEmpty).toList();
     final web =
         uri.scheme == 'https' &&
@@ -147,13 +146,32 @@ class MeshtasticAdapter
       final key = user.bytes(8);
       if (number <= 0 ||
           number >= meshBroadcast ||
-          user.string(1).isEmpty ||
+          user.string(1).toLowerCase() != _nodeLabel(number) ||
           key.length != 32 ||
           key.every((byte) => byte == 0)) {
         return null;
       }
-      return (id: 'node:$number', publicKey: _hexKey(key));
-    } on Object {
+      final name = fitContactName(user.string(2), 39);
+      final shortName = fitContactName(user.string(3), 4);
+      return (
+        network: id,
+        id: 'node:$number',
+        name: name.isNotEmpty
+            ? name
+            : shortName.isNotEmpty
+            ? shortName
+            : _nodeLabel(number),
+        publicKey: _hexKey(key),
+        type: null,
+        shortName: shortName.isNotEmpty ? shortName : null,
+      );
+    } on FormatException {
+      return null;
+    } on InvalidProtocolBufferException {
+      return null;
+    } on RangeError {
+      return null;
+    } on TypeError {
       return null;
     }
   }
@@ -196,6 +214,27 @@ extension _Fields on Map<int, Object> {
 }
 
 String _nodeLabel(int number) => '!${number.toRadixString(16).padLeft(8, '0')}';
+
+Uint8List _sharedContact(
+  int number,
+  String name,
+  String? shortName,
+  String publicKey,
+) {
+  final user = CodedBufferWriter()
+    ..writeField(1, PbFieldType.OY, utf8.encode(_nodeLabel(number)))
+    ..writeField(2, PbFieldType.OY, utf8.encode(fitContactName(name, 39)))
+    ..writeField(
+      3,
+      PbFieldType.OY,
+      utf8.encode(fitContactName(shortName ?? '', 4)),
+    )
+    ..writeField(8, PbFieldType.OY, contactKeyBytes(publicKey));
+  return (CodedBufferWriter()
+        ..writeField(1, PbFieldType.OU3, number)
+        ..writeField(2, PbFieldType.OY, user.toBuffer()))
+      .toBuffer();
+}
 
 ({double? snr, int? rssi}) _receivedSignal(Map<int, Object> packet) {
   final snr = packet.containsKey(8)
@@ -408,6 +447,7 @@ class _TasticSession
         RadioOnboardingSession,
         RadioChannelSession,
         RadioConversationSession,
+        RadioContactSession,
         RadioPositionSession,
         RadioRestartSession {
   _TasticSession(this.link);
@@ -422,7 +462,7 @@ class _TasticSession
   final _nodeRoles = <int, MeshNodeRole>{};
   final _slots = <int, Map<int, Object>>{};
   final _random = Random.secure();
-  final _prepared = Completer<void>();
+  Completer<void>? _directorySync;
   final _sent = <int, ({String id, int destination})>{};
   final _confirmed = <int>{};
   StreamSubscription<void>? _disconnect;
@@ -460,22 +500,33 @@ class _TasticSession
 
   @override
   Future<void> start() async {
-    final ready = _prepared.future.timeout(const Duration(seconds: 22));
-    unawaited(ready.then<void>((_) {}, onError: (Object _) {}));
     _disconnect = link.disconnected.listen((_) => _linkEnded());
     _notifications = await link.subscribe(_notice, (_) => _requestRead());
-    _nonce = 1 + _random.nextInt(65000);
-    await link.write(
-      _tx,
-      (CodedBufferWriter()..writeField(3, PbFieldType.OU3, _nonce)).toBuffer(),
-    );
-    _requestRead();
-    await ready;
+    await _syncDirectory(1 + _random.nextInt(65000));
     if (_self == 0) {
       throw StateError('Meshtastic radio did not report its identity');
     }
     _ready = true;
     _publish();
+  }
+
+  Future<void> _syncDirectory(int nonce) async {
+    final sync = _directorySync = Completer<void>();
+    _nonce = nonce;
+    final ready = sync.future.timeout(const Duration(seconds: 22));
+    unawaited(ready.then<void>((_) {}, onError: (Object _) {}));
+    try {
+      await link.write(
+        _tx,
+        (CodedBufferWriter()..writeField(3, PbFieldType.OU3, nonce)).toBuffer(),
+      );
+      _requestRead();
+      await ready;
+    } finally {
+      _nonce = 0;
+      _directorySync = null;
+      if (_ready) _publish();
+    }
   }
 
   void _requestRead() {
@@ -617,7 +668,7 @@ class _TasticSession
                 : _nodeRoles[number] != MeshNodeRole.repeater),
       );
     }
-    if (_ready) _publish();
+    if (_ready && _directorySync == null) _publish();
   }
 
   NodePosition? _position(Map<int, Object> fields) {
@@ -685,8 +736,9 @@ class _TasticSession
       _neighborInfoEnabled = module.message(10).number(1) != 0;
     }
     if (data.containsKey(10)) _rememberChannel(data.message(10));
-    if (data.number(7) == _nonce && _nonce != 0 && !_prepared.isCompleted) {
-      _prepared.complete();
+    if (_directorySync case final sync?
+        when data.number(7) == _nonce && !sync.isCompleted) {
+      sync.complete();
     }
     if (data.containsKey(11)) {
       final status = data.message(11);
@@ -1490,6 +1542,52 @@ class _TasticSession
   });
 
   @override
+  Future<Peer> importContact(ContactAttachment contact) =>
+      _serialAdmin(() async {
+        if (!_ready || _closed || contact.network != 'meshtastic') {
+          throw StateError('contact-import-unavailable');
+        }
+        final number = int.tryParse(contact.id.split(':').last);
+        final publicKey = contact.publicKey;
+        if (number == null ||
+            number <= 0 ||
+            number >= meshBroadcast ||
+            number == _self ||
+            publicKey == _publicKey ||
+            contact.id != 'node:$number' ||
+            !validContactKey(publicKey)) {
+          throw const FormatException('Invalid Meshtastic contact');
+        }
+        await _owner();
+        final existing = _publicKeys[number];
+        if (existing != null) {
+          if (_hexKey(existing) != publicKey) {
+            throw StateError('contact-key-conflict');
+          }
+          return _directory[contact.id]!;
+        }
+        await _admin(
+          CodedBufferWriter()..writeField(
+            66,
+            PbFieldType.OY,
+            _sharedContact(number, contact.name, contact.shortName, publicKey),
+          ),
+          reply: false,
+        );
+        // Wait for a later local admin reply before requesting the snapshot.
+        // An admin write alone can still be queued on the radio.
+        await _owner();
+        // 69421 requests the node directory on current companions. Older radio
+        // firmware responds with the standard configuration and directory.
+        await _syncDirectory(69421);
+        final confirmed = _publicKeys[number];
+        if (confirmed == null || _hexKey(confirmed) != publicKey) {
+          throw StateError('contact-import-unconfirmed');
+        }
+        return _directory[contact.id]!;
+      });
+
+  @override
   bool canRemovePeer(Peer peer) {
     if (!_ready || _closed || !_directory.containsKey(peer.id)) return false;
     if (!peer.channel) return true;
@@ -2251,8 +2349,8 @@ class _TasticSession
     if (_nodeRequest case final pending? when !pending.reply.isCompleted) {
       pending.reply.completeError(StateError('Radio disconnected'));
     }
-    if (!_prepared.isCompleted) {
-      _prepared.completeError(StateError('Radio disconnected'));
+    if (_directorySync case final sync? when !sync.isCompleted) {
+      sync.completeError(StateError('Radio disconnected'));
     }
     await _disconnect?.cancel();
     await _notifications?.cancel();

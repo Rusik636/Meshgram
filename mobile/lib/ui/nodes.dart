@@ -9,6 +9,8 @@ import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import 'chat_management.dart';
+import 'mesh_map.dart';
+import 'page_route.dart';
 import 'style.dart';
 import 'swipe_actions.dart';
 
@@ -168,30 +170,42 @@ class _MeshNodesPageState extends State<MeshNodesPage> {
                           ? setState(_selected.clear)
                           : Navigator.pop(context),
                     ),
-                    trailing: GlassButton(
-                      icon: editing
-                          ? Icons.delete_outline_rounded
-                          : Icons.sort_rounded,
-                      label: editing
-                          ? tr(context, 'Удалить выбранные', 'Delete selected')
-                          : tr(context, 'Сортировка', 'Sort by'),
-                      onTap: editing
-                          ? (_deleting
+                    sideWidth: editing ? 48 : 104,
+                    trailing: editing
+                        ? GlassButton(
+                            icon: Icons.delete_outline_rounded,
+                            label: tr(
+                              context,
+                              'Удалить выбранные',
+                              'Delete selected',
+                            ),
+                            onTap: _deleting
                                 ? null
                                 : () => unawaited(
-                                    _remove(
-                                      nodes
-                                          .where(
-                                            (peer) =>
-                                                _selected.contains(peer.id),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ))
-                          : controller.active == null
-                          ? null
-                          : () => unawaited(_pickSort(context)),
-                    ),
+                                    _remove([
+                                      for (final peer in nodes)
+                                        if (_selected.contains(peer.id)) peer,
+                                    ]),
+                                  ),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GlassButton(
+                                icon: Icons.map_outlined,
+                                label: tr(context, 'Карта узлов', 'Node map'),
+                                onTap: () => unawaited(_openMap(context)),
+                              ),
+                              const SizedBox(width: 8),
+                              GlassButton(
+                                icon: Icons.sort_rounded,
+                                label: tr(context, 'Сортировка', 'Sort by'),
+                                onTap: controller.active == null
+                                    ? null
+                                    : () => unawaited(_pickSort(context)),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ),
@@ -287,6 +301,17 @@ class _MeshNodesPageState extends State<MeshNodesPage> {
     },
   );
 
+  Future<void> _openMap(BuildContext context) => Navigator.of(context)
+      .push<void>(
+        meshPageRoute(
+          context,
+          builder: (_) => _NodeMapPage(
+            controller: controller,
+            openProfile: widget.openProfile,
+          ),
+        ),
+      );
+
   String? _subtitle(BuildContext context, Peer peer, NodeSort sort) {
     final observation = controller.nodeObservation(peer.id);
     switch (sort) {
@@ -330,6 +355,85 @@ class _MeshNodesPageState extends State<MeshNodesPage> {
       _ => null,
     };
   }
+}
+
+class _NodeMapPage extends StatelessWidget {
+  const _NodeMapPage({required this.controller, required this.openProfile});
+
+  final MeshController controller;
+  final Future<void> Function(Peer) openProfile;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) {
+      final style = MeshStyle.of(context);
+      final safe = MediaQuery.paddingOf(context);
+      final pins = [
+        for (final peer in controller.nodes)
+          if (controller.nodeObservation(peer.id)?.position
+              case final position?)
+            MeshMapPin(
+              position: position,
+              label: peer.name,
+              onTap: () => unawaited(openProfile(peer)),
+            ),
+      ];
+      return Scaffold(
+        body: Padding(
+          padding: EdgeInsets.only(bottom: safe.bottom),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: MeshMap(
+                  key: ValueKey((controller.active, pins.isEmpty)),
+                  center: pins.isEmpty ? controller.cache?.localPosition : null,
+                  pins: pins,
+                  fitPins: true,
+                ),
+              ),
+              Positioned(
+                left: safe.left,
+                right: safe.right,
+                top: safe.top,
+                child: PageHeading(
+                  tr(context, 'Карта узлов', 'Node map'),
+                  titleBackground: style.surface,
+                  leading: GlassButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    label: tr(context, 'Назад', 'Back'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+              if (pins.isEmpty)
+                Positioned(
+                  left: safe.left + 16,
+                  right: safe.right + 16,
+                  bottom: 29,
+                  child: GlassSurface(
+                    radius: 15,
+                    color: style.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        tr(
+                          context,
+                          'Пока нет узлов с известными координатами',
+                          'No nodes with known coordinates yet',
+                        ),
+                        style: TextStyle(color: style.secondary),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _NodeRow extends StatelessWidget {
