@@ -931,31 +931,26 @@ Future<T?> showMeshSheet<T>({
   backgroundColor: Colors.transparent,
   builder: (context) {
     final style = MeshStyle.of(context);
-    const edge = BorderRadius.vertical(top: Radius.circular(28));
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 7, top: 5),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: style.secondary,
-              borderRadius: BorderRadius.circular(4),
+    return Material(
+      color: style.canvas,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7, top: 5),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: style.secondary,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const SizedBox(width: 34, height: 4),
             ),
-            child: const SizedBox(width: 34, height: 4),
           ),
-        ),
-        Flexible(
-          child: useIosControls
-              ? GlassSurface(modal: true, child: builder(context))
-              : Material(
-                  color: style.canvas,
-                  borderRadius: edge,
-                  clipBehavior: Clip.antiAlias,
-                  child: builder(context),
-                ),
-        ),
-      ],
+          Flexible(child: builder(context)),
+        ],
+      ),
     );
   },
 );
