@@ -3,12 +3,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meshgrame/mesh/controller.dart';
+import 'package:meshgrame/mesh/store.dart';
+import 'package:meshgrame/radio/ble_transport.dart';
+import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/chat_attachments.dart';
+import 'package:meshgrame/ui/home.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _contacts = [
   (
@@ -186,22 +192,59 @@ void main() {
     },
   );
 
-  testWidgets('keeps the tab bar at one height when switching panes', (
+  testWidgets('aligns both attachment tabs with the iPhone home tabs', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
     tester.view.viewPadding = tester.view.padding;
     addTearDown(tester.view.reset);
-    await _openPicker(tester, (_) {}, platform: TargetPlatform.iOS);
+
+    SharedPreferences.setMockInitialValues({});
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: BleTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        home: MeshHome(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final homeBar = find.byType(MeshNavigation);
+    double homeTabCenter(String label) => tester
+        .getCenter(find.descendant(of: homeBar, matching: find.text(label)))
+        .dy;
+    final homeChatTab = homeTabCenter('Chats');
+    final homeSettingsTab = homeTabCenter('Settings');
+    await tester.tap(find.text('Тропа'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Attachments'));
+    await tester.pumpAndSettle();
+
     final bar = find.byType(MeshTabBar);
     final atRest = tester.getRect(bar);
+    final contactTab = find.descendant(of: bar, matching: find.text('Contact'));
+    void expectAligned() {
+      expect(tester.getCenter(_locationTab).dy, closeTo(homeChatTab, .5));
+      expect(tester.getCenter(contactTab).dy, closeTo(homeSettingsTab, .5));
+    }
 
-    await tester.tap(find.text('Contact'));
+    expectAligned();
+    await tester.tap(contactTab);
     await tester.pumpAndSettle();
     expect(tester.getRect(bar), atRest);
+    expectAligned();
     await tester.tap(_locationTab);
     await tester.pumpAndSettle();
     expect(tester.getRect(bar), atRest);
+    expectAligned();
     expect(tester.takeException(), isNull);
   });
 
