@@ -406,6 +406,7 @@ class _ChatState extends State<MeshChatPage>
         context: context,
         anchor: overlay.globalToLocal(anchor.topLeft) & anchor.size,
         canReact: controller.canChooseReaction(peer, message),
+        recentReactions: controller.recentReactionEmojis,
         canReply: controller.canUseMessageActions(peer, message),
         outgoing: message.outgoing,
         bubble: bubble,

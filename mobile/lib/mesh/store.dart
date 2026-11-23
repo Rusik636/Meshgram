@@ -396,6 +396,11 @@ class MeshStore {
   Future<bool> setAppearance(String value) =>
       preferences.setString('${_key}appearance', value);
 
+  List<String>? get recentReactionEmojis =>
+      preferences.getStringList('${_key}recentReactionEmojis');
+  Future<bool> setRecentReactionEmojis(List<String> emojis) =>
+      preferences.setStringList('${_key}recentReactionEmojis', emojis);
+
   String? nodeSort(String network) =>
       preferences.getString('${_key}nodeSort.$network');
   Future<bool> setNodeSort(String network, NodeSort sort) =>

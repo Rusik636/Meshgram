@@ -1928,6 +1928,54 @@ class MeshController extends ChangeNotifier {
 
   String? nodeName(String id) => cache?.peers[id]?.name;
 
+  static const _recentReactionLimit = 3;
+  List<String>? _legacyReactionEmojis;
+
+  List<String> get recentReactionEmojis =>
+      store.recentReactionEmojis ??
+      (_legacyReactionEmojis ??= _previousReactionEmojis());
+
+  List<String> _previousReactionEmojis() {
+    // Upgrades can recover the recent choices from the existing radio history.
+    final own =
+        [
+          for (final radio in radios)
+            ..._cacheFor(radio).reactions
+                .where((reaction) => reaction.own && reaction.emoji.isNotEmpty),
+        ]..sort(
+          (a, b) => (b.time?.millisecondsSinceEpoch ?? 0).compareTo(
+            a.time?.millisecondsSinceEpoch ?? 0,
+          ),
+        );
+    final recent = <String, String>{};
+    for (final reaction in own) {
+      recent.putIfAbsent(reaction.emojiKey, () => reaction.emoji);
+      if (recent.length == _recentReactionLimit) break;
+    }
+    return recent.values.toList();
+  }
+
+  void _rememberReactionEmoji(MeshReaction reaction) {
+    final previous = recentReactionEmojis;
+    final recent = [
+      reaction.emoji,
+      for (final emoji in previous)
+        if (reactionEmojiKey(emoji) != reaction.emojiKey) emoji,
+    ].take(_recentReactionLimit).toList();
+    if (listEquals(previous, recent) && store.recentReactionEmojis != null) {
+      return;
+    }
+    unawaited(
+      store
+          .setRecentReactionEmojis(recent)
+          .then<void>(
+            (_) {},
+            onError: (Object error) =>
+                debugPrint('Meshgram recent reactions: $error'),
+          ),
+    );
+  }
+
   final _pendingReactions = <(String, String, String, String)>{};
 
   Future<bool> react(Peer peer, MeshMessage message, String emoji) async {
@@ -1959,6 +2007,7 @@ class MeshController extends ChangeNotifier {
         await (session as NetworkReactions).react(peer, reference, emoji);
       }
       if (_addReaction(data, reaction)) {
+        _rememberReactionEmoji(reaction);
         _save(radio);
         _changed();
       }

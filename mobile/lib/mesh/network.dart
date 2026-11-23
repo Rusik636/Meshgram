@@ -133,6 +133,8 @@ class MeshMessage {
   );
 }
 
+String reactionEmojiKey(String emoji) => emoji.replaceAll('\ufe0f', '');
+
 class MeshReaction {
   const MeshReaction(
     this.chat,
@@ -145,7 +147,7 @@ class MeshReaction {
   final String chat, target, actor, emoji;
   final bool own;
   final DateTime? time;
-  String get emojiKey => emoji.replaceAll('\ufe0f', '');
+  String get emojiKey => reactionEmojiKey(emoji);
 
   bool matches(MeshReaction other) =>
       chat == other.chat &&
