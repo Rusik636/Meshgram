@@ -65,10 +65,17 @@ void main() {
     }
 
     final headingRect = tester.getRect(heading);
+    final title = find.text('Nodes');
+    final back = find.byTooltip('Back');
     final map = find.byTooltip('Node map');
     final sort = find.byTooltip('Sort by');
     final mapRect = tester.getRect(map);
     final sortRect = tester.getRect(sort);
+    double titleBetween(Finder action) =>
+        (tester.getRect(back).right + tester.getRect(action).left) / 2;
+    double titleX() => tester.getCenter(title).dx;
+    final expandedTitle = titleBetween(map);
+    expect(titleX(), closeTo(expandedTitle, .01));
     expectSoftHeader();
     final expanded = tester.getRect(field);
     expect(expanded.width, 358);
@@ -100,11 +107,11 @@ void main() {
 
     await tester.drag(list, const Offset(0, -180));
     await tester.pumpAndSettle();
-    final browseOffset = tester
-        .widget<CustomScrollView>(list)
-        .controller!
-        .offset;
+    final browseScroll = tester.widget<CustomScrollView>(list).controller!;
+    final browseOffset = browseScroll.offset;
     final compact = tester.getRect(field);
+    final compactTitle = titleBetween(field);
+    expect(titleX(), closeTo(compactTitle, .01));
     expect(compact.size, const Size.square(48));
     expect(compact.center.dy, headingRect.center.dy);
     expect(compact.right, lessThan(mapRect.left));
@@ -113,17 +120,27 @@ void main() {
     expect(tester.getRect(sort), sortRect);
     expectSoftHeader();
 
+    final collapseRange = meshSearchFieldHeight(tester.element(field)) + 8;
+    browseScroll.jumpTo(collapseRange / 2);
+    await tester.pump();
+    expect(titleX(), closeTo((expandedTitle + compactTitle) / 2, .01));
+    browseScroll.jumpTo(browseOffset);
+    await tester.pump();
+
     await tester.tap(find.byTooltip('Search nodes'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
     expect(tester.getRect(field).width, greaterThan(compact.width));
     expect(tester.getRect(field).top, greaterThan(compact.top));
+    expect(titleX(), inExclusiveRange(compactTitle, expandedTitle));
     await tester.pumpAndSettle();
     expect(tester.getRect(field).bottom, closeTo(784, .5));
     expect(tester.getRect(heading), headingRect);
+    expect(titleX(), closeTo(expandedTitle, .01));
     await tester.tap(find.byTooltip('Close search'));
     await tester.pumpAndSettle();
     expect(tester.getRect(field), compact);
+    expect(titleX(), closeTo(compactTitle, .01));
     expect(
       tester.widget<CustomScrollView>(list).controller!.offset,
       browseOffset,
@@ -152,6 +169,7 @@ void main() {
     expect(rotated.size, const Size.square(48));
     expect(rotated.right, lessThan(tester.getRect(map).left));
     expect(tester.getRect(map).right, lessThan(tester.getRect(sort).left));
+    expect(titleX(), closeTo(titleBetween(field), .01));
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());

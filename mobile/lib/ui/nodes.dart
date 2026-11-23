@@ -214,7 +214,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     (meshtasticNodeAddress(peer.id)?.contains(query) ?? false));
           }).toList();
     final canSearch = !editing && nodes.isNotEmpty;
-    final heading = _heading(context, nodes, editing, canSearch || _searching);
     final browse = _nodeList(
       context,
       scroll: _scroll,
@@ -234,6 +233,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
         final collapse = (offset / collapseRange).clamp(0.0, 1.0);
         final active = _searching || progress > 0;
         final compact = !active && collapse == 1;
+        final searchAtHeading = collapse * (1 - progress);
         final field = meshSearchFieldRect(
           width: width,
           normalTop: normalTop,
@@ -302,7 +302,12 @@ class _MeshNodesPageState extends State<MeshNodesPage>
               left: _headingInset,
               right: _headingInset,
               height: headingHeight,
-              child: heading,
+              child: _heading(
+                context,
+                nodes,
+                editing,
+                canSearch || active ? _headingSlot * searchAtHeading : 0,
+              ),
             ),
             if (canSearch || active)
               Positioned.fromRect(
@@ -329,7 +334,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                       )
                     : MeshSearchLauncher(
                         placeholder: placeholder,
-                        collapse: collapse * (1 - progress),
+                        collapse: searchAtHeading,
                         onTap: active ? null : _openSearch,
                       ),
               ),
@@ -354,7 +359,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     BuildContext context,
     List<Peer> nodes,
     bool editing,
-    bool reserveSearchSlot,
+    double searchSlotWidth,
   ) {
     final preferNative = ModalRoute.isCurrentOf(context) != false;
     return Row(
@@ -411,7 +416,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   ),
           )
         else ...[
-          if (reserveSearchSlot) const SizedBox(width: _headingSlot),
+          SizedBox(width: searchSlotWidth),
           GlassButton(
             icon: Icons.map_outlined,
             label: tr(context, 'Карта узлов', 'Node map'),
