@@ -5,6 +5,7 @@ import Flutter
 import UIKit
 
 let meshChatSymbol = "bubble.left"
+let meshLightGlassOutline = UIColor.black.withAlphaComponent(0.28)
 
 final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
   private let messenger: FlutterBinaryMessenger
@@ -274,7 +275,12 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     var configuration: UIButton.Configuration
     if #available(iOS 26.0, *), !reduceTransparency {
       configuration = primary ? .prominentGlass() : .glass()
-      if primary { configuration.baseBackgroundColor = accent }
+      if primary {
+        configuration.baseBackgroundColor = accent
+      } else if root.overrideUserInterfaceStyle == .light {
+        configuration.background.strokeWidth = 1
+        configuration.background.strokeColor = meshLightGlassOutline
+      }
     } else {
       configuration = .filled()
       configuration.baseBackgroundColor = primary ? accent : surface

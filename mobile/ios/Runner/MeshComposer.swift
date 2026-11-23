@@ -42,6 +42,9 @@ private class MeshInputGlass: UIVisualEffectView {
     } else {
       effect = UIBlurEffect(style: .systemThickMaterial)
     }
+    let light = overrideUserInterfaceStyle == .light
+    layer.borderWidth = light ? 1 : 0
+    layer.borderColor = light ? meshLightGlassOutline.cgColor : nil
   }
 }
 
