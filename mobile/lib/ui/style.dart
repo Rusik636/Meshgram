@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
+import 'mesh_icon.dart';
 import 'tokens.dart';
 
 String tr(BuildContext context, String ru, String en) =>
@@ -279,7 +280,7 @@ class GlassButton extends StatelessWidget {
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
           padding: EdgeInsets.zero,
-          icon: Icon(icon, size: 20),
+          icon: MeshIcon(icon, size: 20),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,
@@ -460,7 +461,11 @@ class MeshAvatar extends StatelessWidget {
             ),
           ),
           child: channel
-              ? Icon(Icons.tag_rounded, color: Colors.white, size: size * .45)
+              ? MeshIcon(
+                  Icons.tag_rounded,
+                  color: Colors.white,
+                  size: size * .45,
+                )
               : Text(
                   initials.isEmpty ? 'M' : initials,
                   style: TextStyle(
@@ -618,7 +623,7 @@ class MeshRowIcon extends StatelessWidget {
         colors: [Color.lerp(tint, Colors.white, .20)!, tint],
       ),
     ),
-    child: Icon(icon, size: 17, color: glyphColor),
+    child: MeshIcon(icon, size: 17, color: glyphColor),
   );
 }
 
@@ -674,7 +679,7 @@ class MeshRow extends StatelessWidget {
         trailing:
             trailing ??
             (selected
-                ? Icon(Icons.check_rounded, size: 21, color: style.accent)
+                ? MeshIcon(Icons.check_rounded, size: 21, color: style.accent)
                 : onTap == null || !showChevron
                 ? null
                 : Row(
@@ -688,7 +693,7 @@ class MeshRow extends StatelessWidget {
                             fontSize: 13,
                           ),
                         ),
-                      Icon(
+                      MeshIcon(
                         Icons.chevron_right_rounded,
                         color: style.secondary,
                         size: 19,
@@ -702,7 +707,7 @@ class MeshRow extends StatelessWidget {
   }
 }
 
-class PinnedPageList extends StatelessWidget {
+class PinnedPageList extends StatefulWidget {
   const PinnedPageList({
     super.key,
     required this.padding,
@@ -715,12 +720,75 @@ class PinnedPageList extends StatelessWidget {
   final List<Widget> children;
 
   @override
+  State<PinnedPageList> createState() => _PinnedPageListState();
+}
+
+class _PinnedPageListState extends State<PinnedPageList> {
+  static const _edgeHeight = 14.0;
+  final _edgeOpacity = ValueNotifier(0.0);
+
+  @override
+  void dispose() {
+    _edgeOpacity.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Padding(padding: padding.copyWith(bottom: 0), child: header),
+      Padding(
+        padding: widget.padding.copyWith(bottom: 0),
+        child: widget.header,
+      ),
       Expanded(
-        child: ListView(padding: padding.copyWith(top: 0), children: children),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.depth == 0) {
+                  _edgeOpacity.value =
+                      (notification.metrics.extentBefore / _edgeHeight).clamp(
+                        0.0,
+                        1.0,
+                      );
+                }
+                return false;
+              },
+              child: ListView(
+                padding: widget.padding.copyWith(top: 0),
+                children: widget.children,
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: _edgeHeight,
+              child: IgnorePointer(
+                child: ValueListenableBuilder(
+                  valueListenable: _edgeOpacity,
+                  builder: (context, opacity, _) {
+                    final canvas = MeshStyle.of(context).canvas;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            canvas.withValues(alpha: opacity),
+                            canvas.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ],
   );
