@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
 import 'mesh_icon.dart';
+import 'mesh_sheet_route.dart';
 import 'sheet_control_clip.dart';
 import 'sheet_scroll.dart';
 import 'tokens.dart';
@@ -971,7 +972,7 @@ Future<T?> showMeshSheet<T>({
   required WidgetBuilder builder,
 }) {
   final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
-  return showModalBottomSheet<T>(
+  return showMeshBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     enableDrag: true,
