@@ -16,11 +16,11 @@ class MessageInput extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onChanged,
-    this.hidePlatformView = false,
+    this.coveredByModal = false,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final bool hidePlatformView;
+  final bool coveredByModal;
 
   @override
   MessageInputState createState() => MessageInputState();
@@ -37,6 +37,7 @@ class MessageInputState extends State<MessageInput> {
   }
 
   void focusInput() {
+    if (widget.coveredByModal) return;
     if (_native) {
       _pendingFocus = _channel == null;
       _send('focus', true);
@@ -66,14 +67,22 @@ class MessageInputState extends State<MessageInput> {
       widget.controller.addListener(_syncText);
       _syncText();
     }
+    if (_native && widget.coveredByModal != oldWidget.coveredByModal) {
+      _pendingFocus = false;
+      _syncAppearance();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_native) return;
+    if (_native) _syncAppearance();
+  }
+
+  void _syncAppearance() {
     final style = MeshStyle.of(context);
     final appearance = <String, Object>{
+      'coveredByModal': widget.coveredByModal,
       'placeholder': tr(context, 'Сообщение', 'Message'),
       'dark': style.dark,
       'foreground': style.text.toARGB32(),
@@ -145,20 +154,14 @@ class MessageInputState extends State<MessageInput> {
     if (_native) {
       return SizedBox(
         height: _height,
-        child: Visibility(
-          visible: !widget.hidePlatformView,
-          maintainState: true,
-          maintainAnimation: true,
-          maintainSize: true,
-          child: UiKitView(
-            viewType: 'meshgrame/composer',
-            creationParams: {...?_appearance, 'text': widget.controller.text},
-            creationParamsCodec: const StandardMessageCodec(),
-            gestureRecognizers: {
-              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-            },
-            onPlatformViewCreated: _created,
-          ),
+        child: UiKitView(
+          viewType: 'meshgrame/composer',
+          creationParams: {...?_appearance, 'text': widget.controller.text},
+          creationParamsCodec: const StandardMessageCodec(),
+          gestureRecognizers: {
+            Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+          },
+          onPlatformViewCreated: _created,
         ),
       );
     }

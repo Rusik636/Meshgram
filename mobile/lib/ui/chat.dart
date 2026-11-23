@@ -137,8 +137,7 @@ class _ChatState extends State<MeshChatPage>
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
-  // Remove the composer platform view while a modal can own the keyboard.
-  bool get _useNativeComposer => !_menuVisible && !_attachmentOpen;
+  bool get _controlsCovered => _menuVisible || _attachmentOpen;
 
   bool get _canReadHistory => !_searching && _canPreviewLinks;
 
@@ -347,7 +346,7 @@ class _ChatState extends State<MeshChatPage>
                     'Go to latest message',
                   ),
                   onTap: () => unawaited(_goToLatest()),
-                  coveredByModal: !_useNativeComposer,
+                  coveredByModal: _controlsCovered,
                 ),
                 if (unread > 0)
                   Positioned(
@@ -1357,11 +1356,10 @@ class _ChatState extends State<MeshChatPage>
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         GlassButton(
-          coveredByModal: !_useNativeComposer,
+          coveredByModal: _controlsCovered,
           icon: Icons.attach_file_rounded,
           label: tr(context, 'Вложения', 'Attachments'),
-          onTap:
-              controller.connected && canSend && !_sending && !_attachmentOpen
+          onTap: controller.connected && canSend && !_sending
               ? () => unawaited(_attach(peer))
               : null,
         ),
@@ -1369,7 +1367,7 @@ class _ChatState extends State<MeshChatPage>
         Expanded(
           child: GlassSurface(
             radius: 23,
-            modal: _useNativeComposer,
+            modal: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1413,7 +1411,9 @@ class _ChatState extends State<MeshChatPage>
                   ),
                 MessageInput(
                   key: _input,
-                  hidePlatformView: !_useNativeComposer,
+                  coveredByModal:
+                      _controlsCovered ||
+                      ModalRoute.isCurrentOf(context) == false,
                   controller: _draft,
                   onChanged: (value) {
                     controller.setDraft(peer.id, value);
@@ -1430,7 +1430,7 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         GlassButton(
-          coveredByModal: !_useNativeComposer,
+          coveredByModal: _controlsCovered,
           icon: Icons.arrow_upward_rounded,
           primary: send,
           label: tr(context, 'Отправить', 'Send'),
@@ -1451,7 +1451,7 @@ class _ChatState extends State<MeshChatPage>
       'dark': style.dark,
       'enabled': true,
       'coveredByModal':
-          !_useNativeComposer || ModalRoute.isCurrentOf(context) == false,
+          _controlsCovered || ModalRoute.isCurrentOf(context) == false,
       'foreground': style.text.toARGB32(),
       'surface': style.surface.toARGB32(),
       'accent': style.accent.toARGB32(),
@@ -1462,7 +1462,7 @@ class _ChatState extends State<MeshChatPage>
       child: Row(
         children: [
           GlassButton(
-            coveredByModal: !_useNativeComposer,
+            coveredByModal: _controlsCovered,
             icon: Icons.arrow_back_ios_new_rounded,
             label: tr(context, 'Назад', 'Back'),
             onTap: () => Navigator.maybePop(context),
