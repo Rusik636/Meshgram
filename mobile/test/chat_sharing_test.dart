@@ -213,8 +213,10 @@ Finder _contactAvatar(String messageId, String contactName) => find.descendant(
 Future<void> _openAttachment(WidgetTester tester, String item) async {
   await tester.tap(find.byTooltip('Attachments'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(item));
-  await tester.pumpAndSettle();
+  if (item != 'Location') {
+    await tester.tap(find.text(item));
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<(MeshController, Peer)> _openChat(

@@ -79,6 +79,7 @@ class _ChatState extends State<MeshChatPage>
   bool _sending = false;
   Uri? _dismissedDraftLink;
   bool _menuVisible = false;
+  bool _attachmentOpen = false;
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
   final _footerKey = GlobalKey();
@@ -127,6 +128,7 @@ class _ChatState extends State<MeshChatPage>
       mounted &&
       !_searching &&
       !_menuVisible &&
+      !_attachmentOpen &&
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
@@ -472,8 +474,9 @@ class _ChatState extends State<MeshChatPage>
     final controller = widget.controller;
     final radio = controller.active;
     final budget = controller.limit(peer);
-    if (_sending || radio == null || budget == null) return;
+    if (_sending || _attachmentOpen || radio == null || budget == null) return;
     _dismissKeyboard();
+    setState(() => _attachmentOpen = true);
     final contacts =
         [
           for (final node in controller.nodes)
@@ -482,11 +485,34 @@ class _ChatState extends State<MeshChatPage>
           (a, b) =>
               a.peer.name.toLowerCase().compareTo(b.peer.name.toLowerCase()),
         );
-    final text = await pickChatAttachment(
-      context,
-      contacts: contacts,
-      initialPosition: controller.cache?.localPosition,
-    );
+    final String? text;
+    try {
+      Uint8List? backdrop;
+      if (useIosControls && !MediaQuery.highContrastOf(context)) {
+        try {
+          backdrop = await _glassBackdrop();
+        } on FlutterError {
+          // The chat may be relaid out while the system keyboard is closing.
+        } on Exception {
+          // The sheet can also open with a solid surface.
+        }
+      }
+      if (!mounted || _route?.isCurrent == false) return;
+      text = await pickChatAttachment(
+        context,
+        backdrop: backdrop,
+        contacts: contacts,
+        initialPosition: controller.cache?.localPosition,
+        locationNodes: [
+          for (final contact in contacts)
+            if (controller.nodeObservation(contact.peer.id)?.position
+                case final position?)
+              (name: contact.peer.name, position: position),
+        ],
+      );
+    } finally {
+      if (mounted) setState(() => _attachmentOpen = false);
+    }
     if (!mounted || text == null || _sending) return;
     if (controller.active != radio || !controller.connected) {
       _notice(
@@ -606,8 +632,8 @@ class _ChatState extends State<MeshChatPage>
 
   String? _previewMessageId;
 
-  // Only the blurred chat is sampled. Keeping this tiny color field separate
-  // prevents UIKit glass from refracting Flutter's foreground overlay.
+  // Capture only the chat before inserting the overlay and its controls.
+  // The downsampled image isolates UIKit glass from the foreground.
   Future<Uint8List?> _glassBackdrop() async {
     await WidgetsBinding.instance.endOfFrame;
     final boundary = _menuBackground.currentContext?.findRenderObject();
@@ -1275,7 +1301,8 @@ class _ChatState extends State<MeshChatPage>
           preferNative: !_menuVisible,
           icon: Icons.attach_file_rounded,
           label: tr(context, 'Вложения', 'Attachments'),
-          onTap: controller.connected && canSend && !_sending
+          onTap:
+              controller.connected && canSend && !_sending && !_attachmentOpen
               ? () => unawaited(_attach(peer))
               : null,
         ),
