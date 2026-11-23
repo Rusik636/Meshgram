@@ -6,6 +6,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
+import 'mesh_icon.dart';
 import 'navigation.dart';
 import 'style.dart';
 
@@ -149,7 +150,8 @@ class MeshSearchEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    if (preferNative && useIosControls) {
+    final ios = useIosControls;
+    if (preferNative && ios) {
       return SizedBox(
         height: meshSearchFieldHeight(context),
         child: IosControl(
@@ -183,7 +185,15 @@ class MeshSearchEditor extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.zero,
-        prefixIcon: const Icon(Icons.search_rounded),
+        prefixIcon: ios
+            ? const Center(
+                child: MeshIosButtonGlyph(
+                  Icons.search_rounded,
+                  symbol: 'magnifyingglass',
+                  size: 17 / .75,
+                ),
+              )
+            : const Icon(Icons.search_rounded),
         prefixIconConstraints: const BoxConstraints.tightFor(
           width: meshSearchButtonSize,
           height: meshSearchButtonSize,
@@ -225,7 +235,14 @@ class MeshSearchEditor extends StatelessWidget {
             message: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
-              icon: Icon(Icons.search_rounded, color: style.text, size: 20),
+              color: style.text,
+              icon: ios
+                  ? const MeshIosButtonGlyph(
+                      Icons.search_rounded,
+                      symbol: 'magnifyingglass',
+                      size: 19 / .75,
+                    )
+                  : const Icon(Icons.search_rounded, size: 20),
             ),
           );
         },

@@ -51,26 +51,29 @@ Future<void> _loadSymbolMasks() async {
 String? meshGlassButtonSymbol(IconData icon) => _glassButtonSymbols[icon]?.$1;
 
 class MeshIosButtonGlyph extends StatelessWidget {
-  const MeshIosButtonGlyph(this.icon, {super.key, required this.symbol});
+  const MeshIosButtonGlyph(
+    this.icon, {
+    super.key,
+    required this.symbol,
+    this.size = 31,
+  });
 
   final IconData icon;
   final String symbol;
-
-  // This canvas matches the optical size of the symbol in a UIKit glass button.
-  static const _extent = 31.0;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final mask = _symbolMasks[symbol];
     if (mask == null) {
-      return Icon(_glassButtonSymbols[icon]?.$2, size: 22);
+      return Icon(_glassButtonSymbols[icon]?.$2, size: size * 22 / 31);
     }
     final theme = IconTheme.of(context);
     final color = theme.color!;
     return RawImage(
       image: mask,
-      width: _extent,
-      height: _extent,
+      width: size,
+      height: size,
       color: color.withValues(alpha: color.a * (theme.opacity ?? 1)),
       colorBlendMode: BlendMode.srcIn,
     );
