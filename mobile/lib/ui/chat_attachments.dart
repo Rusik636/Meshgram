@@ -469,15 +469,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
       children: [
         if (showingMap) ...[
           Positioned.fill(child: _locationMap()),
-          Positioned.fill(
-            bottom: bottomObstruction,
-            child: Column(
-              children: [
-                _header(location, travel),
-                Expanded(child: _location()),
-              ],
-            ),
-          ),
           const PositionedDirectional(
             start: _attributionMargin,
             end: _attributionMargin,
@@ -485,6 +476,15 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
             child: Align(
               alignment: AlignmentDirectional.bottomEnd,
               child: MeshMapAttribution(),
+            ),
+          ),
+          Positioned.fill(
+            bottom: bottomObstruction,
+            child: Column(
+              children: [
+                _header(location, travel),
+                Expanded(child: _location()),
+              ],
             ),
           ),
         ] else ...[
