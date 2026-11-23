@@ -226,7 +226,6 @@ private final class MeshButtonHost: UIView {
     super.init(frame: frame)
     addSubview(glass)
     glass.contentView.addSubview(button)
-    button.automaticallyUpdatesConfiguration = false
   }
 
   required init?(coder: NSCoder) { nil }
