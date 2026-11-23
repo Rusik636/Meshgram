@@ -456,7 +456,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 Positioned(
                   left: nativeNavigation ? 0 : 14,
                   right: nativeNavigation ? 0 : 14,
-                  bottom: MeshTabBar.bottomOffset(context),
+                  bottom: MeshNavigation.bottomBarOffset(context),
                   child: ExcludeSemantics(
                     excluding: keyboard > 0,
                     child: IgnorePointer(
