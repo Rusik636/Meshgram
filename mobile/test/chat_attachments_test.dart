@@ -208,7 +208,6 @@ void main() {
       adapters: const [MeshtasticAdapter()],
       preview: true,
     );
-    addTearDown(controller.dispose);
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(platform: TargetPlatform.iOS),
@@ -246,6 +245,9 @@ void main() {
     expect(tester.getRect(bar), atRest);
     expectAligned();
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
   });
 
   testWidgets('tracks the finger and springs to the nearest detent', (
