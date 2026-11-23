@@ -5,7 +5,6 @@ import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meshgrame/mesh/contact_attachment.dart';
 import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/mesh/nodes.dart';
@@ -49,13 +48,18 @@ void main() {
     final sent = controller.messages(chat.id).where((item) => item.outgoing);
     final attachment = sent.single;
     expect(attachment.isAttachment, isTrue);
-    expect(controller.contactAttachment(attachment.text)?.id, contact.id);
+    final shared = controller.contactAttachment(attachment.text);
+    expect(shared?.id, contact.id);
+    expect(shared?.shortName, 'LR');
     expect(controller.draft(chat.id), draft);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
       draft,
     );
     expect(find.text(contact.name), findsOneWidget);
+    expect(_contactCaption('LR'), findsOneWidget);
+    expect(find.text('!00003039'), findsOneWidget);
+    expect(find.text(contact.id), findsNothing);
     expect(find.text(attachment.text), findsNothing);
     expect(_contactAvatar(attachment.id, contact.name), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -69,14 +73,17 @@ void main() {
     final (controller, chat) = await _openChat(
       tester,
       prepare: (controller, peer) {
-        final link = compactContactLink((
-          network: 'meshtastic',
-          id: contact.id,
-          name: contact.name,
-          publicKey: 'ae' * 32,
-          type: null,
-          shortName: null,
-        ), 200)!;
+        final link = const MeshtasticAdapter()
+            .contactCode(
+              (
+                id: contact.id,
+                name: contact.name,
+                writable: true,
+                channel: false,
+              ),
+              (publicKey: 'ae' * 32, type: null, shortName: 'BR'),
+            )!
+            .toString();
         controller.cache!.messages.add(
           MeshMessage(
             id: 'shared-contact',
@@ -98,6 +105,19 @@ void main() {
         .ancestor(of: avatar, matching: find.byType(InkWell))
         .first;
     expect(tester.getCenter(write).dx, closeTo(tester.getCenter(card).dx, .01));
+    final shortName = _contactCaption('BR');
+    final address = find.text('!0000141f');
+    final divider = find.descendant(of: card, matching: find.byType(Divider));
+    expect(find.text(contact.id), findsNothing);
+    expect(
+      tester.getTopLeft(shortName).dy,
+      greaterThan(tester.getTopLeft(find.text(contact.name)).dy),
+    );
+    expect(
+      tester.getTopLeft(address).dy,
+      greaterThan(tester.getTopLeft(shortName).dy),
+    );
+    expect(tester.getCenter(divider).dy, lessThan(tester.getTopLeft(write).dy));
     expect(find.text('Add contact'), findsNothing);
 
     await tester.tap(avatar);
@@ -109,6 +129,7 @@ void main() {
     expect(profile.peer.id, contact.id);
     expect(controller.cache!.peers[contact.id]?.name, contact.name);
     expect(controller.cache!.identities[contact.id]?.publicKey, 'ae' * 32);
+    expect(controller.cache!.identities[contact.id]?.shortName, 'BR');
     expect(controller.messages(chat.id).last.id, 'shared-contact');
 
     await tester.tap(
@@ -243,6 +264,10 @@ Finder _contactAvatar(String messageId, String contactName) => find.descendant(
   matching: find.byWidgetPredicate(
     (widget) => widget is MeshAvatar && widget.name == contactName,
   ),
+);
+
+Finder _contactCaption(String text) => find.byWidgetPredicate(
+  (widget) => widget is Text && widget.data == text && widget.maxLines == 1,
 );
 
 Future<void> _openAttachment(WidgetTester tester, String item) async {

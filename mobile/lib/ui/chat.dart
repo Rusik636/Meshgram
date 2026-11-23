@@ -977,9 +977,24 @@ class _ChatState extends State<MeshChatPage>
                                 final canWrite = knownContact != null
                                     ? controller.canSendTo(knownContact)
                                     : contact.type == null || contact.type == 1;
+                                final isMeshtastic =
+                                    contact.network == 'meshtastic';
+                                final localShortName = controller
+                                    .cache
+                                    ?.identities[knownContact?.id]
+                                    ?.shortName
+                                    ?.trim();
                                 return _ContactCard(
                                   name: knownContact?.name ?? contact.name,
-                                  id: contact.id,
+                                  id: isMeshtastic
+                                      ? meshtasticNodeAddress(contact.id) ??
+                                            contact.id
+                                      : contact.id,
+                                  shortName: isMeshtastic
+                                      ? localShortName?.isNotEmpty == true
+                                            ? localShortName
+                                            : contact.shortName?.trim()
+                                      : null,
                                   onOpenProfile: canOpen
                                       ? () => unawaited(
                                           _useContact(
@@ -2161,11 +2176,13 @@ class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.name,
     required this.id,
+    this.shortName,
     this.onOpenProfile,
     this.onWrite,
   });
 
   final String name, id;
+  final String? shortName;
   final VoidCallback? onOpenProfile, onWrite;
 
   @override
@@ -2199,6 +2216,16 @@ class _ContactCard extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        if (shortName case final short? when short.isNotEmpty)
+                          Text(
+                            short,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: style.secondary,
+                              fontSize: 12,
+                            ),
+                          ),
                         Text(
                           id,
                           maxLines: 1,
@@ -2213,14 +2240,14 @@ class _ContactCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (onWrite != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: TextButton(
-                    onPressed: onWrite,
-                    child: Text(tr(context, 'Написать', 'Message')),
-                  ),
+              if (onWrite != null) ...[
+                const SizedBox(height: 6),
+                Divider(height: 1, color: style.text.withValues(alpha: .16)),
+                TextButton(
+                  onPressed: onWrite,
+                  child: Text(tr(context, 'Написать', 'Message')),
                 ),
+              ],
             ],
           ),
         ),

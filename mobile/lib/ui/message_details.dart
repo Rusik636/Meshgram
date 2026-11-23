@@ -7,6 +7,12 @@ import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import 'style.dart';
 
+String? meshtasticNodeAddress(String id) {
+  final number = int.tryParse(id.startsWith('node:') ? id.substring(5) : id);
+  if (number == null || number < 0 || number > 0xffffffff) return null;
+  return '!${number.toRadixString(16).padLeft(8, '0')}';
+}
+
 String messageDeliveryLabel(
   BuildContext context,
   Delivery delivery, {
@@ -49,10 +55,9 @@ class MessageDetails extends StatelessWidget {
   String? _node(String? id, [String? name]) {
     if (id == null) return name?.isNotEmpty == true ? name : null;
     final key = id.startsWith('node:') ? id.substring(5) : id;
-    final number = radio?.network == 'meshtastic' ? int.tryParse(key) : null;
-    final address = number == null
-        ? key
-        : '!${number.toRadixString(16).padLeft(8, '0')}';
+    final address = radio?.network == 'meshtastic'
+        ? meshtasticNodeAddress(id) ?? key
+        : key;
     final label = nodeName(id) ?? name;
     return label == null || label.isEmpty || label == address
         ? address
