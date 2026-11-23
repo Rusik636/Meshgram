@@ -36,6 +36,10 @@ class MeshNodesPage extends StatefulWidget {
 
 class _MeshNodesPageState extends State<MeshNodesPage>
     with SingleTickerProviderStateMixin {
+  static const _headingInset = 14.0;
+  static const _headingGap = 8.0;
+  static const _headingSlot = meshSearchButtonSize + _headingGap;
+
   MeshController get controller => widget.controller;
   String? _revealed;
   bool _deleting = false;
@@ -176,7 +180,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
   Widget _scene(BuildContext context, BoxConstraints constraints) {
     final nodes = controller.nodes;
     final editing = _selected.isNotEmpty;
-    final style = MeshStyle.of(context);
     final safe = MediaQuery.viewPaddingOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final width = constraints.maxWidth;
@@ -208,7 +211,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     (meshtasticNodeAddress(peer.id)?.contains(query) ?? false));
           }).toList();
     final canSearch = !editing && nodes.isNotEmpty;
-    final heading = _heading(context, nodes, editing);
+    final heading = _heading(context, nodes, editing, canSearch || _searching);
     final browse = _nodeList(
       context,
       scroll: _scroll,
@@ -234,11 +237,11 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           compactTop: safe.top + 7 + (headingHeight - meshSearchButtonSize) / 2,
           activeTop: activeTop,
           fieldHeight: fieldHeight,
-          compactRight: 14,
+          compactRight: _headingInset + 2 * _headingSlot,
           progress: progress,
           collapse: collapse,
         );
-        final headerHeight =
+        final browseFadeEnd =
             normalTop +
             (canSearch ? collapseRange * (1 - collapse) * (1 - progress) : 0);
         return Stack(
@@ -250,50 +253,51 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   ignoring: _searching,
                   child: ExcludeSemantics(
                     excluding: _searching,
-                    child: Opacity(opacity: 1 - progress, child: browse),
+                    child: Opacity(
+                      opacity: 1 - progress,
+                      child: _NodeHeaderFade(
+                        hiddenUntil: safe.top,
+                        visibleFrom: browseFadeEnd,
+                        child: browse,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
             if (active)
               Positioned(
-                top: normalTop,
+                top: 0,
                 left: 0,
                 right: 0,
-                bottom: (height - activeTop + 8).clamp(
-                  0.0,
-                  math.max(0.0, height - normalTop),
-                ),
+                bottom: (height - activeTop + 8).clamp(0.0, height),
                 child: IgnorePointer(
                   ignoring: !_searching,
                   child: ExcludeSemantics(
                     excluding: !_searching,
                     child: Opacity(
                       opacity: progress,
-                      child: _nodeList(
-                        context,
-                        scroll: _results,
-                        nodes: results,
-                        padding: const EdgeInsets.only(bottom: 12),
-                        editing: false,
-                        searching: true,
+                      child: _NodeHeaderFade(
+                        hiddenUntil: safe.top,
+                        visibleFrom: normalTop,
+                        child: _nodeList(
+                          context,
+                          scroll: _results,
+                          nodes: results,
+                          padding: EdgeInsets.only(top: normalTop, bottom: 12),
+                          editing: false,
+                          searching: true,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: headerHeight,
-              child: ColoredBox(color: style.canvas),
-            ),
-            Positioned(
               key: const ValueKey('nodes-heading'),
               top: safe.top + 7,
-              left: 14,
-              right: 14,
+              left: _headingInset,
+              right: _headingInset,
               height: headingHeight,
               child: heading,
             ),
@@ -339,7 +343,12 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     );
   }
 
-  Widget _heading(BuildContext context, List<Peer> nodes, bool editing) {
+  Widget _heading(
+    BuildContext context,
+    List<Peer> nodes,
+    bool editing,
+    bool reserveSearchSlot,
+  ) {
     final preferNative = ModalRoute.isCurrentOf(context) != false;
     return Row(
       children: [
@@ -357,7 +366,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
             }
           },
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: _headingGap),
         Expanded(
           child: Semantics(
             header: true,
@@ -380,7 +389,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: _headingGap),
         if (editing)
           GlassButton(
             icon: Icons.delete_outline_rounded,
@@ -395,6 +404,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   ),
           )
         else ...[
+          if (reserveSearchSlot) const SizedBox(width: _headingSlot),
           GlassButton(
             icon: Icons.map_outlined,
             label: tr(context, 'Карта узлов', 'Node map'),
@@ -404,7 +414,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
               unawaited(_openMap(context));
             },
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: _headingGap),
           GlassButton(
             icon: Icons.sort_rounded,
             label: tr(context, 'Сортировка', 'Sort by'),
@@ -413,7 +423,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                 ? null
                 : () => unawaited(_pickSort(context)),
           ),
-          const SizedBox(width: 56),
         ],
       ],
     );
@@ -534,6 +543,39 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           ),
         ),
       );
+}
+
+class _NodeHeaderFade extends StatelessWidget {
+  const _NodeHeaderFade({
+    required this.hiddenUntil,
+    required this.visibleFrom,
+    required this.child,
+  });
+
+  final double hiddenUntil, visibleFrom;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    blendMode: BlendMode.dstIn,
+    shaderCallback: (bounds) {
+      final height = math.max(1.0, bounds.height);
+      final start = (hiddenUntil / height).clamp(0.0, 1.0);
+      final end = (visibleFrom / height).clamp(start, 1.0);
+      return LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [
+          Colors.transparent,
+          Colors.transparent,
+          Color(0x66ffffff),
+          Colors.white,
+        ],
+        stops: [0, start, (start + end) / 2, end],
+      ).createShader(bounds);
+    },
+    child: child,
+  );
 }
 
 class _NodeMapPage extends StatelessWidget {
