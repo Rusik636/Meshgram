@@ -189,6 +189,8 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     self.channel = channel
     super.init()
+    pendingFocus = input["autofocus"] as? Bool ?? true
+    field.text = input["initialText"] as? String
     glass.frame = frame
     glass.clipsToBounds = true
     glass.layer.cornerCurve = .continuous

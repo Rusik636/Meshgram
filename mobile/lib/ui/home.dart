@@ -25,6 +25,7 @@ import 'nodes.dart';
 import 'notification_settings.dart';
 import 'radio_settings.dart';
 import 'profile_page.dart';
+import 'search_field.dart';
 import 'style.dart';
 import 'page_route.dart';
 
@@ -225,7 +226,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       _searchActive = true;
       _searchCategories.jumpTo(_chatCategories.selected);
     });
-    _animateSearch(true);
+    animateMeshSearch(context, _searchMotion, open: true);
   }
 
   void _dismissSearchKeyboard() {
@@ -240,21 +241,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       _searchActive = false;
       _search.clear();
     });
-    _animateSearch(false);
-  }
-
-  void _animateSearch(bool open) {
-    final duration = meshMotion(context);
-    if (duration == Duration.zero) {
-      _searchMotion.value = open ? 1 : 0;
-      return;
-    }
-    _searchMotion.duration = duration;
-    if (open) {
-      _searchMotion.forward();
-    } else {
-      _searchMotion.reverse();
-    }
+    animateMeshSearch(context, _searchMotion, open: false);
   }
 
   Future<void> _showRadioSettings(Radio radio) => Navigator.of(context).push(
@@ -523,7 +510,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       )..layout(maxWidth: math.max(0, constraints.maxWidth - 216));
       final headingHeight = math.max(48.0, headingText.height) + 16;
       headingText.dispose();
-      final fieldHeight = math.max(48.0, scaler.scale(17) * 1.2 + 16);
+      final fieldHeight = meshSearchFieldHeight(context);
       final collapseRange = fieldHeight + 9;
       final normalFieldTop = safe.top + headingHeight + 3;
       final normalCategoriesTop = normalFieldTop + fieldHeight + 9;
@@ -593,7 +580,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       return AnimatedBuilder(
         animation: Listenable.merge([_searchMotion, _chatScroll]),
         builder: (context, _) {
-          final progress = Curves.easeInOutCubic.transform(_searchMotion.value);
+          final progress = meshSearchProgress(_searchMotion);
           final scroll = _chatScroll.hasClients ? _chatScroll.position : null;
           final collapse =
               !_editingChats &&
@@ -603,37 +590,22 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   scroll.maxScrollExtent > 0
               ? (scroll.pixels / collapseRange).clamp(0.0, 1.0)
               : 0.0;
-          const buttonSize = 48.0;
-          const compactRight = 72.0;
           final buttonTop =
-              safe.top + 7 + (headingHeight - 16 - buttonSize) / 2;
-          final collapsedFieldLeft =
-              constraints.maxWidth - compactRight - buttonSize;
+              safe.top + 7 + (headingHeight - 16 - meshSearchButtonSize) / 2;
           final categoriesTop = normalCategoriesTop - collapseRange * collapse;
           final headerHeight = normalHeaderHeight - collapseRange * collapse;
-          final fieldTop = lerpDouble(
-            lerpDouble(normalFieldTop, buttonTop, collapse),
-            safe.top + 7,
-            progress,
-          )!;
-          final left = lerpDouble(
-            lerpDouble(16, collapsedFieldLeft, collapse),
-            16,
-            progress,
-          )!;
-          final right = lerpDouble(
-            lerpDouble(16, compactRight, collapse),
-            compactRight,
-            progress,
-          )!;
-          final animatedHeight = lerpDouble(
-            lerpDouble(fieldHeight, buttonSize, collapse),
-            fieldHeight,
-            progress,
-          )!;
-          final fieldWidth = constraints.maxWidth - left - right;
+          final field = meshSearchFieldRect(
+            width: constraints.maxWidth,
+            normalTop: normalFieldTop,
+            compactTop: buttonTop,
+            activeTop: safe.top + 7,
+            fieldHeight: fieldHeight,
+            compactRight: 72,
+            progress: progress,
+            collapse: collapse,
+          );
           final compact = !_searchActive && collapse == 1 && progress == 0;
-          final resultsTop = fieldTop + fieldHeight + 9;
+          final resultsTop = field.top + fieldHeight + 9;
           final showCategories = progress == 0
               ? categoriesInChats
               : progress == 1
@@ -709,24 +681,30 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 ),
               Positioned(
                 key: const ValueKey('chat-search-field'),
-                top: fieldTop,
-                left: left,
-                right: right,
-                height: animatedHeight,
+                top: field.top,
+                left: field.left,
+                width: field.width,
+                height: field.height,
                 child: compact
                     ? GlassButton(
                         icon: Icons.search_rounded,
                         label: tr(context, 'Поиск', 'Search'),
                         onTap: _enterSearch,
                       )
-                    : _searchActive && fieldWidth >= 128
-                    ? _activeSearchField(style)
-                    : _searchLauncher(style, collapse * (1 - progress)),
+                    : _searchActive && field.width >= 128
+                    ? _activeSearchField()
+                    : MeshSearchLauncher(
+                        placeholder: tr(context, 'Поиск', 'Search'),
+                        collapse: collapse * (1 - progress),
+                        onTap: _editingChats || _showHidden
+                            ? null
+                            : _enterSearch,
+                      ),
               ),
               if (_searchActive || progress > 0)
                 Positioned(
                   key: const ValueKey('chat-search-close'),
-                  top: fieldTop + (fieldHeight - 48) / 2,
+                  top: field.top + (fieldHeight - meshSearchButtonSize) / 2,
                   right: lerpDouble(-48, 16, progress),
                   child: closeSearch,
                 ),
@@ -743,29 +721,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         },
       );
     },
-  );
-
-  Widget _searchLauncher(MeshStyle style, double collapse) => TextField(
-    readOnly: true,
-    canRequestFocus: false,
-    onTap: _editingChats || _showHidden ? null : _enterSearch,
-    textAlignVertical: TextAlignVertical.center,
-    decoration: InputDecoration(
-      hintText: tr(context, 'Поиск', 'Search'),
-      hintStyle: TextStyle(
-        color: style.secondary.withValues(alpha: 1 - collapse),
-      ),
-      hintMaxLines: 1,
-      prefixIcon: Icon(Icons.search_rounded, color: style.secondary, size: 22),
-      filled: true,
-      fillColor: Color.lerp(style.searchField, style.pill, collapse),
-      isDense: true,
-      contentPadding: EdgeInsets.zero,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(999),
-        borderSide: BorderSide.none,
-      ),
-    ),
   );
 
   Widget _chats(MeshStyle style, double headerHeight, double collapseRange) {
@@ -975,67 +930,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     );
   }
 
-  Widget _activeSearchField(MeshStyle style) {
-    final placeholder = tr(context, 'Поиск', 'Search');
-    if (useIosControls) {
-      final searchSession = _iosSearch;
-      final titleSize = MediaQuery.textScalerOf(context).scale(17);
-      return SizedBox(
-        height: (titleSize * 1.2 + 16).clamp(48.0, double.infinity),
-        child: IosControl(
-          key: searchSession,
-          kind: 'chatSearch',
-          onTextChanged: (text) {
-            if (_searchActive && _iosSearch == searchSession) {
-              setState(() => _search.text = text);
-            }
-          },
-          properties: {
-            'placeholder': placeholder,
-            'titleSize': titleSize,
-            'dark': style.dark,
-            'foreground': style.text.toARGB32(),
-            'secondary': style.secondary.toARGB32(),
-            'accent': style.accent.toARGB32(),
-            'surface': style.surface.toARGB32(),
-          },
-        ),
-      );
-    }
-    return GlassSurface(
-      radius: 100,
-      color: style.searchField,
-      child: TextField(
-        controller: _search,
-        focusNode: _searchFocus,
-        autofocus: true,
-        onChanged: (_) => setState(() {}),
-        onSubmitted: (_) => _dismissSearchKeyboard(),
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-          prefixIcon: const Icon(Icons.search_rounded),
-          prefixIconConstraints: const BoxConstraints.tightFor(
-            width: 48,
-            height: 48,
-          ),
-          suffixIconConstraints: const BoxConstraints.tightFor(
-            width: 48,
-            height: 48,
-          ),
-          hint: Center(heightFactor: 1, child: Text(placeholder)),
-          border: InputBorder.none,
-          suffixIcon: _search.text.trim().isEmpty
-              ? const SizedBox.shrink()
-              : IconButton(
-                  tooltip: tr(context, 'Очистить запрос', 'Clear query'),
-                  onPressed: () => setState(_search.clear),
-                  icon: const Icon(Icons.cancel_outlined, size: 19),
-                ),
-        ),
-      ),
+  Widget _activeSearchField() {
+    final session = _iosSearch;
+    return MeshSearchEditor(
+      placeholder: tr(context, 'Поиск', 'Search'),
+      controller: _search,
+      focusNode: _searchFocus,
+      iosKey: session,
+      onChanged: (text) {
+        if (_searchActive && _iosSearch == session) {
+          setState(() {
+            if (_search.text != text) _search.text = text;
+          });
+        }
+      },
+      onDismissKeyboard: _dismissSearchKeyboard,
     );
   }
 

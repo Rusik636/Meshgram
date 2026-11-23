@@ -477,14 +477,10 @@ class _ChatState extends State<MeshChatPage>
     if (_sending || _attachmentOpen || radio == null || budget == null) return;
     _dismissKeyboard();
     setState(() => _attachmentOpen = true);
-    final contacts =
-        [
-          for (final node in controller.nodes)
-            (peer: node, link: controller.shareContactAttachment(node, budget)),
-        ]..sort(
-          (a, b) =>
-              a.peer.name.toLowerCase().compareTo(b.peer.name.toLowerCase()),
-        );
+    final contacts = [
+      for (final node in controller.nodes)
+        (peer: node, link: controller.shareContactAttachment(node, budget)),
+    ];
     final String? text;
     try {
       Uint8List? backdrop;
@@ -502,6 +498,7 @@ class _ChatState extends State<MeshChatPage>
         context,
         backdrop: backdrop,
         contacts: contacts,
+        controller: controller,
         initialPosition: controller.cache?.localPosition,
         locationNodes: [
           for (final contact in contacts)

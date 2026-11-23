@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/mesh/contact_attachment.dart';
 import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/network.dart';
+import 'package:meshgrame/mesh/nodes.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/chat.dart';
@@ -37,6 +38,11 @@ void main() {
     const draft = 'Meet at the bridge';
     await tester.enterText(find.byType(TextField), draft);
     await _openAttachment(tester, 'Contact');
+    await tester.tap(find.byTooltip('Sort by'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Name'));
+    await tester.pumpAndSettle();
+    expect(controller.nodeSort, NodeSort.name);
     await tester.tap(find.text(contact.name));
     await tester.pumpAndSettle();
 
