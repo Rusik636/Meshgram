@@ -82,6 +82,7 @@ class _ChatState extends State<MeshChatPage>
   Uri? _dismissedDraftLink;
   bool _menuVisible = false;
   bool _attachmentOpen = false;
+  bool _openingContact = false;
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
   final _footerKey = GlobalKey();
@@ -565,14 +566,21 @@ class _ChatState extends State<MeshChatPage>
     }
   }
 
-  final _importing = <String>{};
+  bool get _contactContextIsCurrent {
+    final radio = widget.controller.active;
+    return _route?.isCurrent != false &&
+        radio != null &&
+        radioKey(radio) == _radio;
+  }
 
   Future<void> _useContact(String link, {required bool openChat}) async {
-    if (!_importing.add(link)) return;
+    if (!mounted || _openingContact || !_contactContextIsCurrent) return;
+    _openingContact = true;
     try {
       final controller = widget.controller;
+      final wasKnown = controller.findContactCode(link) != null;
       final peer = await controller.importContactAttachment(link);
-      if (!mounted) return;
+      if (!mounted || !_contactContextIsCurrent) return;
       if (peer == null) {
         _notice(
           tr(
@@ -581,19 +589,22 @@ class _ChatState extends State<MeshChatPage>
             'This contact is unavailable for the selected radio',
           ),
         );
-      } else if (openChat &&
-          controller.canOpenChat(peer) &&
-          peer.writable &&
-          peer.id != widget.peer.id) {
-        await showMeshChat(context, controller, peer);
-      } else if (!openChat) {
-        unawaited(playMeshHaptic(MeshHaptic.success));
-        _notice(
-          tr(context, 'Контакт добавлен в узлы', 'Contact added to nodes'),
-        );
+        return;
+      }
+      if (!wasKnown) unawaited(playMeshHaptic(MeshHaptic.success));
+      if (!openChat) {
+        _dismissKeyboard();
+        await _openPeerProfile(peer);
+      } else if (controller.canSendTo(peer)) {
+        if (peer.id == widget.peer.id) {
+          _input.currentState?.focusInput();
+        } else {
+          _dismissKeyboard();
+          await showMeshChat(context, controller, peer);
+        }
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && _contactContextIsCurrent) {
         _notice(
           tr(
             context,
@@ -603,7 +614,7 @@ class _ChatState extends State<MeshChatPage>
         );
       }
     } finally {
-      _importing.remove(link);
+      _openingContact = false;
     }
   }
 
@@ -711,7 +722,7 @@ class _ChatState extends State<MeshChatPage>
         outgoing: message.outgoing,
         bubble: bubble,
         reactions: reactions,
-        onOpenProfile: _openAuthorProfile,
+        onOpenProfile: _openPeerProfile,
         details: MessageDetails(
           message: message,
           peer: peer,
@@ -777,15 +788,13 @@ class _ChatState extends State<MeshChatPage>
     if (result == true && mounted) setState(() => _searching = true);
   }
 
-  void _openAuthorProfile(Peer author) => unawaited(
-    Navigator.of(context).push<void>(
-      meshPageRoute<void>(
-        context,
-        builder: (_) => MeshChatProfile(
-          controller: widget.controller,
-          peer: author,
-          openNewChat: author.id != widget.peer.id,
-        ),
+  Future<void> _openPeerProfile(Peer peer) => Navigator.of(context).push<void>(
+    meshPageRoute<void>(
+      context,
+      builder: (_) => MeshChatProfile(
+        controller: widget.controller,
+        peer: peer,
+        openNewChat: peer.id != widget.peer.id,
       ),
     ),
   );
@@ -915,7 +924,7 @@ class _ChatState extends State<MeshChatPage>
                                   groups: authorGroups,
                                   messageCount: messages.length,
                                   authorFor: controller.messageAuthor,
-                                  onOpenProfile: _openAuthorProfile,
+                                  onOpenProfile: _openPeerProfile,
                                 ),
                           itemCount: messages.length,
                           findChildIndexCallback: (key) {
@@ -961,17 +970,17 @@ class _ChatState extends State<MeshChatPage>
                                 : null;
                             Widget? card(bool interactive) {
                               if (contact != null) {
-                                final canWrite =
-                                    knownContact?.writable ??
-                                    (contact.type == null || contact.type == 1);
+                                final canOpen =
+                                    interactive &&
+                                    contact.network ==
+                                        controller.active?.network;
+                                final canWrite = knownContact != null
+                                    ? controller.canSendTo(knownContact)
+                                    : contact.type == null || contact.type == 1;
                                 return _ContactCard(
                                   name: knownContact?.name ?? contact.name,
                                   id: contact.id,
-                                  onAdd:
-                                      interactive &&
-                                          contact.network ==
-                                              controller.active?.network &&
-                                          knownContact == null
+                                  onOpenProfile: canOpen
                                       ? () => unawaited(
                                           _useContact(
                                             item.text,
@@ -979,11 +988,7 @@ class _ChatState extends State<MeshChatPage>
                                           ),
                                         )
                                       : null,
-                                  onWrite:
-                                      interactive &&
-                                          contact.network ==
-                                              controller.active?.network &&
-                                          canWrite
+                                  onWrite: canOpen && canWrite
                                       ? () => unawaited(
                                           _useContact(
                                             item.text,
@@ -1035,7 +1040,7 @@ class _ChatState extends State<MeshChatPage>
                                         context,
                                         item,
                                         controller.messageAuthor(item),
-                                        _openAuthorProfile,
+                                        _openPeerProfile,
                                       ),
                                 onReact:
                                     onMenu != null &&
@@ -2156,12 +2161,12 @@ class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.name,
     required this.id,
-    this.onAdd,
+    this.onOpenProfile,
     this.onWrite,
   });
 
   final String name, id;
-  final VoidCallback? onAdd, onWrite;
+  final VoidCallback? onOpenProfile, onWrite;
 
   @override
   Widget build(BuildContext context) {
@@ -2169,60 +2174,55 @@ class _ContactCard extends StatelessWidget {
     return Material(
       color: style.text.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(13),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 9, 10, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                MeshAvatar(name, size: 36),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: style.text,
-                          fontWeight: FontWeight.w700,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpenProfile,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 9, 10, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  MeshAvatar(name, size: 36),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: style.text,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      Text(
-                        id,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: style.secondary, fontSize: 12),
-                      ),
-                    ],
+                        Text(
+                          id,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: style.secondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (onWrite != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: TextButton(
+                    onPressed: onWrite,
+                    child: Text(tr(context, 'Написать', 'Message')),
                   ),
                 ),
-              ],
-            ),
-            if (onAdd != null || onWrite != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Wrap(
-                  spacing: 5,
-                  children: [
-                    if (onWrite != null)
-                      TextButton(
-                        onPressed: onWrite,
-                        child: Text(tr(context, 'Написать', 'Message')),
-                      ),
-                    if (onAdd != null)
-                      TextButton(
-                        onPressed: onAdd,
-                        child: Text(tr(context, 'Добавить', 'Add contact')),
-                      ),
-                  ],
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
