@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
+import 'haptics.dart';
 import 'position_picker.dart';
 import 'style.dart';
 
@@ -64,9 +65,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     super.dispose();
   }
 
-  void _select(_AttachmentTab tab) => setState(() {
-    _tab = tab;
-  });
+  void _select(_AttachmentTab tab) {
+    unawaited(playMeshHaptic(MeshHaptic.selection));
+    setState(() => _tab = tab);
+  }
 
   void _back() {
     FocusScope.of(context).unfocus();

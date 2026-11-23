@@ -26,6 +26,7 @@ import 'emoji_picker.dart';
 import 'emoji_text.dart';
 import 'radio_settings.dart';
 import 'profile_page.dart';
+import 'haptics.dart';
 import 'message_input.dart';
 import 'message_links.dart';
 import 'message_details.dart';
@@ -288,6 +289,7 @@ class _ChatState extends State<MeshChatPage>
           peer.id != widget.peer.id) {
         await showMeshChat(context, controller, peer);
       } else if (!openChat) {
+        unawaited(playMeshHaptic(MeshHaptic.success));
         _notice(
           tr(context, 'Контакт добавлен в узлы', 'Contact added to nodes'),
         );
@@ -1265,7 +1267,7 @@ class _MessageHoldState extends State<_MessageHold> {
       onLongPressCancel: () => _press(false),
       onLongPressStart: (_) {
         _press(false);
-        HapticFeedback.selectionClick();
+        unawaited(playMeshHaptic(MeshHaptic.light));
         widget.onOpen!();
       },
       child: AnimatedScale(
@@ -2059,7 +2061,7 @@ class _ReplySwipeState extends State<_ReplySwipe> {
                 ? null
                 : (_) {
                     if (_offset >= 43) {
-                      unawaited(HapticFeedback.selectionClick());
+                      unawaited(playMeshHaptic(MeshHaptic.medium));
                       action();
                     }
                     _reset();

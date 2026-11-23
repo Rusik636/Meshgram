@@ -1,9 +1,12 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
+import 'dart:async';
+
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'ios_control.dart';
 import 'style.dart';
 
@@ -48,13 +51,18 @@ class MeshNavigation extends StatelessWidget {
     ];
     final style = MeshStyle.of(context);
     final height = contentHeight(context);
+    void select(int next) {
+      if (next != index) unawaited(playMeshHaptic(MeshHaptic.selection));
+      onSelect(next);
+    }
+
     if (useIosControls) {
       return SizedBox(
         height: height + MediaQuery.viewPaddingOf(context).bottom,
         child: IosControl(
           kind: 'tabs',
           horizontalDrag: true,
-          onSelect: onSelect,
+          onSelect: select,
           properties: {
             'labels': labels,
             'index': index,
@@ -75,7 +83,7 @@ class MeshNavigation extends StatelessWidget {
           index: index,
           unread: unread,
           settingsUnread: settingsUnread,
-          onSelect: onSelect,
+          onSelect: select,
         ),
       ),
     );
