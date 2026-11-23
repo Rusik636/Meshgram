@@ -25,7 +25,8 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
     let input = args as? [String: Any] ?? [:]
     if input["kind"] as? String == "sheetDim" {
       let dim = MeshSheetDim(frame: frame)
-      dim.backgroundColor = UIColor.black.withAlphaComponent(CGFloat(input["opacity"] as? Double ?? 0.25))
+      let color = meshColor(input["color"], .black)
+      dim.backgroundColor = color.withAlphaComponent(CGFloat(input["opacity"] as? Double ?? 0.25))
       dim.isUserInteractionEnabled = false
       dim.accessibilityElementsHidden = true
       return dim

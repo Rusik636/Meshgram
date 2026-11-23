@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/attachment_sheet_route.dart';
 import 'package:meshgrame/ui/ios_control.dart';
+import 'package:meshgrame/ui/mesh_sheet_route.dart';
+import 'package:meshgrame/ui/style.dart';
 
 void main() {
   for (final (size, highContrast, opacity) in [
@@ -85,6 +87,134 @@ void main() {
     await tester.pumpAndSettle();
     expect(await opened(), 'sent');
   }, variant: const TargetPlatformVariant({TargetPlatform.android}));
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('ordinary and nested sheets preserve colors and gestures', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      tester.view.viewPadding = tester.view.padding;
+      addTearDown(tester.view.reset);
+      const dimColor = Color(0x660b4d8b);
+      final ios = platform == TargetPlatform.iOS;
+      final results = <String?>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            bottomSheetTheme: const BottomSheetThemeData(
+              modalBarrierColor: dimColor,
+            ),
+          ),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async => results.add(
+                  await showMeshSheet<String>(
+                    context: context,
+                    builder: (context) => SheetBody(
+                      title: 'Options',
+                      children: [
+                        TextButton(
+                          onPressed: () async => results.add(
+                            await showMeshBottomSheet<String>(
+                              context: context,
+                              useSafeArea: true,
+                              showDragHandle: true,
+                              backgroundColor: Colors.white,
+                              builder: (context) => SizedBox(
+                                height: 216,
+                                child: Center(
+                                  child: TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, 'node'),
+                                    child: const Text('Select node'),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          child: const Text('Open cluster'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                child: const Text('Open options'),
+              ),
+            ),
+          ),
+        ),
+      );
+      final scrims = ios
+          ? find.byWidgetPredicate(
+              (widget) => switch (widget) {
+                IosControl() =>
+                  widget.kind == 'sheetDim' &&
+                      widget.properties['color'] == dimColor.toARGB32() &&
+                      widget.properties['opacity'] == dimColor.a,
+                ColoredBox() => widget.color == dimColor,
+                _ => false,
+              },
+            )
+          : find.byType(AnimatedModalBarrier);
+      ModalBottomSheetRoute<String> routeFor(String text) =>
+          ModalRoute.of(tester.element(find.text(text)))!
+              as ModalBottomSheetRoute<String>;
+      final expectedBarrier = ios ? Colors.transparent : dimColor;
+
+      await tester.tap(find.text('Open options'));
+      await tester.pumpAndSettle();
+      final outer = routeFor('Options');
+      expect(outer.barrierColor, expectedBarrier);
+      expect(outer.enableDrag, isTrue);
+      expect(outer.showDragHandle, isFalse);
+      expect(outer.isScrollControlled, isTrue);
+      expect(outer.useSafeArea, isFalse);
+      expect(scrims, findsOneWidget);
+
+      Future<void> openCluster() async {
+        await tester.tap(find.text('Open cluster'));
+        await tester.pumpAndSettle();
+      }
+
+      await openCluster();
+      final inner = routeFor('Select node');
+      expect(inner.barrierColor, expectedBarrier);
+      expect(inner.enableDrag, isTrue);
+      expect(inner.showDragHandle, isTrue);
+      expect(inner.isScrollControlled, isFalse);
+      expect(inner.useSafeArea, isTrue);
+      expect(scrims, findsNWidgets(2));
+      await tester.tap(find.text('Select node'));
+      await tester.pumpAndSettle();
+      expect(results, ['node']);
+      expect(scrims, findsOneWidget);
+
+      await openCluster();
+      final bottom = find.ancestor(
+        of: find.text('Select node'),
+        matching: find.byType(BottomSheet),
+      );
+      final bounds = tester.getRect(bottom);
+      await tester.flingFrom(
+        Offset(bounds.center.dx, bounds.top + 24),
+        const Offset(0, 120),
+        1600,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Select node'), findsNothing);
+      expect(results, ['node', null]);
+      expect(scrims, findsOneWidget);
+
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(results, ['node', null, null]);
+      expect(scrims, findsNothing);
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant({platform}));
+  }
 }
 
 Future<Future<String?> Function()> _open(

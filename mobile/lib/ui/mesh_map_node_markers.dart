@@ -239,7 +239,7 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
       ),
     );
     final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
-    final selection = await showModalBottomSheet<MeshMapPin>(
+    final selection = await showMeshBottomSheet<MeshMapPin>(
       context: context,
       useSafeArea: true,
       backgroundColor: style.surface,
