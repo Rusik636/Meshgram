@@ -46,25 +46,17 @@ double _groupDiameter(int count) => math.min(
   ),
 );
 
-double _dropletFaceScale(Offset center, double radius, Size viewport) {
-  final toEdge = math.min(
-    math.min(center.dx, viewport.width - center.dx),
-    math.min(center.dy, viewport.height - center.dy),
-  );
-  return (toEdge / radius).clamp(0.0, 1.0);
-}
-
 class _NodeMarkerGroup {
   const _NodeMarkerGroup(
     this.members,
     this.center,
-    this.color, [
+    this.colors, [
     this.mergeDistance = 0,
   ]);
 
   final List<MeshMapPin> members;
   final Offset center;
-  final Color color;
+  final (Color, Color) colors;
   final double mergeDistance;
 
   bool get isSingle => members.length == 1;
@@ -123,7 +115,7 @@ List<_NodeMarkerGroup> _clusterNodes(
       _NodeMarkerGroup(
         [pin],
         points[index],
-        MeshAvatar.colorsFor(pin._avatarName!).$2,
+        MeshAvatar.colorsFor(pin._avatarName!),
       ),
     );
   }
@@ -143,7 +135,10 @@ List<_NodeMarkerGroup> _clusterNodes(
       _NodeMarkerGroup(
         [...first.members, ...second.members],
         (first.center + second.center) / 2,
-        Color.lerp(first.color, second.color, .5)!,
+        (
+          Color.lerp(first.colors.$1, second.colors.$1, .5)!,
+          Color.lerp(first.colors.$2, second.colors.$2, .5)!,
+        ),
         math.sqrt(pair.distanceSquared),
       ),
     );
@@ -302,6 +297,9 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
 
     Widget silhouettes({required bool border}) {
       Widget shapes = Stack(
+        // Apply the viewport clip after the blur so a drop keeps its shape
+        // while it crosses the edge.
+        clipBehavior: Clip.none,
         children: [
           for (final drop in drops)
             for (final pin in drop.group.members)
@@ -315,21 +313,29 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
                   height: _clusterMaxDiameter,
                   child: child,
                 ),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(
-                    end: drop.diameter - (border ? 0 : _dropletBorder * 2),
-                  ),
-                  duration: motion,
-                  curve: _dropletAttraction,
-                  builder: (context, diameter, _) => Center(
-                    child: SizedBox.square(
-                      dimension: diameter,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: border ? style.surface : drop.group.color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
+                Center(
+                  child: AnimatedContainer(
+                    duration: motion,
+                    curve: _dropletAttraction,
+                    width: drop.diameter - (border ? 0 : _dropletBorder * 2),
+                    height: drop.diameter - (border ? 0 : _dropletBorder * 2),
+                    decoration: BoxDecoration(
+                      color: border ? style.surface : null,
+                      gradient: border
+                          ? null
+                          : LinearGradient(
+                              begin: drop.group.isSingle
+                                  ? Alignment.topLeft
+                                  : Alignment.topCenter,
+                              end: drop.group.isSingle
+                                  ? Alignment.bottomRight
+                                  : Alignment.bottomCenter,
+                              colors: [
+                                drop.group.colors.$1,
+                                drop.group.colors.$2,
+                              ],
+                            ),
+                      shape: BoxShape.circle,
                     ),
                   ),
                 ),
@@ -355,6 +361,7 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
     return ClipRect(
       child: Stack(
         fit: StackFit.expand,
+        clipBehavior: Clip.none,
         children: [
           // Keep the border and colored fill in separate filtered passes;
           // labels and hit targets live above both passes.
@@ -375,14 +382,7 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
                   height:
                       _nodeMarkerDiameter +
                       (pin.label == null ? 0 : labelHeight),
-                  child: Transform.scale(
-                    scale: _dropletFaceScale(
-                      point,
-                      drop.diameter / 2,
-                      camera.size,
-                    ),
-                    child: child,
-                  ),
+                  child: child,
                 ),
                 _DropletFace(
                   visible: drop.group.isSingle,
@@ -406,14 +406,7 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
                   top: point.dy - drop.diameter / 2,
                   width: drop.diameter,
                   height: drop.diameter,
-                  child: Transform.scale(
-                    scale: _dropletFaceScale(
-                      point,
-                      drop.diameter / 2,
-                      camera.size,
-                    ),
-                    child: child,
-                  ),
+                  child: child,
                 ),
                 _DropletFace(
                   visible: true,
