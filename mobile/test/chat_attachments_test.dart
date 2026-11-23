@@ -79,46 +79,52 @@ void main() {
     },
   );
 
-  testWidgets('morphs contact search from a compact button into the editor', (
-    tester,
-  ) async {
-    await _openPicker(
-      tester,
-      (_) {},
-      contacts: [
-        for (var index = 0; index < 18; index++)
-          (
-            peer: (
-              id: 'node:$index',
-              name: 'Node $index',
-              channel: false,
-              writable: true,
-            ),
-            link: 'meshgram://contact/$index',
-          ),
-      ],
-    );
-    await tester.tap(find.text('Contact'));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'morphs the corner search button into the bottom field and back',
+    (tester) async {
+      await _openPicker(tester, (_) {});
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(MeshSearchLauncher), findsOneWidget);
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
-    await tester.pumpAndSettle();
-    expect(find.byType(MeshSearchLauncher), findsNothing);
+      final button = find.byTooltip('Search nodes');
+      final control = find.byKey(
+        const ValueKey('attachment-contact-search-control'),
+      );
+      final compact = tester.getRect(control);
+      expect(compact.size, const Size.square(48));
+      expect(find.byTooltip('Expand'), findsNothing);
+      expect(find.byType(MeshSearchLauncher), findsNothing);
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final opening = tester.getRect(control);
+      expect(opening.width, greaterThan(compact.width));
+      expect(opening.left, lessThan(compact.left));
+      final cancel = find.byTooltip('Close search');
+      final movingCancel = tester.getRect(cancel);
 
-    final collapsed = find.byTooltip('Search nodes');
-    final collapsedWidth = tester.getSize(collapsed).width;
-    await tester.tap(collapsed);
-    await tester.pumpAndSettle();
-
-    expect(tester.getSize(_contactEditor).width, greaterThan(collapsedWidth));
-    expect(find.byTooltip('Close search'), findsOneWidget);
-    expect(find.byType(MeshTabBar), findsOneWidget);
-    await tester.tap(find.byTooltip('Close search'));
-    await tester.pumpAndSettle();
-    expect(find.byTooltip('Search nodes'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      await tester.pumpAndSettle();
+      final expanded = tester.getRect(control);
+      expect(expanded.width, greaterThan(opening.width));
+      expect(expanded.bottom, closeTo(844 - 8, 1));
+      expect(tester.getRect(cancel).left, lessThan(movingCancel.left));
+      expect(_contactEditor, findsOneWidget);
+      expect(find.text('Contacts'), findsOneWidget);
+      expect(find.byTooltip('Close').hitTestable(), findsOneWidget);
+      expect(find.byType(MeshTabBar), findsNothing);
+      await tester.tap(cancel);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final closing = tester.getRect(control);
+      expect(closing.width, lessThan(expanded.width));
+      expect(closing.width, greaterThan(compact.width));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(control), compact);
+      expect(button.hitTestable(), findsOneWidget);
+      expect(find.byType(MeshTabBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'expands and collapses the map without losing the selected point',
@@ -151,7 +157,7 @@ void main() {
   );
 
   testWidgets(
-    'keeps the compact tabs with the keyboard and restores the query',
+    'anchors the contact search above the keyboard and restores the list',
     (tester) async {
       await _openPicker(tester, (_) {});
       await tester.tap(find.text('Contact'));
@@ -162,17 +168,20 @@ void main() {
       addTearDown(tester.view.resetViewInsets);
       await tester.enterText(_contactEditor, 'сокол');
       await tester.pumpAndSettle();
-      expect(find.byType(MeshTabBar), findsOneWidget);
+      expect(find.byType(MeshTabBar), findsNothing);
+      expect(find.text('Илья Ветров'), findsNothing);
+      expect(
+        tester.getBottomLeft(_contactEditor).dy,
+        closeTo(844 - 440 - 8, 1),
+      );
       expect(tester.takeException(), isNull);
 
-      await tester.tap(_locationTab);
+      await tester.tap(find.byTooltip('Close search'));
       tester.view.resetViewInsets();
       await tester.pumpAndSettle();
-      expect(find.text('55.725000, 52.401000'), findsOneWidget);
-      await tester.tap(find.text('Contact'));
-      await tester.pumpAndSettle();
-      expect(find.text('сокол'), findsOneWidget);
-      expect(find.text('Илья Ветров'), findsNothing);
+      expect(find.text('Илья Ветров'), findsOneWidget);
+      expect(find.text('Мира Соколова'), findsOneWidget);
+      expect(find.byType(MeshTabBar), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -190,18 +199,7 @@ void main() {
     await tester.tap(find.text('Contact'));
     await tester.pumpAndSettle();
     expect(tester.getRect(bar), atRest);
-    await _startContactSearch(tester);
-    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
-    tester.view.padding = const FakeViewPadding(top: 47);
-    await tester.pumpAndSettle();
-    final aboveKeyboard = tester.getRect(bar);
-    expect(aboveKeyboard.bottom, lessThan(844 - 320));
-
     await tester.tap(_locationTab);
-    await tester.pumpAndSettle();
-    expect(tester.getRect(bar), aboveKeyboard);
-    tester.view.resetViewInsets();
-    tester.view.padding = tester.view.viewPadding;
     await tester.pumpAndSettle();
     expect(tester.getRect(bar), atRest);
     expect(tester.takeException(), isNull);
@@ -252,14 +250,22 @@ void main() {
       await _openPicker(tester, (_) {}, platform: TargetPlatform.iOS);
       await tester.tap(find.text('Contact'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Expand'));
+      final grip = find.byKey(const ValueKey('attachment-grip'));
+      await tester.fling(grip, const Offset(0, -115), 650);
       await tester.pumpAndSettle();
+      expect(find.byType(MeshTabBar), findsNothing);
+      final expandedTop = tester.getTopLeft(grip).dy;
+      await _startContactSearch(tester);
+      await tester.tap(find.byTooltip('Close search'));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(grip).dy, closeTo(expandedTop, .1));
+      expect(find.byType(MeshTabBar), findsNothing);
       final list = find.byType(CustomScrollView);
       final scroll = tester.widget<CustomScrollView>(list).controller!;
       expect(scroll.offset, 0);
       await tester.fling(list, const Offset(0, 105), 700);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Expand'), findsOneWidget);
+      expect(tester.getTopLeft(grip).dy, greaterThan(expandedTop));
       expect(find.byType(MeshTabBar), findsOneWidget);
       expect(scroll.offset, 0);
       expect(tester.takeException(), isNull);
@@ -314,7 +320,7 @@ Finder get _contactEditor => find.descendant(
 );
 
 Future<void> _startContactSearch(WidgetTester tester) async {
-  await tester.tap(find.byType(MeshSearchLauncher));
+  await tester.tap(find.byTooltip('Search nodes'));
   await tester.pumpAndSettle();
 }
 
