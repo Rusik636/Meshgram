@@ -177,6 +177,95 @@ void main() {
     },
   );
 
+  testWidgets('keeps the tab bar at one height when switching panes', (
+    tester,
+  ) async {
+    tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+    tester.view.viewPadding = tester.view.padding;
+    addTearDown(tester.view.reset);
+    await _openPicker(tester, (_) {}, platform: TargetPlatform.iOS);
+    final bar = find.byType(MeshTabBar);
+    final atRest = tester.getRect(bar);
+
+    await tester.tap(find.text('Contact'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(bar), atRest);
+    await _startContactSearch(tester);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    tester.view.padding = const FakeViewPadding(top: 47);
+    await tester.pumpAndSettle();
+    final aboveKeyboard = tester.getRect(bar);
+    expect(aboveKeyboard.bottom, lessThan(844 - 320));
+
+    await tester.tap(_locationTab);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(bar), aboveKeyboard);
+    tester.view.resetViewInsets();
+    tester.view.padding = tester.view.viewPadding;
+    await tester.pumpAndSettle();
+    expect(tester.getRect(bar), atRest);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tracks the finger and springs to the nearest detent', (
+    tester,
+  ) async {
+    await _openPicker(tester, (_) {});
+    final grip = find.byKey(const ValueKey('attachment-grip'));
+    final top = tester.getTopLeft(grip).dy;
+    final bar = tester.getRect(find.byType(MeshTabBar));
+    final drag = await tester.startGesture(tester.getCenter(grip));
+    await drag.moveBy(
+      const Offset(0, -55),
+      timeStamp: const Duration(milliseconds: 180),
+    );
+    await tester.pump();
+    expect(tester.getTopLeft(grip).dy, closeTo(top - 55, .1));
+    expect(tester.getRect(find.byType(MeshTabBar)), bar);
+    await drag.up(timeStamp: const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(grip).dy, closeTo(top, .1));
+
+    await tester.fling(grip, const Offset(0, -85), 650);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Collapse'), findsOneWidget);
+    await tester.fling(grip, const Offset(0, 65), 600);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(grip).dy, closeTo(top, .1));
+    expect(tester.getRect(find.byType(MeshTabBar)), bar);
+
+    await tester.dragFrom(
+      tester.getCenter(find.byType(MeshMap)),
+      const Offset(0, 85),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(grip).dy, closeTo(top, .1));
+
+    await tester.fling(grip, const Offset(0, 55), 650);
+    await tester.pumpAndSettle();
+    expect(grip, findsNothing);
+  });
+
+  testWidgets(
+    'passes a downward drag at the top of iOS contacts to the sheet',
+    (tester) async {
+      await _openPicker(tester, (_) {}, platform: TargetPlatform.iOS);
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Expand'));
+      await tester.pumpAndSettle();
+      final list = find.byType(CustomScrollView);
+      final scroll = tester.widget<CustomScrollView>(list).controller!;
+      expect(scroll.offset, 0);
+      await tester.fling(list, const Offset(0, 105), 700);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Expand'), findsOneWidget);
+      expect(find.byType(MeshTabBar), findsOneWidget);
+      expect(scroll.offset, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('searches known nodes or coordinates without sending them', (
     tester,
   ) async {
@@ -233,6 +322,7 @@ Future<void> _openPicker(
   WidgetTester tester,
   ValueChanged<String?> onResult, {
   List<ShareableNode> contacts = _contacts,
+  TargetPlatform? platform,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(390, 844);
@@ -240,6 +330,7 @@ Future<void> _openPicker(
   addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
     MaterialApp(
+      theme: ThemeData(platform: platform),
       home: Scaffold(
         body: Builder(
           builder: (context) => FilledButton(
