@@ -12,6 +12,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../mesh/controller.dart';
 import '../mesh/nodes.dart';
+import 'attachment_sheet_route.dart';
 import 'contact_picker.dart';
 import 'ios_control.dart';
 import 'location_search.dart';
@@ -28,15 +29,8 @@ Future<String?> pickChatAttachment(
   MeshController? controller,
   NodePosition? initialPosition,
   List<AttachmentLocationNode> locationNodes = const [],
-}) => showModalBottomSheet<String>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  enableDrag: false,
-  backgroundColor: Colors.transparent,
-  sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-      ? AnimationStyle.noAnimation
-      : null,
+}) => showMeshAttachmentSheet<String>(
+  context,
   builder: (context) => _AttachmentSheet(
     contacts: contacts,
     controller: controller,
