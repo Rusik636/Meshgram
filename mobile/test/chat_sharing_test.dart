@@ -64,9 +64,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('imports a received contact and opens its conversation', (
-    tester,
-  ) async {
+  testWidgets('opens a contact profile and centers Message', (tester) async {
     const contact = (id: 'node:5151', name: 'Bridge relay');
     final (controller, chat) = await _openChat(
       tester,
@@ -95,15 +93,35 @@ void main() {
     expect(find.text(contact.name), findsOneWidget);
     final avatar = _contactAvatar('shared-contact', contact.name);
     expect(avatar, findsOneWidget);
-    await tester.tap(find.text('Add contact'));
-    await tester.pumpAndSettle();
-    expect(controller.cache!.peers[contact.id]?.name, contact.name);
+    final write = find.widgetWithText(TextButton, 'Message');
+    final card = find
+        .ancestor(of: avatar, matching: find.byType(InkWell))
+        .first;
+    expect(tester.getCenter(write).dx, closeTo(tester.getCenter(card).dx, .01));
     expect(find.text('Add contact'), findsNothing);
-    expect(avatar, findsOneWidget);
+
+    await tester.tap(avatar);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final profile = tester.widget<MeshChatProfile>(
+      find.byType(MeshChatProfile),
+    );
+    expect(profile.peer.id, contact.id);
+    expect(controller.cache!.peers[contact.id]?.name, contact.name);
+    expect(controller.cache!.identities[contact.id]?.publicKey, 'ae' * 32);
     expect(controller.messages(chat.id).last.id, 'shared-contact');
 
-    await tester.tap(find.widgetWithText(TextButton, 'Message'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(MeshChatProfile),
+        matching: find.byTooltip('Back'),
+      ),
+    );
     await tester.pumpAndSettle();
+    expect(avatar, findsOneWidget);
+    await tester.tap(write);
+    await tester.pumpAndSettle();
+    expect(find.byType(MeshChatProfile), findsNothing);
     final conversation = tester.widget<MeshChatPage>(find.byType(MeshChatPage));
     expect(conversation.peer.id, contact.id);
     expect(tester.takeException(), isNull);
