@@ -162,6 +162,20 @@ class BleTransport implements RadioTransport, BluetoothControl {
         device = await _rediscover(radio.device, Guid(service));
         await _connectDevice(device);
       }
+      if (Platform.isAndroid && radio.network == 'meshtastic') {
+        // Android can still be waiting for a pairing PIN after GATT connects.
+        // Start the Meshtastic configuration exchange only after bonding ends.
+        try {
+          await device.createBond(timeout: 60);
+        } on PlatformException catch (error) {
+          // Some radios in NO_PIN mode do not support initiating a bond.
+          if (error.code != 'createBond' ||
+              error.message != 'device.createBond() returned false' ||
+              !device.isConnected) {
+            rethrow;
+          }
+        }
+      }
       final uuid = Guid(service);
       final characteristics = await _discoverCharacteristics(device, uuid);
       if (Platform.isAndroid && radio.network == 'meshcore') {
