@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../mesh/controller.dart';
@@ -27,6 +28,7 @@ class AttachmentContacts extends StatefulWidget {
     required this.onClose,
     required this.onToggleExpand,
     required this.onSelect,
+    required this.beginSheetDrag,
   });
 
   final List<ShareableNode> contacts;
@@ -35,6 +37,7 @@ class AttachmentContacts extends StatefulWidget {
   final bool expanded;
   final VoidCallback onClose, onToggleExpand;
   final ValueChanged<String> onSelect;
+  final Drag? Function() beginSheetDrag;
 
   @override
   State<AttachmentContacts> createState() => _AttachmentContactsState();
@@ -42,7 +45,9 @@ class AttachmentContacts extends StatefulWidget {
 
 class _AttachmentContactsState extends State<AttachmentContacts>
     with SingleTickerProviderStateMixin {
-  final _scroll = ScrollController();
+  late final _scroll = _AttachmentContactScrollController(
+    () => widget.beginSheetDrag(),
+  );
   final _focus = FocusNode();
   var _iosSearch = GlobalKey<IosControlState>();
   late bool _searching = widget.search.text.isNotEmpty;
@@ -144,6 +149,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     return CustomScrollView(
       key: key,
       controller: scroll,
+      physics: scroll == null ? null : const AlwaysScrollableScrollPhysics(),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: top)),
@@ -446,5 +452,71 @@ class _AttachmentContactsState extends State<AttachmentContacts>
         );
       },
     );
+  }
+}
+
+class _AttachmentContactScrollController extends ScrollController {
+  _AttachmentContactScrollController(this.beginSheetDrag);
+
+  final Drag? Function() beginSheetDrag;
+
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _AttachmentContactScrollPosition(
+    physics: physics,
+    context: context,
+    oldPosition: oldPosition,
+    beginSheetDrag: beginSheetDrag,
+  );
+}
+
+class _AttachmentContactScrollPosition extends ScrollPositionWithSingleContext {
+  _AttachmentContactScrollPosition({
+    required super.physics,
+    required super.context,
+    required super.oldPosition,
+    required this.beginSheetDrag,
+  });
+
+  final Drag? Function() beginSheetDrag;
+
+  @override
+  Drag drag(DragStartDetails details, VoidCallback dragCancelCallback) =>
+      _ContactDrag(
+        super.drag(details, dragCancelCallback),
+        () => pixels <= minScrollExtent + 1 ? beginSheetDrag() : null,
+      );
+}
+
+class _ContactDrag extends Drag {
+  _ContactDrag(this._scroll, this._beginSheetDrag);
+
+  final Drag _scroll;
+  final Drag? Function() _beginSheetDrag;
+  Drag? _sheet;
+
+  @override
+  void update(DragUpdateDetails details) {
+    if (details.delta.dy > 0) _sheet ??= _beginSheetDrag();
+    (_sheet ?? _scroll).update(details);
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    if (_sheet case final sheet?) {
+      _scroll.cancel();
+      sheet.end(details);
+    } else {
+      _scroll.end(details);
+    }
+  }
+
+  @override
+  void cancel() {
+    _scroll.cancel();
+    _sheet?.cancel();
   }
 }
