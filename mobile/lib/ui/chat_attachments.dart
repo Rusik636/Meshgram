@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -23,19 +24,29 @@ import 'style.dart';
 
 export 'contact_picker.dart' show ShareableNode;
 
+typedef AttachmentPaperclip = ({
+  Rect start,
+  Size viewport,
+  Rect? Function() currentRect,
+  ValueChanged<bool> setHidden,
+});
+
 Future<String?> pickChatAttachment(
   BuildContext context, {
   required List<ShareableNode> contacts,
   MeshController? controller,
   NodePosition? initialPosition,
   List<AttachmentLocationNode> locationNodes = const [],
+  AttachmentPaperclip? paperclip,
 }) => showMeshAttachmentSheet<String>(
   context,
+  morphFromSource: paperclip != null,
   builder: (context) => _AttachmentSheet(
     contacts: contacts,
     controller: controller,
     initialPosition: initialPosition,
     locationNodes: locationNodes,
+    paperclip: paperclip,
   ),
 );
 
@@ -47,8 +58,10 @@ class _AttachmentSheet extends StatefulWidget {
     required this.controller,
     required this.locationNodes,
     this.initialPosition,
+    this.paperclip,
   });
 
+  final AttachmentPaperclip? paperclip;
   final List<ShareableNode> contacts;
   final MeshController? controller;
   final List<AttachmentLocationNode> locationNodes;
@@ -84,9 +97,37 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   int _selectionRevision = 0;
   String? _positionError;
   Drag? _gripDrag;
+  Animation<double>? _paperclipAnimation;
+  bool _paperclipOpened = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.paperclip == null || _paperclipAnimation != null) return;
+    _paperclipAnimation = ModalRoute.of(context)?.animation;
+    _paperclipAnimation?.addStatusListener(_paperclipStatusChanged);
+  }
+
+  void _paperclipStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _paperclipOpened = true;
+    widget.paperclip?.setHidden(
+      !MediaQuery.disableAnimationsOf(context) &&
+          (status == AnimationStatus.forward ||
+              status == AnimationStatus.reverse),
+    );
+  }
 
   @override
   void dispose() {
+    if (_paperclipAnimation case final animation?) {
+      animation.removeStatusListener(_paperclipStatusChanged);
+      if (!animation.isDismissed) {
+        final restoreSource = widget.paperclip!.setHidden;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => restoreSource(false),
+        );
+      }
+    }
     _tabs.opacity.dispose();
     _inset.dispose();
     _map.dispose();
@@ -590,6 +631,21 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     );
   }
 
+  Widget _withPaperclipTransition(Widget panel, Size size, double bottom) {
+    final paperclip = widget.paperclip;
+    final animation = _paperclipAnimation;
+    if (paperclip == null || animation == null) return panel;
+    return _AttachmentPaperclipMorph(
+      animation: animation,
+      paperclip: paperclip,
+      sheetWasOpened: () => _paperclipOpened,
+      size: size,
+      bottom: bottom,
+      cornerRadius: _expanded && _tab == _AttachmentTab.location ? 0 : 26,
+      child: panel,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = tr(context, 'Геопозиция', 'Location');
@@ -633,7 +689,14 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                 padding: EdgeInsets.only(bottom: keyboard),
                 child: Transform.translate(
                   offset: Offset(0, overshoot * travel),
-                  child: SizedBox(height: available - topInset, child: child),
+                  child: SizedBox(
+                    height: available - topInset,
+                    child: _withPaperclipTransition(
+                      child!,
+                      Size(constraints.maxWidth, available - topInset),
+                      keyboard - overshoot * travel,
+                    ),
+                  ),
                 ),
               );
             },
@@ -642,6 +705,163 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
       },
     );
   }
+}
+
+class _AttachmentPaperclipMorph extends StatelessWidget {
+  const _AttachmentPaperclipMorph({
+    required this.animation,
+    required this.paperclip,
+    required this.sheetWasOpened,
+    required this.size,
+    required this.bottom,
+    required this.cornerRadius,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final AttachmentPaperclip paperclip;
+  final bool Function() sheetWasOpened;
+  final Size size;
+  final double bottom;
+  final double cornerRadius;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final safe = MediaQueryData.fromView(View.of(context)).padding;
+    final origin = Offset(
+      safe.left + (media.size.width - safe.horizontal - size.width) / 2,
+      media.size.height - bottom - size.height,
+    );
+    final style = MeshStyle.of(context);
+    final native = useIosControls && !media.highContrast;
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, panel) {
+        final inFlight = !media.disableAnimations && !animation.isCompleted;
+        final progress = inFlight ? animation.value : 1.0;
+        final useCurrentSource =
+            media.size != paperclip.viewport ||
+            (animation.status == AnimationStatus.reverse && sheetWasOpened());
+        final source = useCurrentSource
+            ? paperclip.currentRect() ?? paperclip.start
+            : paperclip.start;
+        final bounds = Rect.lerp(
+          source.shift(-origin),
+          Offset.zero & size,
+          Curves.easeInOutCubic.transform(progress),
+        )!;
+        final sourceRadius = source.shortestSide / 2;
+        final radius =
+            sourceRadius +
+            (cornerRadius - sourceRadius) *
+                Curves.easeInOut.transform(progress);
+        final outline = RRect.fromRectAndRadius(
+          bounds,
+          Radius.circular(radius),
+        );
+        final glyphOpacity = 1 - const Interval(.08, .40).transform(progress);
+        final panelOpacity = const Interval(
+          .48,
+          .94,
+          curve: Curves.easeOut,
+        ).transform(progress);
+        return Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          children: [
+            if (inFlight)
+              Positioned.fromRect(
+                rect: bounds,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: ClipRRect(
+                      key: const ValueKey('attachment-paperclip-flight'),
+                      borderRadius: BorderRadius.circular(radius),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (native)
+                            IosControl(
+                              kind: 'modalGlass',
+                              properties: {
+                                'panel': true,
+                                'dark': style.dark,
+                                'radius': radius,
+                              },
+                            )
+                          else
+                            ColoredBox(
+                              color: media.highContrast
+                                  ? style.surface
+                                  : style.pill,
+                            ),
+                          if (glyphOpacity > 0)
+                            Center(
+                              child: Opacity(
+                                key: const ValueKey(
+                                  'attachment-paperclip-glyph',
+                                ),
+                                opacity: glyphOpacity,
+                                child: SizedBox.square(
+                                  dimension: 22,
+                                  child: useIosControls
+                                      ? IosControl(
+                                          kind: 'symbolIcon',
+                                          properties: {
+                                            'symbol': 'paperclip',
+                                            'pointSize': 18.0,
+                                            'accent': style.text.toARGB32(),
+                                          },
+                                        )
+                                      : Icon(
+                                          CupertinoIcons.paperclip,
+                                          size: 18,
+                                          color: style.text,
+                                        ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            IgnorePointer(
+              ignoring: inFlight,
+              child: ExcludeSemantics(
+                excluding: inFlight,
+                child: Opacity(
+                  opacity: panelOpacity,
+                  child: ClipRRect(
+                    clipper: inFlight ? _AttachmentMorphClip(outline) : null,
+                    clipBehavior: inFlight ? Clip.antiAlias : Clip.none,
+                    child: panel,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AttachmentMorphClip extends CustomClipper<RRect> {
+  const _AttachmentMorphClip(this.outline);
+
+  final RRect outline;
+
+  @override
+  RRect getClip(Size size) => outline;
+
+  @override
+  bool shouldReclip(_AttachmentMorphClip oldClipper) =>
+      outline != oldClipper.outline;
 }
 
 class _AttachmentDrag extends Drag {

@@ -7,8 +7,10 @@ import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/ble_transport.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
+import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/chat_attachments.dart';
 import 'package:meshgrame/ui/home.dart';
+import 'package:meshgrame/ui/ios_control.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/node_list.dart';
@@ -38,6 +40,132 @@ const _contacts = [
 ];
 
 void main() {
+  testWidgets('iOS morphs the paperclip and reverses an interrupted opening', (
+    tester,
+  ) async {
+    final controller = await _openIosChat(tester);
+    final chat = find.byType(MeshChatPage);
+    final back = useIosControls
+        ? _nativeControl('button', symbol: 'chevron.left')
+        : find.byTooltip('Back');
+    final title = useIosControls
+        ? _nativeControl('chatTitle')
+        : find.descendant(of: chat, matching: find.text('Тропа'));
+    final avatar = useIosControls
+        ? _nativeControl('chatAvatar')
+        : find.descendant(of: chat, matching: find.byType(MeshAvatar));
+    final controls = [
+      for (final control in [back, title, avatar])
+        find.descendant(of: chat, matching: control),
+    ];
+    final headerElements = controls.map(tester.element).toList();
+    final headerRects = controls.map(tester.getRect).toList();
+
+    void expectStableHeader() {
+      for (var i = 0; i < controls.length; i++) {
+        expect(tester.element(controls[i]), same(headerElements[i]));
+        expect(tester.getRect(controls[i]), headerRects[i]);
+      }
+    }
+
+    final button = _attachmentSource;
+    final source = Rect.fromCenter(
+      center: tester.getCenter(button),
+      width: 40,
+      height: 40,
+    );
+    final element = tester.element(button);
+    await _tapAttachmentControl(tester, button);
+    await tester.pump();
+
+    expect(tester.getRect(_paperclipFlight), source);
+    expect(_paperclipGlyph, findsOneWidget);
+    expect(_sourceHidden(tester, button), isTrue);
+    expectStableHeader();
+
+    await tester.pump(const Duration(milliseconds: 110));
+    final moving = tester.getRect(_paperclipFlight);
+    expect(moving.width, greaterThan(source.width));
+    expect(moving.top, lessThan(source.top));
+
+    await tester.tapAt(const Offset(200, 90));
+    await tester.pump();
+    expect(tester.getRect(_paperclipFlight), moving);
+    expect(_sourceHidden(tester, button), isTrue);
+    await tester.pump(const Duration(milliseconds: 35));
+    expect(tester.getRect(_paperclipFlight).width, lessThan(moving.width));
+    await tester.pumpAndSettle();
+
+    expect(_paperclipFlight, findsNothing);
+    expect(_paperclipGlyph, findsNothing);
+    expect(tester.element(button), same(element));
+    expect(_sourceHidden(tester, button), isFalse);
+    expectStableHeader();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
+  testWidgets('iOS restores the paperclip after closing an open sheet', (
+    tester,
+  ) async {
+    final controller = await _openIosChat(tester);
+    final button = _attachmentSource;
+    final element = tester.element(button);
+    await _tapAttachmentControl(tester, button);
+    await tester.pumpAndSettle();
+    expect(_paperclipFlight, findsNothing);
+    expect(_paperclipGlyph, findsNothing);
+
+    final map = find.byType(MeshMap);
+    final openRect = tester.getRect(map);
+    await _tapAttachmentControl(
+      tester,
+      useIosControls
+          ? _nativeControl('button', symbol: 'xmark')
+          : find.byTooltip('Close'),
+    );
+    await tester.pump();
+    expect(tester.getRect(_paperclipFlight), openRect);
+    await tester.pump(const Duration(milliseconds: 225));
+    expect(tester.getRect(_paperclipFlight).width, lessThan(openRect.width));
+    expect(_paperclipGlyph, findsOneWidget);
+    expect(_sourceHidden(tester, button), isTrue);
+    await tester.pumpAndSettle();
+
+    expect(_paperclipFlight, findsNothing);
+    expect(tester.element(button), same(element));
+    expect(_sourceHidden(tester, button), isFalse);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
+  testWidgets(
+    'iOS opens and closes attachments without a reduced-motion morph',
+    (tester) async {
+      final controller = await _openIosChat(tester, reduceMotion: true);
+      final button = _attachmentSource;
+      await _tapAttachmentControl(tester, button);
+      await tester.pump();
+      expect(find.byType(MeshMap), findsOneWidget);
+      expect(_paperclipFlight, findsNothing);
+      await _tapAttachmentControl(
+        tester,
+        useIosControls
+            ? _nativeControl('button', symbol: 'xmark')
+            : find.byTooltip('Close'),
+      );
+      await tester.pump();
+      expect(_paperclipFlight, findsNothing);
+      expect(_sourceHidden(tester, button), isFalse);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
   testWidgets('selects a mesh contact after filtering the node list', (
     tester,
   ) async {
@@ -467,6 +595,74 @@ void main() {
     expect(result, 'geo:56.300000,51.750000');
     expect(tester.takeException(), isNull);
   });
+}
+
+Finder _nativeControl(String kind, {String? symbol}) => find.byWidgetPredicate(
+  (widget) =>
+      widget is IosControl &&
+      widget.kind == kind &&
+      (symbol == null || widget.properties['symbol'] == symbol),
+);
+
+bool _sourceHidden(WidgetTester tester, Finder button) => !tester
+    .widget<Visibility>(
+      find.ancestor(
+        of: button,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Visibility && widget.maintainSize,
+        ),
+      ),
+    )
+    .visible;
+
+Finder get _attachmentSource => useIosControls
+    ? _nativeControl('button', symbol: 'paperclip')
+    : find.byTooltip('Attachments');
+
+Future<void> _tapAttachmentControl(WidgetTester tester, Finder control) async {
+  if (tester.widget(control) case IosControl native) {
+    native.onSelect!(0);
+  } else {
+    await tester.tap(control);
+  }
+}
+
+Finder get _paperclipFlight =>
+    find.byKey(const ValueKey('attachment-paperclip-flight'));
+
+Finder get _paperclipGlyph =>
+    find.byKey(const ValueKey('attachment-paperclip-glyph'));
+
+Future<MeshController> _openIosChat(
+  WidgetTester tester, {
+  bool reduceMotion = false,
+}) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+  tester.view.viewPadding = tester.view.padding;
+  addTearDown(tester.view.reset);
+  SharedPreferences.setMockInitialValues({});
+  final controller = MeshController(
+    store: MeshStore(await SharedPreferences.getInstance()),
+    transport: BleTransport(),
+    adapters: const [MeshtasticAdapter()],
+    preview: true,
+  );
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.iOS),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduceMotion),
+        child: child!,
+      ),
+      home: MeshHome(controller: controller),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Тропа'));
+  await tester.pumpAndSettle();
+  return controller;
 }
 
 Finder get _locationTab => find.descendant(

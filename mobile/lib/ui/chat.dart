@@ -6,7 +6,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' show ImageByteFormat, ImageFilter;
 
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, setEquals;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -86,6 +87,8 @@ class _ChatState extends State<MeshChatPage>
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
   final _footerKey = GlobalKey();
+  final _attachmentButton = GlobalKey();
+  final _attachmentSourceHidden = ValueNotifier(false);
   double _headerHeight = 59;
   double _footerHeight = 76;
   bool _measurementPending = false;
@@ -400,6 +403,7 @@ class _ChatState extends State<MeshChatPage>
     _untrackViewport?.call();
     _scroll.removeListener(_scheduleHistoryUpdate);
     _history.removeListener(_scheduleHistoryUpdate);
+    _attachmentSourceHidden.dispose();
     _latestButtonVisible.dispose();
     _visibleLinkMessages.dispose();
     _quoteScroll?.cancel();
@@ -501,11 +505,30 @@ class _ChatState extends State<MeshChatPage>
   void _notice(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
+  Rect? _attachmentButtonRect() {
+    if (_attachmentButton.currentContext?.findRenderObject()
+        case final RenderBox box when box.attached && box.hasSize) {
+      return Rect.fromCenter(
+        center: box.localToGlobal(box.size.center(Offset.zero)),
+        width: 40,
+        height: 40,
+      );
+    }
+    return null;
+  }
+
   Future<void> _attach(Peer peer) async {
     final controller = widget.controller;
     final radio = controller.active;
     final budget = controller.limit(peer);
     if (_sending || _attachmentOpen || radio == null || budget == null) return;
+    final sourceRect =
+        !kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.iOS &&
+            !MediaQuery.disableAnimationsOf(context)
+        ? _attachmentButtonRect()
+        : null;
+    if (sourceRect != null) _attachmentSourceHidden.value = true;
     _dismissKeyboard();
     setState(() => _attachmentOpen = true);
     final contacts = [
@@ -519,6 +542,16 @@ class _ChatState extends State<MeshChatPage>
         contacts: contacts,
         controller: controller,
         initialPosition: controller.cache?.localPosition,
+        paperclip: sourceRect == null
+            ? null
+            : (
+                start: sourceRect,
+                viewport: MediaQuery.sizeOf(context),
+                currentRect: _attachmentButtonRect,
+                setHidden: (hidden) {
+                  if (mounted) _attachmentSourceHidden.value = hidden;
+                },
+              ),
         locationNodes: [
           for (final contact in contacts)
             if (controller.nodeObservation(contact.peer.id)?.position
@@ -1355,13 +1388,24 @@ class _ChatState extends State<MeshChatPage>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        GlassButton(
-          coveredByModal: _controlsCovered,
-          icon: Icons.attach_file_rounded,
-          label: tr(context, 'Вложения', 'Attachments'),
-          onTap: controller.connected && canSend && !_sending
-              ? () => unawaited(_attach(peer))
-              : null,
+        ValueListenableBuilder<bool>(
+          valueListenable: _attachmentSourceHidden,
+          child: GlassButton(
+            key: _attachmentButton,
+            coveredByModal: _controlsCovered,
+            icon: Icons.attach_file_rounded,
+            label: tr(context, 'Вложения', 'Attachments'),
+            onTap: controller.connected && canSend && !_sending
+                ? () => unawaited(_attach(peer))
+                : null,
+          ),
+          builder: (context, hidden, button) => Visibility(
+            visible: !hidden,
+            maintainState: true,
+            maintainAnimation: true,
+            maintainSize: true,
+            child: button!,
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
