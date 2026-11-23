@@ -84,6 +84,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   late final _inset = AnimationController.unbounded(vsync: this, value: 1);
   _AttachmentTab _tab = _AttachmentTab.location;
   bool _expanded = false;
+  bool? _expandedBeforeContactSearch;
   bool _locating = false;
   bool _closing = false;
   double? _zoom;
@@ -102,7 +103,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
 
   void _select(int index) {
     final tab = _AttachmentTab.values[index];
-    if (tab == _tab) return;
+    if (tab == _tab || _expandedBeforeContactSearch != null) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _tab = tab;
@@ -110,10 +111,25 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     });
   }
 
-  void _snapTo(bool expanded, {double velocity = 0}) {
+  void _changeContactSearch(bool searching) {
+    if (searching) {
+      _expandedBeforeContactSearch ??= _expanded;
+      _snapTo(true, dismissKeyboard: false);
+    } else {
+      final previous = _expandedBeforeContactSearch;
+      _expandedBeforeContactSearch = null;
+      if (previous != null) _snapTo(previous, dismissKeyboard: false);
+    }
+  }
+
+  void _snapTo(
+    bool expanded, {
+    double velocity = 0,
+    bool dismissKeyboard = true,
+  }) {
     final changed = _expanded != expanded;
     if (changed) {
-      FocusScope.of(context).unfocus();
+      if (dismissKeyboard) FocusScope.of(context).unfocus();
       setState(() => _expanded = expanded);
     }
     final target = expanded ? 0.0 : 1.0;
@@ -143,7 +159,9 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   }
 
   Drag? _startSheetDrag(double travel) {
-    if (_closing || travel <= 0) return null;
+    if (_closing || _expandedBeforeContactSearch != null || travel <= 0) {
+      return null;
+    }
     _inset.stop();
     return _AttachmentDrag(
       onUpdate: (delta) => _inset.value = (_inset.value + delta / travel).clamp(
@@ -479,7 +497,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                 expanded: _expanded,
                 bottomObstruction: bottomObstruction,
                 onClose: _closeSheet,
-                onToggleExpand: () => _snapTo(!_expanded),
+                onSearchChanged: _changeContactSearch,
                 onSelect: _closeSheet,
                 beginSheetDrag: () => _startSheetDrag(travel),
               ),
@@ -545,12 +563,11 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
         );
         final minHeight = available.clamp(0.0, 232.0);
         final fraction = constraints.maxWidth <= 320 ? .15 : .2488;
-        final travel = keyboard > 0
-            ? 0.0
-            : (available * fraction).floorToDouble().clamp(
-                0.0,
-                available - minHeight,
-              );
+        final travel = (available * fraction).floorToDouble().clamp(
+          0.0,
+          available - minHeight,
+        );
+        final dragTravel = keyboard > 0 ? 0.0 : travel;
         return TweenAnimationBuilder<double>(
           tween: Tween(end: _expanded ? 0.0 : 1.0),
           duration: reduceMotion
@@ -559,7 +576,12 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
           curve: Curves.easeInOut,
           builder: (context, panelProgress, _) => AnimatedBuilder(
             animation: _inset,
-            child: _layout(location, travel, panelProgress, attributionHeight),
+            child: _layout(
+              location,
+              dragTravel,
+              panelProgress,
+              attributionHeight,
+            ),
             builder: (context, child) {
               final topInset = _inset.value.clamp(0.0, 1.0) * travel;
               final overshoot = (_inset.value - 1).clamp(0.0, double.infinity);

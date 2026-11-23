@@ -170,10 +170,16 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
 
 private final class SearchGlass: MeshInputGlass {
   var onAttach: (() -> Void)?
+  var onLayout: (() -> Void)?
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window != nil { onAttach?() }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    onLayout?()
   }
 }
 
@@ -182,25 +188,23 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
   private let field = UITextField()
   private let icon = UIImageView(image: UIImage(systemName: "magnifyingglass",
     withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)))
+  private let cornerButton = UIButton(type: .system)
   private let channel: FlutterMethodChannel
+  private let cornerSearch: Bool
   private var surface: UIColor = .secondarySystemBackground
   private var pendingFocus = true
+  private var cornerActive = false
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     self.channel = channel
+    cornerSearch = input["cornerSearch"] as? Bool == true
     super.init()
-    pendingFocus = input["autofocus"] as? Bool ?? true
+    pendingFocus = !cornerSearch && (input["autofocus"] as? Bool ?? true)
     field.text = input["initialText"] as? String
     glass.frame = frame
     glass.clipsToBounds = true
     glass.layer.cornerCurve = .continuous
-    glass.onAttach = { [weak self] in
-      DispatchQueue.main.async {
-        guard let self, self.pendingFocus, self.glass.window != nil else { return }
-        self.pendingFocus = false
-        self.field.becomeFirstResponder()
-      }
-    }
+    glass.onAttach = { [weak self] in self?.focusWhenReady() }
 
     icon.frame = CGRect(x: 0, y: 0, width: 28, height: 22)
     icon.contentMode = .left
@@ -220,6 +224,21 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
       field.topAnchor.constraint(equalTo: glass.contentView.topAnchor),
       field.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
     ])
+    if cornerSearch {
+      cornerButton.setImage(UIImage(systemName: "magnifyingglass",
+        withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .medium)),
+        for: .normal)
+      cornerButton.addTarget(self, action: #selector(activateSearch), for: .touchUpInside)
+      cornerButton.translatesAutoresizingMaskIntoConstraints = false
+      glass.contentView.addSubview(cornerButton)
+      NSLayoutConstraint.activate([
+        cornerButton.leadingAnchor.constraint(equalTo: glass.contentView.leadingAnchor),
+        cornerButton.trailingAnchor.constraint(equalTo: glass.contentView.trailingAnchor),
+        cornerButton.topAnchor.constraint(equalTo: glass.contentView.topAnchor),
+        cornerButton.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
+      ])
+      glass.onLayout = { [weak self] in self?.layoutCornerSearch() }
+    }
     NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
       name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
     update(input)
@@ -256,6 +275,28 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
     field.resignFirstResponder()
   }
 
+  private func focusWhenReady() {
+    guard pendingFocus,
+      glass.window != nil,
+      !cornerSearch || glass.bounds.width >= 120 else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.pendingFocus, self.glass.window != nil else { return }
+      self.pendingFocus = false
+      self.field.becomeFirstResponder()
+    }
+  }
+
+  private func layoutCornerSearch() {
+    let progress = min(1, max(0, (glass.bounds.width - 48) / 72))
+    field.alpha = progress
+    cornerButton.alpha = 1 - progress
+    focusWhenReady()
+  }
+
+  @objc private func activateSearch() {
+    channel.invokeMethod("select", arguments: 0)
+  }
+
   @objc private func textDidChange() {
     channel.invokeMethod("text", arguments: field.text ?? "")
   }
@@ -278,6 +319,25 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
     field.accessibilityLabel = placeholder
     field.attributedPlaceholder = NSAttributedString(string: placeholder,
       attributes: [.foregroundColor: secondary])
+    if cornerSearch {
+      let active = input["active"] as? Bool == true
+      if active != cornerActive {
+        cornerActive = active
+        if active {
+          pendingFocus = input["autofocus"] as? Bool ?? true
+        } else {
+          dismissKeyboard()
+          field.text = ""
+        }
+      }
+      cornerButton.accessibilityLabel = placeholder
+      cornerButton.tintColor = field.textColor
+      cornerButton.isUserInteractionEnabled = !active
+      cornerButton.isAccessibilityElement = !active
+      field.isUserInteractionEnabled = active
+      field.isAccessibilityElement = active
+      layoutCornerSearch()
+    }
     let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
     if nextSurface != surface || glass.effect == nil {
       surface = nextSurface

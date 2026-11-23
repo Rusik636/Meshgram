@@ -54,7 +54,7 @@ void main() {
   ) async {
     await _openContacts(tester, (_) {});
 
-    expect(find.byType(MeshSearchLauncher), findsOneWidget);
+    expect(find.byTooltip('Search nodes'), findsOneWidget);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -175));
     await tester.pumpAndSettle();
 
@@ -87,7 +87,13 @@ void main() {
 
     await tester.tap(search);
     await tester.pumpAndSettle();
-    expect(find.byType(MeshSearchEditor), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(MeshSearchEditor),
+        matching: find.byType(TextField),
+      ),
+      findsOneWidget,
+    );
     expect(softEdges, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
