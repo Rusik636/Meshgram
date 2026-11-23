@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'emoji_text.dart';
-import 'mesh_icon.dart';
 import 'style.dart';
 
 const quickReactions = [
@@ -246,10 +245,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       hintText: tr(context, 'Поиск эмодзи', 'Search emoji'),
-                      prefixIcon: const MeshIcon(
-                        Icons.search_rounded,
-                        size: 19,
-                      ),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 19),
                       filled: true,
                       fillColor: style.field,
                       border: OutlineInputBorder(
@@ -262,7 +258,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
                 IconButton(
                   tooltip: tr(context, 'Свернуть эмодзи', 'Collapse emoji'),
                   onPressed: widget.onCollapse,
-                  icon: const MeshIcon(Icons.keyboard_arrow_up_rounded),
+                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
                 ),
               ],
             ),
@@ -289,7 +285,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
                         _startAtTop();
                         setState(() => _category = category);
                       },
-                      icon: MeshIcon(category.icon, size: 20),
+                      icon: Icon(category.icon, size: 20),
                     ),
                 ],
               ),

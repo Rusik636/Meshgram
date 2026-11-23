@@ -16,7 +16,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_name.dart';
 import '../mesh/nodes.dart';
-import 'mesh_icon.dart';
 import 'navigation.dart' show meshMotion;
 import 'page_route.dart';
 import 'style.dart';
@@ -311,7 +310,7 @@ class _MapMarker extends StatelessWidget {
                 ),
               ),
             ),
-          MeshIcon(
+          Icon(
             Icons.place_rounded,
             size: 38,
             color: style.accent,
@@ -379,6 +378,7 @@ class MeshLocationPreview extends StatefulWidget {
     this.onTap,
     this.pin,
     this.loadTiles = true,
+    this.showDetails = true,
   });
 
   final NodePosition position;
@@ -386,6 +386,7 @@ class MeshLocationPreview extends StatefulWidget {
   final VoidCallback? onTap;
   final MeshMapPin? pin;
   final bool loadTiles;
+  final bool showDetails;
 
   @override
   State<MeshLocationPreview> createState() => _MeshLocationPreviewState();
@@ -408,7 +409,7 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final label = widget.title ?? tr(context, 'Геопозиция', 'Location');
-    return Material(
+    final preview = Material(
       color: style.field,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
@@ -432,53 +433,59 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-              child: Row(
-                children: [
-                  MeshIcon(
-                    Icons.near_me_outlined,
-                    color: style.accent,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: style.text,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+            if (widget.showDetails)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.near_me_outlined, color: style.accent, size: 17),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: style.text,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        Text(
-                          formatMapCoordinates(widget.position),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: style.secondary,
-                            fontSize: 12,
+                          Text(
+                            formatMapCoordinates(widget.position),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: style.secondary,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  MeshIcon(
-                    Icons.chevron_right_rounded,
-                    color: style.secondary,
-                    size: 16,
-                  ),
-                ],
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: style.secondary,
+                      size: 16,
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
+    );
+    if (widget.showDetails) return preview;
+    return Semantics(
+      label: tr(context, 'Открыть карту', 'Open map'),
+      button: true,
+      child: preview,
     );
   }
 }
@@ -566,7 +573,7 @@ class _LocationMapPage extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            MeshIcon(
+                            Icon(
                               Icons.copy_rounded,
                               size: 17,
                               color: style.accent,

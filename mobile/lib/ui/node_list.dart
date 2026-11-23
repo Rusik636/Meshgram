@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
-import 'mesh_icon.dart';
 import 'style.dart';
 
 Future<NodeSort?> pickNodeSort(
@@ -152,7 +151,7 @@ class MeshNodeRow extends StatelessWidget {
             if (selected case final checked?)
               Padding(
                 padding: const EdgeInsets.only(right: 10),
-                child: MeshIcon(
+                child: Icon(
                   checked
                       ? Icons.check_circle_rounded
                       : Icons.radio_button_unchecked_rounded,

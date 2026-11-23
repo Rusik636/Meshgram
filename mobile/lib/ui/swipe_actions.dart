@@ -5,7 +5,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'mesh_icon.dart';
 import 'navigation.dart';
 
 typedef SwipeAction = ({
@@ -180,7 +179,7 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     onPressed: action.onTap,
-                    icon: MeshIcon(
+                    icon: Icon(
                       action.icon,
                       color: Colors.white,
                       size: 22 * (.4 + .6 * visibility),

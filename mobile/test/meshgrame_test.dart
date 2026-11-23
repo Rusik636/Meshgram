@@ -5129,7 +5129,9 @@ void main() {
       final preview = find.byType(MeshLocationPreview);
       expect(preview, findsOneWidget);
       await tester.ensureVisible(preview);
-      await tester.tap(find.text('Last known position'));
+      expect(find.text('Last known position'), findsNothing);
+      expect(find.text(formatMapCoordinates(position)), findsNothing);
+      await tester.tap(preview);
       await tester.pumpAndSettle();
       expect(find.text(peer.name), findsOneWidget);
       final map = tester.widget<MeshMap>(find.byType(MeshMap));

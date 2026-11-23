@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 
 import 'haptics.dart';
 import 'ios_control.dart';
-import 'mesh_icon.dart';
 import 'style.dart';
 
 Color _tabSelection(MeshStyle style) =>
@@ -38,7 +37,7 @@ class MeshNavigation extends StatelessWidget {
             ),
           ),
         )
-      : MeshIcon(chatIcon, color: color, size: size);
+      : Icon(chatIcon, color: color, size: size);
 
   static double contentHeight(BuildContext context) =>
       (60 + (MediaQuery.textScalerOf(context).scale(12) - 12))
@@ -222,7 +221,7 @@ class _FlutterTabsState extends State<_FlutterTabs> {
               ),
             ),
           )
-        : MeshIcon(widget.icons[index], size: 19, color: color);
+        : Icon(widget.icons[index], size: 19, color: color);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

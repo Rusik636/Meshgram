@@ -101,7 +101,7 @@ class MeshSearchLauncher extends StatelessWidget {
           color: style.secondary.withValues(alpha: 1 - collapse),
         ),
         hintMaxLines: 1,
-        prefixIcon: MeshIcon(
+        prefixIcon: Icon(
           Icons.search_rounded,
           color: style.secondary,
           size: 22,
@@ -150,7 +150,8 @@ class MeshSearchEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    if (preferNative && useIosControls) {
+    final ios = useIosControls;
+    if (preferNative && ios) {
       return SizedBox(
         height: meshSearchFieldHeight(context),
         child: IosControl(
@@ -184,7 +185,15 @@ class MeshSearchEditor extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.zero,
-        prefixIcon: const MeshIcon(Icons.search_rounded),
+        prefixIcon: ios
+            ? const Center(
+                child: MeshIosButtonGlyph(
+                  Icons.search_rounded,
+                  symbol: 'magnifyingglass',
+                  size: 17 / .75,
+                ),
+              )
+            : const Icon(Icons.search_rounded),
         prefixIconConstraints: const BoxConstraints.tightFor(
           width: meshSearchButtonSize,
           height: meshSearchButtonSize,
@@ -203,7 +212,7 @@ class MeshSearchEditor extends StatelessWidget {
                   controller.clear();
                   onChanged('');
                 },
-                icon: const MeshIcon(Icons.cancel_outlined, size: 19),
+                icon: const Icon(Icons.cancel_outlined, size: 19),
               ),
       ),
     );
@@ -226,7 +235,14 @@ class MeshSearchEditor extends StatelessWidget {
             message: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
-              icon: MeshIcon(Icons.search_rounded, color: style.text, size: 20),
+              color: style.text,
+              icon: ios
+                  ? const MeshIosButtonGlyph(
+                      Icons.search_rounded,
+                      symbol: 'magnifyingglass',
+                      size: 19 / .75,
+                    )
+                  : const Icon(Icons.search_rounded, size: 20),
             ),
           );
         },
