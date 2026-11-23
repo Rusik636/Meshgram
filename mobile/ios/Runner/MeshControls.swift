@@ -277,6 +277,10 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     configuration.baseForegroundColor = primary ? meshColor(input["onAccent"], .white) : foreground
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
+      if input["readOnly"] as? Bool == true {
+        root.isUserInteractionEnabled = false
+        button.accessibilityTraits = [.header, .staticText]
+      }
       var heading = AttributedString(title)
       let headingSize = (input["titleFontSize"] as? NSNumber)?.doubleValue ?? 16
       heading.font = UIFont.systemFont(ofSize: headingSize, weight: .semibold)

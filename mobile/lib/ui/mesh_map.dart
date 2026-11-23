@@ -16,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_name.dart';
 import '../mesh/nodes.dart';
+import 'mesh_page_title.dart';
 import 'navigation.dart' show meshMotion;
 import 'page_route.dart';
 import 'style.dart';
@@ -541,14 +542,9 @@ class _LocationMapPage extends StatelessWidget {
             top: safe.top,
             left: safe.left,
             right: safe.right,
-            child: PageHeading(
+            child: MeshMapPageHeading(
               title ?? tr(context, 'Геопозиция', 'Location'),
-              titleBackground: style.pill,
-              leading: GlassButton(
-                icon: Icons.arrow_back_ios_new_rounded,
-                label: tr(context, 'Назад', 'Back'),
-                onTap: () => Navigator.pop(context),
-              ),
+              fallbackBackground: style.pill,
             ),
           ),
           Positioned(
