@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show SliverPaintOrder;
 
 import 'ios_control.dart';
 import 'mesh_scroll_edge.dart';
