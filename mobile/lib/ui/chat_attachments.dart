@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,7 +10,8 @@ import 'package:geolocator/geolocator.dart';
 
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
-import 'haptics.dart';
+import 'location_search.dart';
+import 'navigation.dart';
 import 'position_picker.dart';
 import 'style.dart';
 
@@ -19,6 +21,8 @@ Future<String?> pickChatAttachment(
   BuildContext context, {
   required List<ShareableNode> contacts,
   NodePosition? initialPosition,
+  List<AttachmentLocationNode> locationNodes = const [],
+  Uint8List? backdrop,
 }) => showModalBottomSheet<String>(
   context: context,
   isScrollControlled: true,
@@ -28,16 +32,27 @@ Future<String?> pickChatAttachment(
   sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
       ? AnimationStyle.noAnimation
       : null,
-  builder: (context) =>
-      _AttachmentSheet(contacts: contacts, initialPosition: initialPosition),
+  builder: (context) => MessageMenuBackdrop(
+    image: backdrop,
+    child: _AttachmentSheet(
+      contacts: contacts,
+      initialPosition: initialPosition,
+      locationNodes: locationNodes,
+    ),
+  ),
 );
 
 enum _AttachmentTab { location, contact }
 
 class _AttachmentSheet extends StatefulWidget {
-  const _AttachmentSheet({required this.contacts, this.initialPosition});
+  const _AttachmentSheet({
+    required this.contacts,
+    required this.locationNodes,
+    this.initialPosition,
+  });
 
   final List<ShareableNode> contacts;
+  final List<AttachmentLocationNode> locationNodes;
   final NodePosition? initialPosition;
 
   @override
@@ -48,9 +63,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
   final _map = MapController();
   final _contactSearch = TextEditingController();
   late final _point = ValueNotifier(widget.initialPosition);
-  _AttachmentTab? _tab;
+  _AttachmentTab _tab = _AttachmentTab.location;
   bool _expanded = false;
   bool _locating = false;
+  bool _dragging = false;
   double? _zoom;
   int _selectionRevision = 0;
   double _drag = 0;
@@ -65,32 +81,57 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     super.dispose();
   }
 
-  void _select(_AttachmentTab tab) {
-    unawaited(playMeshHaptic(MeshHaptic.selection));
-    setState(() => _tab = tab);
-  }
-
-  void _back() {
+  void _select(int index) {
+    final tab = _AttachmentTab.values[index];
+    if (tab == _tab) return;
     FocusScope.of(context).unfocus();
     setState(() {
-      _expanded = false;
-      _tab = null;
+      _tab = tab;
       _selectionRevision++;
+    });
+  }
+
+  void _setExpanded(bool expanded) {
+    setState(() => _expanded = expanded);
+  }
+
+  void _resetDrag() {
+    setState(() {
+      _dragging = false;
+      _drag = 0;
     });
   }
 
   void _onGripEnd(DragEndDetails details) {
     final intent = _drag + (details.primaryVelocity ?? 0) * .10;
-    if (intent < -32 && _tab != null) {
-      setState(() => _expanded = true);
+    _resetDrag();
+    if (intent < -32 && !_expanded) {
+      _setExpanded(true);
     } else if (intent > 32) {
       if (_expanded) {
         FocusScope.of(context).unfocus();
-        setState(() => _expanded = false);
+        _setExpanded(false);
       } else {
         Navigator.pop(context);
       }
     }
+  }
+
+  Future<void> _searchLocation() async {
+    // A pending GPS fix cannot overwrite a point picked from search.
+    _selectionRevision++;
+    final point = await openAttachmentLocationSearch(
+      context,
+      nodes: widget.locationNodes,
+    );
+    if (!mounted || _tab != _AttachmentTab.location || point == null) return;
+    _moveTo(point, 15);
+  }
+
+  void _moveTo(NodePosition point, double zoom) {
+    _map.move(meshMapPoint(point), zoom);
+    _zoom = zoom;
+    _setPoint(point);
   }
 
   Future<void> _locate() async {
@@ -141,8 +182,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
         latitude: position.latitude,
         longitude: position.longitude,
       );
-      _setPoint(point);
-      _map.move(meshMapPoint(point), 15);
+      _moveTo(point, 15);
     } catch (_) {
       if (mounted && stillSelecting()) {
         error = tr(
@@ -167,32 +207,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     if (_positionError != null) setState(() => _positionError = null);
   }
 
-  Widget _action(_AttachmentTab tab, IconData icon, String label) {
-    final style = MeshStyle.of(context);
-    return Material(
-      color: style.accent.withValues(alpha: .10),
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _select(tab),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
-          child: Column(
-            children: [
-              Icon(icon, color: style.accent),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _contacts() {
     final style = MeshStyle.of(context);
     final visible = widget.contacts
@@ -202,80 +216,79 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
               contact.peer.id.toLowerCase().contains(_query),
         )
         .toList();
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: TextField(
-            controller: _contactSearch,
-            onChanged: (value) =>
-                setState(() => _query = value.trim().toLowerCase()),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: tr(context, 'Поиск узлов', 'Search nodes'),
-              prefixIcon: const Icon(Icons.search_rounded),
-              filled: true,
-              fillColor: style.field,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+    return CustomScrollView(
+      key: const PageStorageKey('attachment-contacts'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: TextField(
+              controller: _contactSearch,
+              onChanged: (value) =>
+                  setState(() => _query = value.trim().toLowerCase()),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: tr(context, 'Поиск узлов', 'Search nodes'),
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: style.field,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
         ),
-        Expanded(
-          child: visible.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      widget.contacts.isEmpty
-                          ? tr(context, 'Список узлов пуст', 'No nodes yet')
-                          : tr(context, 'Узлы не найдены', 'No matching nodes'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: style.secondary),
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: visible.length,
-                  itemBuilder: (_, index) {
-                    final contact = visible[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: style.accent.withValues(alpha: .16),
-                        foregroundColor: style.accent,
-                        child: const Icon(Icons.person_outline_rounded),
-                      ),
-                      title: Text(
-                        contact.peer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      enabled: contact.link != null,
-                      subtitle: Text(
-                        contact.link == null
-                            ? tr(
-                                context,
-                                'Ссылка недоступна',
-                                'Contact link unavailable',
-                              )
-                            : contact.peer.id,
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_upward_rounded,
-                        size: 18,
-                      ),
-                      onTap: contact.link == null
-                          ? null
-                          : () => Navigator.pop(context, contact.link),
-                    );
-                  },
+        if (visible.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  widget.contacts.isEmpty
+                      ? tr(context, 'Список узлов пуст', 'No nodes yet')
+                      : tr(context, 'Узлы не найдены', 'No matching nodes'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: style.secondary),
                 ),
-        ),
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            sliver: SliverList.builder(
+              itemCount: visible.length,
+              itemBuilder: (_, index) {
+                final contact = visible[index];
+                return ListTile(
+                  leading: MeshAvatar(contact.peer.name, size: 40),
+                  title: Text(
+                    contact.peer.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  enabled: contact.link != null,
+                  subtitle: Text(
+                    contact.link == null
+                        ? tr(
+                            context,
+                            'Ссылка недоступна',
+                            'Contact link unavailable',
+                          )
+                        : contact.peer.id,
+                  ),
+                  trailing: const Icon(Icons.arrow_upward_rounded, size: 18),
+                  onTap: contact.link == null
+                      ? null
+                      : () => Navigator.pop(context, contact.link),
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -296,26 +309,27 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                   _zoom = _map.camera.zoom;
                   _setPoint(point);
                 },
-                onMapTap: (point) {
-                  _setPoint(point);
-                  _map.move(meshMapPoint(point), _map.camera.zoom);
-                },
+                onMapTap: (point) => _moveTo(point, _map.camera.zoom),
                 showCrosshair: true,
               ),
               PositionedDirectional(
                 end: 12,
                 top: 12,
-                child: FloatingActionButton.small(
-                  heroTag: null,
-                  tooltip: tr(context, 'Моя геопозиция', 'My location'),
-                  onPressed: _locating ? null : () => unawaited(_locate()),
-                  child: _locating
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location_rounded),
-                ),
+                child: _locating
+                    ? const SizedBox.square(
+                        dimension: 48,
+                        child: Center(
+                          child: SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    : GlassButton(
+                        icon: Icons.my_location_rounded,
+                        label: tr(context, 'Моя геопозиция', 'My location'),
+                        onTap: () => unawaited(_locate()),
+                      ),
               ),
             ],
           ),
@@ -340,17 +354,14 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                   style: TextStyle(color: style.secondary, fontSize: 13),
                 ),
                 const SizedBox(height: 7),
-                FilledButton.icon(
-                  onPressed: point == null
+                GlassActionButton(
+                  onTap: point == null
                       ? null
                       : () => Navigator.pop(
                           context,
                           'geo:${formatChatPosition(point, separator: ',')}',
                         ),
-                  icon: const Icon(Icons.place_outlined),
-                  label: Text(
-                    tr(context, 'Отправить геопозицию', 'Send location'),
-                  ),
+                  label: tr(context, 'Отправить геопозицию', 'Send location'),
                 ),
               ],
             ),
@@ -364,53 +375,42 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final location = tr(context, 'Геопозиция', 'Location');
-    final contact = tr(context, 'Контакт', 'Contact');
-    final insets = MediaQuery.viewInsetsOf(context).bottom;
-    final title = switch (_tab) {
-      _AttachmentTab.location => location,
-      _AttachmentTab.contact => tr(context, 'Узлы', 'Nodes'),
-      null => tr(context, 'Вложения', 'Attachments'),
-    };
-    final motion = MediaQuery.disableAnimationsOf(context)
+    final title = _tab == _AttachmentTab.location
+        ? location
+        : tr(context, 'Контакты', 'Contacts');
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final motion = _dragging || keyboard > 0
         ? Duration.zero
-        : const Duration(milliseconds: 240);
+        : meshMotion(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final available = (constraints.maxHeight - insets).clamp(
+        final available = (constraints.maxHeight - keyboard).clamp(
           0.0,
           constraints.maxHeight,
         );
-        final fraction = _expanded || insets > 0
-            ? .98
-            : _tab == null
-            ? .34
-            : .69;
-        return AnimatedPadding(
-          duration: motion,
-          padding: EdgeInsets.only(bottom: insets),
+        final minHeight = available < 232 ? available : 232.0;
+        final fraction = _expanded || keyboard > 0 ? 1.0 : .72;
+        return Padding(
+          padding: EdgeInsets.only(bottom: keyboard),
           child: AnimatedContainer(
             duration: motion,
             curve: Curves.easeOutCubic,
-            height: (available * fraction).clamp(
-              available < 212 ? available : 212.0,
-              available,
-            ),
-            child: Material(
-              color: style.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
-              clipBehavior: Clip.antiAlias,
+            height: (available * fraction - _drag).clamp(minHeight, available),
+            child: MessageMenuSurface(
+              radius: 26,
               child: SafeArea(
                 top: false,
                 child: Column(
                   children: [
                     GestureDetector(
+                      key: const ValueKey('attachment-grip'),
                       behavior: HitTestBehavior.opaque,
-                      onVerticalDragStart: (_) => _drag = 0,
+                      onVerticalDragStart: (_) =>
+                          setState(() => _dragging = true),
                       onVerticalDragUpdate: (details) =>
-                          _drag += details.delta.dy,
+                          setState(() => _drag += details.delta.dy),
                       onVerticalDragEnd: _onGripEnd,
+                      onVerticalDragCancel: _resetDrag,
                       child: SizedBox(
                         height: 18,
                         width: double.infinity,
@@ -427,46 +427,49 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Row(
                         children: [
-                          IconButton(
-                            tooltip: _tab == null
-                                ? tr(context, 'Закрыть', 'Close')
-                                : tr(context, 'Назад', 'Back'),
-                            onPressed: _tab == null
-                                ? () => Navigator.pop(context)
-                                : _back,
-                            icon: Icon(
-                              _tab == null
-                                  ? Icons.close_rounded
-                                  : Icons.arrow_back_rounded,
-                            ),
+                          GlassButton(
+                            icon: Icons.close_rounded,
+                            label: tr(context, 'Закрыть', 'Close'),
+                            onTap: () => Navigator.pop(context),
                           ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
-                          if (_tab != null)
-                            IconButton(
-                              tooltip: _expanded
-                                  ? tr(context, 'Свернуть', 'Collapse')
-                                  : tr(context, 'На весь экран', 'Expand'),
-                              onPressed: () {
-                                FocusScope.of(context).unfocus();
-                                setState(() => _expanded = !_expanded);
-                              },
-                              icon: Icon(
-                                _expanded
-                                    ? Icons.close_fullscreen_rounded
-                                    : Icons.open_in_full_rounded,
+                          if (_tab == _AttachmentTab.location)
+                            GlassButton(
+                              icon: Icons.search_rounded,
+                              label: tr(
+                                context,
+                                'Искать геопозицию',
+                                'Search locations',
                               ),
+                              onTap: () => unawaited(_searchLocation()),
                             ),
+                          const SizedBox(width: 6),
+                          GlassButton(
+                            icon: _expanded
+                                ? Icons.close_fullscreen_rounded
+                                : Icons.open_in_full_rounded,
+                            label: _expanded
+                                ? tr(context, 'Свернуть', 'Collapse')
+                                : tr(context, 'На весь экран', 'Expand'),
+                            onTap: () {
+                              FocusScope.of(context).unfocus();
+                              _setExpanded(!_expanded);
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -474,32 +477,26 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                       child: switch (_tab) {
                         _AttachmentTab.location => _location(),
                         _AttachmentTab.contact => _contacts(),
-                        null => ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _action(
-                                    _AttachmentTab.location,
-                                    Icons.place_outlined,
-                                    location,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _action(
-                                    _AttachmentTab.contact,
-                                    Icons.person_outline_rounded,
-                                    contact,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
                       },
                     ),
+                    if (!_expanded)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                        child: MeshTabBar(
+                          labels: [location, tr(context, 'Контакт', 'Contact')],
+                          icons: const [
+                            Icons.place_outlined,
+                            Icons.person_outline_rounded,
+                          ],
+                          symbols: const [
+                            'location.fill',
+                            'person.crop.circle',
+                          ],
+                          index: _tab.index,
+                          onSelect: _select,
+                          includeBottomInset: false,
+                        ),
+                      ),
                   ],
                 ),
               ),
