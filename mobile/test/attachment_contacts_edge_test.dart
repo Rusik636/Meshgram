@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/chat_attachments.dart';
 import 'package:meshgrame/ui/contact_picker.dart';
+import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/search_field.dart';
@@ -83,7 +84,17 @@ void main() {
     final softEdges = find.byKey(
       const ValueKey('attachment-contact-scroll-edges'),
     );
+    final headingEdge = find.descendant(
+      of: picker,
+      matching: find.byType(MeshScrollEdge),
+    );
     expect(softEdges, findsOneWidget);
+    expect(tester.getRect(headingEdge).top, bounds.top);
+    expect(tester.getRect(headingEdge).width, bounds.width);
+    expect(
+      tester.getRect(headingEdge).bottom,
+      greaterThan(tester.getRect(search).bottom),
+    );
 
     await tester.tap(search);
     await tester.pumpAndSettle();
@@ -95,6 +106,7 @@ void main() {
       findsOneWidget,
     );
     expect(softEdges, findsOneWidget);
+    expect(headingEdge, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

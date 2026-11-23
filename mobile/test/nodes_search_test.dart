@@ -7,6 +7,7 @@ import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/ble_transport.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
+import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/nodes.dart';
 import 'package:meshgrame/ui/search_field.dart';
@@ -58,10 +59,27 @@ void main() {
       matching: find.byType(TextField),
     );
     final list = find.byType(CustomScrollView);
-    final fade = find.ancestor(of: list, matching: find.byType(ShaderMask));
+    final edge = find.byType(MeshScrollEdge);
     void expectSoftHeader() {
       expect(tester.getRect(list).top, 0);
-      expect(tester.widget<ShaderMask>(fade).blendMode, BlendMode.dstIn);
+      expect(
+        find.ancestor(of: list, matching: find.byType(ShaderMask)),
+        findsNothing,
+      );
+      final edgeRect = tester.getRect(edge);
+      expect(edgeRect.top, tester.getRect(list).top);
+      expect(edgeRect.width, tester.getRect(list).width);
+      expect(edgeRect.bottom, greaterThan(tester.getRect(heading).bottom));
+      final stack = tester
+          .element(heading)
+          .findAncestorWidgetOfExactType<Stack>()!;
+      final edgeLayer = stack.children.indexWhere(
+        (layer) => layer is Positioned && layer.child == tester.widget(edge),
+      );
+      expect(
+        edgeLayer,
+        inInclusiveRange(0, stack.children.indexOf(tester.widget(heading)) - 1),
+      );
     }
 
     final headingRect = tester.getRect(heading);

@@ -13,6 +13,7 @@ import 'chat_management.dart';
 import 'ios_control.dart';
 import 'mesh_map.dart';
 import 'mesh_page_title.dart';
+import 'mesh_scroll_edge.dart';
 import 'message_details.dart';
 import 'node_list.dart';
 import 'page_route.dart';
@@ -185,6 +186,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     final safe = MediaQuery.viewPaddingOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final preferNative = ModalRoute.isCurrentOf(context) != false;
+    final useBlurredHeading = Theme.of(context).platform == TargetPlatform.iOS;
     final width = constraints.maxWidth;
     final height = constraints.maxHeight;
     final headingHeight = math.max(
@@ -247,6 +249,13 @@ class _MeshNodesPageState extends State<MeshNodesPage>
         final browseFadeEnd =
             normalTop +
             (canSearch ? collapseRange * (1 - collapse) * (1 - progress) : 0);
+        Widget belowHeading(Widget list, double edge) => useBlurredHeading
+            ? list
+            : _NodeHeaderFade(
+                hiddenUntil: edge - _headingFade,
+                visibleFrom: edge,
+                child: list,
+              );
         return Stack(
           children: [
             Positioned.fill(
@@ -258,11 +267,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     excluding: _searching,
                     child: Opacity(
                       opacity: 1 - progress,
-                      child: _NodeHeaderFade(
-                        hiddenUntil: browseFadeEnd - _headingFade,
-                        visibleFrom: browseFadeEnd,
-                        child: browse,
-                      ),
+                      child: belowHeading(browse, browseFadeEnd),
                     ),
                   ),
                 ),
@@ -280,10 +285,8 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     excluding: !_searching,
                     child: Opacity(
                       opacity: progress,
-                      child: _NodeHeaderFade(
-                        hiddenUntil: normalTop - _headingFade,
-                        visibleFrom: normalTop,
-                        child: _nodeList(
+                      child: belowHeading(
+                        _nodeList(
                           context,
                           scroll: _results,
                           nodes: results,
@@ -291,10 +294,19 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                           editing: false,
                           searching: true,
                         ),
+                        normalTop,
                       ),
                     ),
                   ),
                 ),
+              ),
+            if (useBlurredHeading)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: normalTop,
+                child: const MeshScrollEdge(top: true),
               ),
             Positioned(
               key: const ValueKey('nodes-heading'),
