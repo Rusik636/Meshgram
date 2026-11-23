@@ -14,6 +14,7 @@ void main() {
     final search = TextEditingController();
     final focus = FocusNode();
     final searchKey = GlobalKey<IosControlState>();
+    final compactSearchKey = GlobalKey<IosControlState>();
     addTearDown(search.dispose);
     addTearDown(focus.dispose);
     await tester.pumpWidget(
@@ -27,18 +28,27 @@ void main() {
                   label: 'Sort',
                   onTap: () {},
                 ),
-                SizedBox.square(
-                  dimension: 48,
+                SizedBox(
+                  width: 200,
                   child: MeshSearchEditor(
                     placeholder: 'Search',
                     controller: search,
                     focusNode: focus,
                     iosKey: searchKey,
-                    active: false,
-                    onActivate: () {},
                     onChanged: (_) {},
                     onDismissKeyboard: () {},
                   ),
+                ),
+                MeshSearchEditor(
+                  placeholder: 'Search nodes',
+                  controller: search,
+                  focusNode: focus,
+                  iosKey: compactSearchKey,
+                  active: false,
+                  progress: 0,
+                  onActivate: () {},
+                  onChanged: (_) {},
+                  onDismissKeyboard: () {},
                 ),
                 TextButton(
                   onPressed: () => showMeshSheet<void>(
@@ -59,7 +69,14 @@ void main() {
     Finder native(String kind) => find.byWidgetPredicate(
       (widget) => widget is IosControl && widget.kind == kind,
     );
-    final button = native('button');
+    Finder nativeButton(String label) => find.byWidgetPredicate(
+      (widget) =>
+          widget is IosControl &&
+          widget.kind == 'button' &&
+          widget.properties['label'] == label,
+    );
+    final button = nativeButton('Sort');
+    final searchButton = nativeButton('Search nodes');
     final editor = native('chatSearch');
     final buttonState = tester.state<IosControlState>(button);
     final searchState = tester.state<IosControlState>(editor);
@@ -73,6 +90,10 @@ void main() {
       matching: find.byType(UiKitView),
     );
     expect(tester.getRect(platformButton), tester.getRect(button).inflate(8));
+    expect(
+      tester.widget<IosControl>(searchButton).properties['symbol'],
+      'magnifyingglass',
+    );
 
     void expectControls(bool covered) {
       expect(tester.state<IosControlState>(button), same(buttonState));
@@ -85,8 +106,10 @@ void main() {
         tester.widget<IosControl>(editor).properties['coveredByModal'],
         covered,
       );
-      expect(tester.widget<IosControl>(button).capsule, isFalse);
-      expect(tester.widget<IosControl>(editor).capsule, isTrue);
+      expect(
+        find.descendant(of: editor, matching: find.byType(ClipRRect)),
+        findsNothing,
+      );
       expect(find.byType(IconButton), findsNothing);
       expect(find.byType(RawImage), findsNothing);
     }

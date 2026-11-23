@@ -130,20 +130,25 @@ class RunnerTests: XCTestCase {
   }
 
   @MainActor
-  func testNativeSearchKeepsItsEffectWhileCovered() throws {
+  func testNativeSearchKeepsEditableTextAboveUntintedGlassWhileCovered() throws {
     for dark in [false, true] {
       let input = appearance(dark: dark).merging([
-        "placeholder": "Search", "autofocus": false, "cornerSearch": true, "active": true,
+        "placeholder": "Search", "initialText": "Node", "autofocus": false,
+        "expandsFromCorner": true, "active": true,
       ]) { _, value in value }
       let search = MeshSearchField(
         frame: CGRect(x: 0, y: 0, width: 200, height: 48),
         channel: channel(),
         input: input
       )
-      let view = try XCTUnwrap(search.view() as? UIVisualEffectView)
-      let initialEffect = view.effect
-      let initialBackground = view.backgroundColor
+      let view = search.view()
+      let backdrop = try XCTUnwrap(view.subviews.first as? UIVisualEffectView)
+      let editor = try XCTUnwrap(view.subviews.last as? UITextField)
+      let initialEffect = backdrop.effect
+      let initialBackground = backdrop.backgroundColor
       let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+      XCTAssertFalse(view.clipsToBounds)
+      XCTAssertFalse(backdrop.isUserInteractionEnabled)
       XCTAssertTrue(view.isUserInteractionEnabled)
       XCTAssertFalse(view.accessibilityElementsHidden)
 
@@ -153,20 +158,23 @@ class RunnerTests: XCTestCase {
         XCTAssertTrue(search.view() === view, state)
         if reduceTransparency {
           XCTAssertNil(initialEffect, state)
-          XCTAssertNil(view.effect, state)
+          XCTAssertNil(backdrop.effect, state)
         } else if #available(iOS 26.0, *) {
-          let initialGlass = try XCTUnwrap(initialEffect as? UIGlassEffect, state)
-          let glass = try XCTUnwrap(view.effect as? UIGlassEffect, state)
-          XCTAssertEqual(glass.tintColor, initialGlass.tintColor, state)
-          XCTAssertEqual(glass.isInteractive, initialGlass.isInteractive, state)
+          XCTAssertTrue(initialEffect is UIGlassEffect, state)
+          let glass = try XCTUnwrap(backdrop.effect as? UIGlassEffect, state)
+          XCTAssertNil(glass.tintColor, state)
         } else {
-          XCTAssertTrue(initialEffect is UIBlurEffect, state)
-          XCTAssertTrue(view.effect is UIBlurEffect, state)
+          XCTAssertTrue(backdrop.effect is UIBlurEffect, state)
         }
-        XCTAssertEqual(view.backgroundColor, initialBackground, state)
+        XCTAssertEqual(backdrop.backgroundColor, initialBackground, state)
+        XCTAssertTrue(view.subviews.last === editor, state)
+        XCTAssertEqual(editor.text, "Node", state)
         XCTAssertEqual(view.isUserInteractionEnabled, !covered, state)
         XCTAssertEqual(view.accessibilityElementsHidden, covered, state)
       }
+      search.update(input.merging(["highContrast": true]) { _, value in value })
+      XCTAssertNil(backdrop.effect)
+      XCTAssertEqual(backdrop.backgroundColor, meshColor(input["surface"], .clear))
     }
   }
 

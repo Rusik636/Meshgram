@@ -5,7 +5,7 @@ import Flutter
 import UIKit
 
 let meshChatSymbol = "bubble.left"
-// Tint for the search capsule and navigation controls on older iOS versions.
+// Tint for the attachment transition and navigation controls on older iOS versions.
 func meshPanelTint(dark: Bool) -> UIColor {
   UIColor(white: 1, alpha: dark ? 0.025 : 0.10)
 }

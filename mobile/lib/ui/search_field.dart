@@ -233,15 +233,20 @@ class MeshSearchEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     if (useIosControls) {
+      if (onActivate != null && !active && progress == 0) {
+        return GlassButton(
+          icon: Icons.search_rounded,
+          label: placeholder,
+          onTap: onActivate,
+        );
+      }
       final covered = ModalRoute.isCurrentOf(context) == false;
       return SizedBox(
         height: meshSearchFieldHeight(context),
         child: IosControl(
           key: iosKey,
           kind: 'chatSearch',
-          capsule: true,
           onTextChanged: onChanged,
-          onSelect: onActivate == null ? null : (_) => onActivate!(),
           properties: {
             'placeholder': placeholder,
             'initialText': initialText,
@@ -253,7 +258,11 @@ class MeshSearchEditor extends StatelessWidget {
             'secondary': style.secondary.toARGB32(),
             'accent': style.accent.toARGB32(),
             'surface': style.surface.toARGB32(),
-            if (onActivate != null) ...{'cornerSearch': true, 'active': active},
+            'highContrast': MediaQuery.highContrastOf(context),
+            if (onActivate != null) ...{
+              'expandsFromCorner': true,
+              'active': active,
+            },
           },
         ),
       );

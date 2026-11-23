@@ -24,7 +24,6 @@ class IosControl extends StatefulWidget {
     this.onTextChanged,
     this.horizontalDrag = false,
     this.eagerGestures = false,
-    this.capsule = false,
   });
 
   final String kind;
@@ -32,7 +31,7 @@ class IosControl extends StatefulWidget {
   final ValueChanged<int>? onSelect;
   final ValueChanged<String>? onTextChanged;
   final bool horizontalDrag;
-  final bool eagerGestures, capsule;
+  final bool eagerGestures;
 
   @override
   IosControlState createState() => IosControlState();
@@ -106,11 +105,7 @@ class IosControlState extends State<IosControl> {
         unawaited(_send('update', widget.properties));
       },
     );
-    final clippedView = MeshSheetControlClip(
-      child: widget.capsule
-          ? ClipRRect(borderRadius: BorderRadius.circular(999), child: view)
-          : view,
-    );
+    final clippedView = MeshSheetControlClip(child: view);
     if (outset == 0) return clippedView;
 
     // Give UIKit room to draw the pressed glass beyond its resting frame.
