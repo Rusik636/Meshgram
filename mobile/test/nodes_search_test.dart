@@ -57,7 +57,19 @@ void main() {
       of: find.byType(MeshSearchEditor),
       matching: find.byType(TextField),
     );
+    final list = find.byType(CustomScrollView);
+    final fade = find.ancestor(of: list, matching: find.byType(ShaderMask));
+    void expectSoftHeader() {
+      expect(tester.getRect(list).top, 0);
+      expect(tester.widget<ShaderMask>(fade).blendMode, BlendMode.dstIn);
+    }
+
     final headingRect = tester.getRect(heading);
+    final map = find.byTooltip('Node map');
+    final sort = find.byTooltip('Sort by');
+    final mapRect = tester.getRect(map);
+    final sortRect = tester.getRect(sort);
+    expectSoftHeader();
     final expanded = tester.getRect(field);
     expect(expanded.width, 358);
     expect(expanded.top, greaterThan(headingRect.bottom));
@@ -70,6 +82,7 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
     expect(tester.getRect(field).bottom, closeTo(536, .5));
+    expectSoftHeader();
 
     await tester.enterText(editor, 'МИРА');
     await tester.pumpAndSettle();
@@ -85,7 +98,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(field), expanded);
 
-    final list = find.byType(CustomScrollView);
     await tester.drag(list, const Offset(0, -180));
     await tester.pumpAndSettle();
     final browseOffset = tester
@@ -95,8 +107,11 @@ void main() {
     final compact = tester.getRect(field);
     expect(compact.size, const Size.square(48));
     expect(compact.center.dy, headingRect.center.dy);
-    final sort = find.byTooltip('Sort by');
-    expect(compact.left, greaterThan(tester.getRect(sort).right));
+    expect(compact.right, lessThan(mapRect.left));
+    expect(mapRect.right, lessThan(sortRect.left));
+    expect(tester.getRect(map), mapRect);
+    expect(tester.getRect(sort), sortRect);
+    expectSoftHeader();
 
     await tester.tap(find.byTooltip('Search nodes'));
     await tester.pump();
@@ -113,6 +128,30 @@ void main() {
       tester.widget<CustomScrollView>(list).controller!.offset,
       browseOffset,
     );
+    await tester.tap(find.byTooltip('Search nodes'));
+    await tester.pumpAndSettle();
+    await tester.enterText(editor, '!ABCDEF07');
+    tester.view.physicalSize = const Size(844, 390);
+    tester.view.padding = const FakeViewPadding(
+      left: 47,
+      right: 34,
+      bottom: 21,
+    );
+    tester.view.viewPadding = tester.view.padding;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 135);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(field).bottom, closeTo(247, .5));
+    expect(tester.getRect(field).left, 63);
+    expect(find.text('Trail radio 7'), findsOneWidget);
+    expectSoftHeader();
+
+    await tester.tap(find.byTooltip('Close search'));
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    final rotated = tester.getRect(field);
+    expect(rotated.size, const Size.square(48));
+    expect(rotated.right, lessThan(tester.getRect(map).left));
+    expect(tester.getRect(map).right, lessThan(tester.getRect(sort).left));
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
