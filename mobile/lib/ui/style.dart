@@ -593,10 +593,15 @@ class MeshGroup extends StatelessWidget {
 }
 
 class MeshRowIcon extends StatelessWidget {
-  const MeshRowIcon({super.key, required this.icon, required this.tint});
+  const MeshRowIcon({
+    super.key,
+    required this.icon,
+    required this.tint,
+    this.glyphColor = Colors.white,
+  });
 
   final IconData icon;
-  final Color tint;
+  final Color tint, glyphColor;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -610,7 +615,7 @@ class MeshRowIcon extends StatelessWidget {
         colors: [Color.lerp(tint, Colors.white, .20)!, tint],
       ),
     ),
-    child: Icon(icon, size: 17, color: Colors.white),
+    child: Icon(icon, size: 17, color: glyphColor),
   );
 }
 

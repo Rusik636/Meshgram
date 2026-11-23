@@ -2732,6 +2732,62 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('radio icons follow transport, connection and focus', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshCoreAdapter(), MeshtasticAdapter()],
+      preview: true,
+    );
+    final bluetooth = controller.active!;
+    final offline = controller.radios.last;
+    final wifi = lanRadio(
+      'meshtastic',
+      '192.0.2.10',
+      4403,
+      name: 'Wi-Fi relay',
+    );
+    await controller.connect(wifi);
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    MeshRowIcon badge(Radio radio) => tester.widget<MeshRowIcon>(
+      find.descendant(
+        of: find.byKey(ValueKey(radioKey(radio))),
+        matching: find.byType(MeshRowIcon),
+      ),
+    );
+    const lime = Color(0xffd5e88b);
+    const green = Color(0xffa9e0b4);
+    const gray = Color(0xff6a7280);
+
+    expect(badge(wifi).icon, Icons.wifi_rounded);
+    expect(badge(wifi).tint, lime);
+    expect(badge(bluetooth).icon, Icons.bluetooth_rounded);
+    expect(badge(bluetooth).tint, green);
+    expect(badge(offline).tint, gray);
+
+    await controller.connect(bluetooth);
+    await tester.pumpAndSettle();
+    expect(badge(bluetooth).tint, lime);
+    expect(badge(wifi).tint, green);
+
+    await controller.disconnectRadio(bluetooth);
+    await tester.pumpAndSettle();
+    expect(badge(bluetooth).tint, gray);
+    expect(badge(wifi).tint, green);
+
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   testWidgets('signal colors and online dot stay vivid in both themes', (
     tester,
   ) async {
