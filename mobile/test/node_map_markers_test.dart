@@ -153,8 +153,10 @@ void main() {
       matching: find.byType(SizedBox),
     );
     final filters = find.byType(ImageFiltered);
+    final name = find.text('West relay');
     expect(filters, findsNWidgets(2));
     expect(tester.getSize(body).width, 52);
+    expect(name, findsOneWidget);
 
     expect(map.move(const LatLng(0, 4), 3), isTrue);
     await tester.pump();
@@ -166,6 +168,7 @@ void main() {
     expect(tester.getSize(body).width, inExclusiveRange(52, 58.2));
     expect(tester.widget<Opacity>(face).opacity, 0);
     expect(find.descendant(of: filters, matching: count), findsNothing);
+    expect(name, findsNothing);
     await tester.pumpAndSettle();
     expect(tester.widget<Opacity>(face).opacity, 1);
 
@@ -177,6 +180,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getSize(body).width, 52);
     expect(count, findsNothing);
+    expect(name, findsOneWidget);
   });
 }
 

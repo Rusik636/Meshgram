@@ -387,7 +387,10 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
                 _DropletFace(
                   visible: drop.group.isSingle,
                   motion: motion,
-                  child: _NodeAvatarMarker(pin: pin),
+                  child: _NodeAvatarMarker(
+                    pin: pin,
+                    showLabel: drop.group.isSingle,
+                  ),
                 ),
               ),
           for (final drop in drops)
@@ -477,9 +480,10 @@ class _MarkerPositionTween extends Tween<LatLng> {
 }
 
 class _NodeAvatarMarker extends StatelessWidget {
-  const _NodeAvatarMarker({required this.pin});
+  const _NodeAvatarMarker({required this.pin, required this.showLabel});
 
   final MeshMapPin pin;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +500,7 @@ class _NodeAvatarMarker extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (pin.label case final label?)
+            if (pin.label case final label? when showLabel)
               Padding(
                 padding: const EdgeInsets.only(bottom: 3),
                 child: DecoratedBox(
