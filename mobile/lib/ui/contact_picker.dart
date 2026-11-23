@@ -272,7 +272,8 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     final height = constraints.maxHeight;
     final fieldHeight = meshSearchFieldHeight(context);
     final searchBottom = MediaQuery.paddingOf(context).bottom + searchBottomGap;
-    final useBlurredHeading = Theme.of(context).platform == TargetPlatform.iOS;
+    final useViewportEdges = Theme.of(context).platform == TargetPlatform.iOS;
+    final surface = MeshStyle.of(context).surface;
     final compact = Rect.fromLTWH(
       width - side - meshSearchButtonSize,
       headingTop + (headingHeight - 16 - meshSearchButtonSize) / 2,
@@ -301,25 +302,29 @@ class _AttachmentContactsState extends State<AttachmentContacts>
           widget.bottomObstruction,
           (searchBottom + fieldHeight + gap) * progress,
         );
-        final bottomEdge = (obstruction * .7).clamp(38.0, 92.0);
+        final bottomEdge = useViewportEdges
+            ? math.max(38.0, obstruction)
+            : (obstruction * .7).clamp(38.0, 92.0);
         final field = Rect.lerp(compact, active, progress)!;
+        final list = _list(
+          context,
+          contacts: _searching ? results : contacts,
+          top: headingHeight,
+          bottom: math.max(obstruction, bottomEdge),
+        );
         return Stack(
           children: [
             Positioned.fill(
-              child: _ContactScrollEdges(
-                key: const ValueKey('attachment-contact-scroll-edges'),
-                top: useBlurredHeading ? 0 : topEdge,
-                bottom: bottomEdge,
-                height: height,
-                child: _list(
-                  context,
-                  contacts: _searching ? results : contacts,
-                  top: headingHeight,
-                  bottom: math.max(obstruction, bottomEdge),
-                ),
-              ),
+              child: useViewportEdges
+                  ? list
+                  : _ContactScrollEdges(
+                      top: topEdge,
+                      bottom: bottomEdge,
+                      height: height,
+                      child: list,
+                    ),
             ),
-            if (useBlurredHeading)
+            if (useViewportEdges) ...[
               Positioned(
                 left: 0,
                 right: 0,
@@ -327,10 +332,18 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 height: headingHeight + 12,
                 child: MeshScrollEdge(
                   top: true,
-                  tint: MeshStyle.of(context).surface,
+                  tint: surface,
                   opaqueEdge: true,
                 ),
               ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: math.min(height, bottomEdge),
+                child: MeshScrollEdge(top: false, tint: surface),
+              ),
+            ],
             Positioned(
               top: 0,
               left: side + meshSearchButtonSize + 12,
@@ -437,7 +450,6 @@ class _AttachmentContactsState extends State<AttachmentContacts>
 
 class _ContactScrollEdges extends StatefulWidget {
   const _ContactScrollEdges({
-    super.key,
     required this.top,
     required this.bottom,
     required this.height,

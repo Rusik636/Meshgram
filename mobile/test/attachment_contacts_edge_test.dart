@@ -14,6 +14,10 @@ import 'package:meshgrame/ui/style.dart';
 const _size = Size(390, 844);
 const _contactCount = 18;
 
+Finder _edge({required bool top}) => find.byWidgetPredicate(
+  (widget) => widget is MeshScrollEdge && widget.top == top,
+);
+
 void main() {
   testWidgets(
     'shows contacts under fixed tabs and keeps the last row tappable',
@@ -25,6 +29,8 @@ void main() {
       final tabs = find.byType(MeshTabBar);
       final tabRect = tester.getRect(tabs);
       final listRect = tester.getRect(scroll);
+      final fadeRect = tester.getRect(_edge(top: false));
+      expect(fadeRect.bottom, listRect.bottom);
       expect(listRect.bottom, _size.height);
       expect(listRect.bottom, greaterThan(tabRect.bottom));
       expect(listRect.top, lessThan(tabRect.top));
@@ -36,6 +42,7 @@ void main() {
       position.jumpTo(position.maxScrollExtent);
       await tester.pumpAndSettle();
       expect(tester.getRect(tabs), tabRect);
+      expect(tester.getRect(_edge(top: false)), fadeRect);
 
       final last = find.text('Node ${_contactCount - 1}');
       final lastRow = find.ancestor(
@@ -44,12 +51,27 @@ void main() {
       );
       expect(lastRow.hitTestable(), findsOneWidget);
       expect(tester.getBottomLeft(lastRow).dy, lessThanOrEqualTo(tabRect.top));
+      expect(tester.getBottomLeft(lastRow).dy, lessThanOrEqualTo(fadeRect.top));
       await tester.tap(last);
       await tester.pumpAndSettle();
       expect(selected, 'meshgram://contact/${_contactCount - 1}');
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('anchors the fade below a short list of contacts', (
+    tester,
+  ) async {
+    await _openContacts(tester, (_) {}, contactCount: 2);
+    final list = find.byType(CustomScrollView);
+    final fade = _edge(top: false);
+    final last = find.ancestor(
+      of: find.text('Node 1'),
+      matching: find.byType(MeshNodeRow),
+    );
+    expect(tester.getRect(fade).bottom, tester.getRect(list).bottom);
+    expect(tester.getRect(last).bottom, lessThan(tester.getRect(fade).top));
+  });
 
   testWidgets('keeps the collapsed search header free of a solid band', (
     tester,
@@ -82,14 +104,9 @@ void main() {
         reason: 'The collapsed header must blend into the contact list.',
       );
     }
-    final softEdges = find.byKey(
-      const ValueKey('attachment-contact-scroll-edges'),
-    );
-    final headingEdge = find.descendant(
-      of: picker,
-      matching: find.byType(MeshScrollEdge),
-    );
-    expect(softEdges, findsOneWidget);
+    final headingEdge = _edge(top: true);
+    final bottomEdge = _edge(top: false);
+    expect(bottomEdge, findsOneWidget);
     final surfaceColor = MeshStyle.of(tester.element(picker)).surface;
     final tintLayer = find.descendant(
       of: headingEdge,
@@ -115,7 +132,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(softEdges, findsOneWidget);
+    expect(bottomEdge, findsOneWidget);
     expect(headingEdge, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -139,8 +156,9 @@ bool _hasOpaqueSurface(Widget widget) {
 
 Future<void> _openContacts(
   WidgetTester tester,
-  ValueChanged<String?> onSelected,
-) async {
+  ValueChanged<String?> onSelected, {
+  int contactCount = _contactCount,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = _size;
   tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
@@ -148,7 +166,7 @@ Future<void> _openContacts(
   addTearDown(tester.view.reset);
 
   final contacts = <ShareableNode>[
-    for (var index = 0; index < _contactCount; index++)
+    for (var index = 0; index < contactCount; index++)
       (
         peer: (
           id: 'node:$index',
