@@ -286,8 +286,15 @@ class _AttachmentContactsState extends State<AttachmentContacts>
         );
         final listTop = field.top + fieldHeight + 9;
         final launchButton = !_searching && collapse == 1 && progress == 0;
+        final scrollFade = Curves.easeOut.transform(
+          (collapse * 3).clamp(0.0, 1.0),
+        );
         final topEdge = lerpDouble(
-          normalHeaderHeight - collapseRange * collapse,
+          lerpDouble(
+            18,
+            normalHeaderHeight - collapseRange * collapse,
+            scrollFade,
+          )!,
           listTop,
           progress,
         )!;
@@ -523,6 +530,7 @@ class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
         end: Alignment.bottomCenter,
         colors: const [
           Colors.transparent,
+          Colors.transparent,
           Color(0x40ffffff),
           Color(0xbfffffff),
           Colors.white,
@@ -533,8 +541,9 @@ class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
         ],
         stops: [
           0,
-          .33 * top,
-          .67 * top,
+          .45 * top,
+          .63 * top,
+          .82 * top,
           top,
           1 - bottom,
           1 - .67 * bottom,

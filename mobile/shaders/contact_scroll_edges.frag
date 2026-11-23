@@ -14,7 +14,7 @@ vec4 sampleAt(vec2 uv) {
 
 void main() {
   vec2 uv = FlutterFragCoord().xy / u_size;
-  float top = smoothstep(0.0, u_edges.x, uv.y);
+  float top = smoothstep(u_edges.x * 0.45, u_edges.x, uv.y);
   float bottom = smoothstep(0.0, u_edges.y, 1.0 - uv.y);
   float opacity = min(top, bottom);
   vec4 original = sampleAt(uv);
