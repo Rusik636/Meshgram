@@ -29,6 +29,7 @@ void main() {
     );
 
     await display(0);
+    expect(find.byType(BackdropFilter), findsNothing);
     expect(find.text('8'), findsOneWidget);
     expect(find.text('0'), findsNothing);
 

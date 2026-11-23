@@ -128,6 +128,89 @@ void main() {
     expect(tester.getCenter(group).dx, closeTo(firstX, 5));
   });
 
+  testWidgets('avatars and cluster counts retain their size at the map edge', (
+    tester,
+  ) async {
+    final map = MapController();
+    addTearDown(map.dispose);
+    await tester.pumpWidget(
+      _map(map, const [
+        MeshMapPin.node(
+          position: (latitude: 0, longitude: 0),
+          id: 'alpha',
+          name: 'Alpha',
+        ),
+        MeshMapPin.node(
+          position: (latitude: 0, longitude: 0),
+          id: 'beta',
+          name: 'Beta',
+        ),
+        MeshMapPin.node(
+          position: (latitude: 0, longitude: 10),
+          id: 'solo',
+          name: 'Solo',
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    final count = find.text('2');
+    final avatar = find.byWidgetPredicate(
+      (widget) => widget is MeshAvatar && widget.name == 'Solo',
+    );
+    final countWidth = tester.getRect(count).width;
+    final avatarWidth = tester.getRect(avatar).width;
+
+    expect(map.move(const LatLng(0, 34), 4), isTrue);
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(count).dx, inExclusiveRange(0, 20));
+    expect(tester.getRect(count).width, closeTo(countWidth, .01));
+
+    expect(map.move(const LatLng(0, 44), 4), isTrue);
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(avatar).dx, inExclusiveRange(0, 20));
+    expect(tester.getRect(avatar).width, closeTo(avatarWidth, .01));
+  });
+
+  testWidgets(
+    'merged bubbles mix both avatar colors into a vertical gradient',
+    (tester) async {
+      final map = MapController();
+      addTearDown(map.dispose);
+      const first = 'Alpha';
+      const second = 'Beta';
+      await tester.pumpWidget(
+        _map(map, const [
+          MeshMapPin.node(
+            position: (latitude: 0, longitude: 0),
+            id: 'alpha',
+            name: first,
+          ),
+          MeshMapPin.node(
+            position: (latitude: 0, longitude: 0),
+            id: 'beta',
+            name: second,
+          ),
+        ]),
+      );
+      await tester.pumpAndSettle();
+      final fill = find.descendant(
+        of: find.byKey(const ValueKey((false, 'alpha'))),
+        matching: find.byType(DecoratedBox),
+      );
+      final decoration =
+          tester.widget<DecoratedBox>(fill).decoration as BoxDecoration;
+      final gradient = decoration.gradient! as LinearGradient;
+      final (firstTop, firstBottom) = MeshAvatar.colorsFor(first);
+      final (secondTop, secondBottom) = MeshAvatar.colorsFor(second);
+      expect(gradient.begin, Alignment.topCenter);
+      expect(gradient.end, Alignment.bottomCenter);
+      expect(gradient.colors, [
+        Color.lerp(firstTop, secondTop, .5),
+        Color.lerp(firstBottom, secondBottom, .5),
+      ]);
+    },
+  );
+
   testWidgets('merges and splits the silhouettes before revealing the faces', (
     tester,
   ) async {
@@ -150,7 +233,7 @@ void main() {
 
     final body = find.descendant(
       of: find.byKey(const ValueKey((true, 'west'))),
-      matching: find.byType(SizedBox),
+      matching: find.byType(AnimatedContainer),
     );
     final filters = find.byType(ImageFiltered);
     final name = find.text('West relay');

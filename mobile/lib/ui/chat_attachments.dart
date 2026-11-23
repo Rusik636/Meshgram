@@ -3,7 +3,6 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +27,6 @@ Future<String?> pickChatAttachment(
   MeshController? controller,
   NodePosition? initialPosition,
   List<AttachmentLocationNode> locationNodes = const [],
-  Uint8List? backdrop,
 }) => showModalBottomSheet<String>(
   context: context,
   isScrollControlled: true,
@@ -38,14 +36,11 @@ Future<String?> pickChatAttachment(
   sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
       ? AnimationStyle.noAnimation
       : null,
-  builder: (context) => MessageMenuBackdrop(
-    image: backdrop,
-    child: _AttachmentSheet(
-      contacts: contacts,
-      controller: controller,
-      initialPosition: initialPosition,
-      locationNodes: locationNodes,
-    ),
+  builder: (context) => _AttachmentSheet(
+    contacts: contacts,
+    controller: controller,
+    initialPosition: initialPosition,
+    locationNodes: locationNodes,
   ),
 );
 
@@ -300,7 +295,12 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
 
   Widget _sheetSurface(Widget child) {
     if (_tab != _AttachmentTab.location) {
-      return MessageMenuSurface(radius: 26, child: child);
+      return Material(
+        color: MeshStyle.of(context).surface,
+        borderRadius: BorderRadius.circular(26),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      );
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(_expanded ? 0 : 26),

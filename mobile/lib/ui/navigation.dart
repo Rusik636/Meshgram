@@ -90,46 +90,27 @@ class MeshTabBar extends StatelessWidget {
   final List<int> unreadCounts;
 
   static double bottomOffset(BuildContext context) =>
-      useIosControls ? 0 : MeshNavigation.bottomContentInset(context);
+      MeshNavigation.bottomContentInset(context);
 
   static double heightOf(BuildContext context) =>
-      MeshNavigation.contentHeight(context) +
-      (useIosControls ? MediaQuery.viewPaddingOf(context).bottom : 0);
+      MeshNavigation.contentHeight(context);
 
   @override
   Widget build(BuildContext context) {
-    final style = MeshStyle.of(context);
-    final height = heightOf(context);
     void select(int next) {
       if (next != index) unawaited(playMeshHaptic(MeshHaptic.selection));
       onSelect(next);
     }
 
-    if (useIosControls) {
-      return SizedBox(
-        height: height,
-        child: IosControl(
-          kind: 'tabs',
-          horizontalDrag: true,
-          onSelect: select,
-          properties: {
-            'labels': labels,
-            'symbols': symbols,
-            'index': index,
-            'unreadCounts': unreadCounts,
-            'dark': style.dark,
-            'accent': style.accent.toARGB32(),
-          },
-        ),
-      );
-    }
     return Center(
+      heightFactor: 1,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 208),
         child: _FlutterTabs(
           labels: labels,
           icons: icons,
-          height: height,
+          symbols: symbols,
+          height: heightOf(context),
           index: index,
           unreadCounts: unreadCounts,
           onSelect: select,
@@ -145,12 +126,13 @@ class _FlutterTabs extends StatefulWidget {
     required this.height,
     required this.index,
     this.icons = const [],
+    this.symbols = const [],
     this.unreadCounts = const [],
     this.textOnly = false,
     required this.onSelect,
   });
 
-  final List<String> labels;
+  final List<String> labels, symbols;
   final List<IconData> icons;
   final List<int> unreadCounts;
   final double height;
@@ -196,6 +178,21 @@ class _FlutterTabsState extends State<_FlutterTabs> {
         ? widget.unreadCounts[index]
         : 0;
     final display = count > 99 ? (index == 0 ? '99+' : '+99') : '$count';
+    final icon = useIosControls
+        ? SizedBox.square(
+            dimension: 19,
+            child: IgnorePointer(
+              child: IosControl(
+                kind: 'symbolIcon',
+                properties: {
+                  'symbol': widget.symbols[index],
+                  'selected': highlighted,
+                  'accent': color.toARGB32(),
+                },
+              ),
+            ),
+          )
+        : Icon(widget.icons[index], size: 19, color: color);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -206,11 +203,26 @@ class _FlutterTabsState extends State<_FlutterTabs> {
             excludeSemantics: true,
             child: Text(display),
           ),
-          child: Icon(widget.icons[index], size: 19, color: color),
+          child: icon,
         ),
         const SizedBox(height: 2),
         Flexible(child: text),
       ],
+    );
+  }
+
+  Widget _surface(MeshStyle style, Widget child) {
+    if (widget.textOnly) return GlassSurface(radius: 24, child: child);
+    return Material(
+      color: MediaQuery.highContrastOf(context)
+          ? style.surface
+          : style.pill.withAlpha(255),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+        side: BorderSide(color: style.separator),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
     );
   }
 
@@ -221,12 +233,15 @@ class _FlutterTabsState extends State<_FlutterTabs> {
     final indicatorRadius = BorderRadius.circular(widget.textOnly ? 20 : 25);
     final index = _dragIndex ?? widget.index.toDouble();
     final highlightedIndex = index.round();
+    final platform = Theme.of(context).platform;
     final draggable =
-        widget.textOnly || Theme.of(context).platform == TargetPlatform.android;
+        widget.textOnly ||
+        platform == TargetPlatform.android ||
+        platform == TargetPlatform.iOS;
     final direction = Directionality.of(context) == TextDirection.ltr ? 1 : -1;
-    return GlassSurface(
-      radius: widget.textOnly ? 24 : 30,
-      child: SizedBox(
+    return _surface(
+      style,
+      SizedBox(
         height: widget.height,
         child: Padding(
           padding: EdgeInsets.all(widget.textOnly ? 3 : 4),

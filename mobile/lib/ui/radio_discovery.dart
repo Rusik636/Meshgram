@@ -344,8 +344,8 @@ class _RadioDiscoveryState extends State<RadioDiscoveryPage> {
                     _showPairingHint
                         ? tr(
                             context,
-                            'При первом подключении подтвердите системный запрос Bluetooth. Если диалог не открылся, проверьте шторку уведомлений.',
-                            'Confirm the Bluetooth pairing request on first connection. If no dialog opens, check your notifications.',
+                            'Подтвердите системный запрос Bluetooth и введите PIN рации, если он нужен. Если диалог не открылся, проверьте уведомления.',
+                            'Confirm the Bluetooth pairing request and enter the radio PIN if prompted. If no dialog opens, check your notifications.',
                           )
                         : tr(
                             context,

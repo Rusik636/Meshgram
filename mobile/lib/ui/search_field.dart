@@ -132,6 +132,7 @@ class MeshSearchEditor extends StatelessWidget {
     this.onActivate,
     this.active = true,
     this.progress = 1,
+    this.preferNative = true,
   });
 
   final String placeholder, initialText;
@@ -140,7 +141,7 @@ class MeshSearchEditor extends StatelessWidget {
   final GlobalKey<IosControlState> iosKey;
   final ValueChanged<String> onChanged;
   final VoidCallback onDismissKeyboard;
-  final bool autofocus;
+  final bool autofocus, preferNative;
   final VoidCallback? onActivate;
   final bool active;
   final double progress;
@@ -148,7 +149,7 @@ class MeshSearchEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    if (useIosControls) {
+    if (preferNative && useIosControls) {
       return SizedBox(
         height: meshSearchFieldHeight(context),
         child: IosControl(
