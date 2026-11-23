@@ -1,0 +1,160 @@
+// Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
+// AGPL-3.0-only with attribution under section 7(b); see NOTICE.
+
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/material.dart';
+
+/// Resolves the platform symbol while preserving iOS and custom icon data.
+IconData? meshPlatformIcon(BuildContext context, IconData? icon) {
+  if (icon == null ||
+      Theme.of(context).platform != TargetPlatform.iOS ||
+      icon.fontFamily != 'MaterialIcons' ||
+      icon.fontPackage != null) {
+    return icon;
+  }
+  return _iosIcons[icon] ?? CupertinoIcons.question_circle;
+}
+
+/// Displays an icon with the platform's glyph and the caller's layout.
+class MeshIcon extends StatelessWidget {
+  const MeshIcon(
+    this.icon, {
+    super.key,
+    this.size,
+    this.color,
+    this.shadows,
+    this.semanticLabel,
+    this.textDirection,
+    this.applyTextScaling,
+  });
+
+  final IconData? icon;
+  final double? size;
+  final Color? color;
+  final List<Shadow>? shadows;
+  final String? semanticLabel;
+  final TextDirection? textDirection;
+  final bool? applyTextScaling;
+
+  @override
+  Widget build(BuildContext context) => Icon(
+    meshPlatformIcon(context, icon),
+    size: size,
+    color: color,
+    shadows: shadows,
+    semanticLabel: semanticLabel,
+    textDirection: textDirection,
+    applyTextScaling: applyTextScaling,
+  );
+}
+
+final _iosIcons = <IconData, IconData>{
+  Icons.add: CupertinoIcons.plus,
+  Icons.add_rounded: CupertinoIcons.plus,
+  Icons.admin_panel_settings_outlined: CupertinoIcons.checkmark_shield,
+  Icons.alt_route_rounded: CupertinoIcons.arrow_branch,
+  Icons.arrow_back: CupertinoIcons.arrow_left,
+  Icons.arrow_back_ios_new_rounded: CupertinoIcons.chevron_back,
+  Icons.arrow_back_rounded: CupertinoIcons.arrow_left,
+  Icons.arrow_drop_down: CupertinoIcons.chevron_down,
+  Icons.arrow_upward_rounded: CupertinoIcons.arrow_up,
+  Icons.article_outlined: CupertinoIcons.doc_richtext,
+  Icons.attach_file_rounded: CupertinoIcons.paperclip,
+  Icons.back_hand_outlined: CupertinoIcons.hand_raised,
+  Icons.badge_outlined: CupertinoIcons.person_crop_rectangle,
+  Icons.balance_rounded: CupertinoIcons.equal_circle,
+  Icons.battery_charging_full_rounded: CupertinoIcons.battery_charging,
+  Icons.block_rounded: CupertinoIcons.nosign,
+  Icons.bluetooth_rounded: CupertinoIcons.bluetooth,
+  Icons.calendar_today_outlined: CupertinoIcons.calendar,
+  Icons.campaign_outlined: CupertinoIcons.speaker_2,
+  Icons.cancel_outlined: CupertinoIcons.xmark_circle,
+  Icons.cell_tower_rounded: CupertinoIcons.antenna_radiowaves_left_right,
+  Icons.chat_bubble_outline_rounded: CupertinoIcons.bubble_left,
+  Icons.check_circle_rounded: CupertinoIcons.checkmark_circle_fill,
+  Icons.check_rounded: CupertinoIcons.checkmark,
+  Icons.chevron_right: CupertinoIcons.chevron_forward,
+  Icons.chevron_right_rounded: CupertinoIcons.chevron_forward,
+  Icons.close_fullscreen_rounded: CupertinoIcons.arrow_down_right_arrow_up_left,
+  Icons.close_rounded: CupertinoIcons.xmark,
+  Icons.cloud_outlined: CupertinoIcons.cloud,
+  // Icons.copy_rounded is an alias of Icons.content_copy_rounded.
+  Icons.content_copy_rounded: CupertinoIcons.doc_on_doc,
+  Icons.contrast_rounded: CupertinoIcons.circle_lefthalf_fill,
+  Icons.dark_mode_outlined: CupertinoIcons.moon,
+  Icons.delete_outline_rounded: CupertinoIcons.trash,
+  Icons.description_outlined: CupertinoIcons.doc_text,
+  Icons.directions_car_outlined: CupertinoIcons.car,
+  Icons.display_settings_outlined:
+      CupertinoIcons.slider_horizontal_below_rectangle,
+  Icons.done_all_rounded: CupertinoIcons.checkmark_circle,
+  Icons.download_rounded: CupertinoIcons.arrow_down_to_line,
+  Icons.drag_handle_rounded: CupertinoIcons.line_horizontal_3,
+  Icons.edit_note_rounded: CupertinoIcons.square_pencil,
+  Icons.edit_outlined: CupertinoIcons.pencil,
+  Icons.error_outline_rounded: CupertinoIcons.exclamationmark_circle,
+  Icons.favorite_border_rounded: CupertinoIcons.heart,
+  Icons.flag_outlined: CupertinoIcons.flag,
+  Icons.forum_outlined: CupertinoIcons.bubble_left_bubble_right,
+  Icons.history_rounded: CupertinoIcons.clock,
+  Icons.hub_outlined: CupertinoIcons.flowchart,
+  Icons.info_outline_rounded: CupertinoIcons.info_circle,
+  Icons.ios_share_rounded: CupertinoIcons.square_arrow_up,
+  Icons.key_rounded: CupertinoIcons.lock_open,
+  Icons.keyboard_arrow_down_rounded: CupertinoIcons.chevron_down,
+  Icons.keyboard_arrow_up_rounded: CupertinoIcons.chevron_up,
+  Icons.language_rounded: CupertinoIcons.globe,
+  Icons.lightbulb_outline_rounded: CupertinoIcons.lightbulb,
+  Icons.link_off_rounded: CupertinoIcons.link_circle,
+  Icons.location_on_outlined: CupertinoIcons.placemark,
+  Icons.location_searching_rounded: CupertinoIcons.scope,
+  Icons.lock_outline_rounded: CupertinoIcons.lock,
+  Icons.login_rounded: CupertinoIcons.square_arrow_right,
+  Icons.map_outlined: CupertinoIcons.map,
+  Icons.memory_rounded: CupertinoIcons.square_grid_2x2,
+  Icons.monitor_heart_outlined: CupertinoIcons.waveform_path_ecg,
+  Icons.my_location_rounded: CupertinoIcons.location_circle,
+  Icons.near_me_outlined: CupertinoIcons.location,
+  Icons.notifications_off_outlined: CupertinoIcons.bell_slash,
+  Icons.notifications_outlined: CupertinoIcons.bell,
+  Icons.open_in_full_rounded: CupertinoIcons.arrow_up_left_arrow_down_right,
+  Icons.person_outline_rounded: CupertinoIcons.person_crop_circle,
+  Icons.pets_outlined: CupertinoIcons.paw,
+  Icons.phonelink_ring_outlined: CupertinoIcons.device_phone_portrait,
+  Icons.place_outlined: CupertinoIcons.placemark,
+  Icons.place_rounded: CupertinoIcons.placemark_fill,
+  Icons.power_settings_new_rounded: CupertinoIcons.power,
+  Icons.priority_high_rounded: CupertinoIcons.exclamationmark,
+  Icons.privacy_tip_outlined: CupertinoIcons.lock_shield,
+  Icons.public_rounded: CupertinoIcons.globe,
+  Icons.qr_code_2_rounded: CupertinoIcons.qrcode,
+  Icons.qr_code_scanner_rounded: CupertinoIcons.qrcode_viewfinder,
+  Icons.radio_button_unchecked_rounded: CupertinoIcons.circle,
+  Icons.refresh_rounded: CupertinoIcons.arrow_clockwise,
+  Icons.remove_circle_outline_rounded: CupertinoIcons.minus_circle,
+  Icons.reply_rounded: CupertinoIcons.arrowshape_turn_up_left,
+  Icons.restart_alt_rounded: CupertinoIcons.arrow_counterclockwise,
+  Icons.restaurant_outlined: CupertinoIcons.circle_grid_3x3,
+  Icons.route_outlined: CupertinoIcons.arrow_turn_up_right,
+  Icons.route_rounded: CupertinoIcons.arrow_turn_up_right,
+  Icons.schedule_rounded: CupertinoIcons.clock,
+  Icons.search_rounded: CupertinoIcons.search,
+  Icons.sentiment_satisfied_alt: CupertinoIcons.smiley,
+  Icons.settings_ethernet_rounded: CupertinoIcons.personalhotspot,
+  Icons.settings_outlined: CupertinoIcons.gear,
+  Icons.share_outlined: CupertinoIcons.square_arrow_up,
+  Icons.sort_by_alpha_rounded: CupertinoIcons.textformat_abc,
+  Icons.sort_rounded: CupertinoIcons.line_horizontal_3_decrease,
+  Icons.sports_soccer_outlined: CupertinoIcons.sportscourt,
+  Icons.star_outline_rounded: CupertinoIcons.star,
+  Icons.star_rounded: CupertinoIcons.star_fill,
+  Icons.swap_vert_rounded: CupertinoIcons.arrow_up_arrow_down,
+  Icons.system_update_alt_rounded: CupertinoIcons.tray_arrow_down,
+  Icons.tag_rounded: CupertinoIcons.number,
+  Icons.terminal_rounded: CupertinoIcons.chevron_left_slash_chevron_right,
+  Icons.thermostat_rounded: CupertinoIcons.thermometer,
+  Icons.tune_rounded: CupertinoIcons.slider_horizontal_3,
+  Icons.visibility_off_outlined: CupertinoIcons.eye_slash,
+  Icons.visibility_outlined: CupertinoIcons.eye,
+  Icons.wifi_rounded: CupertinoIcons.wifi,
+};
