@@ -39,6 +39,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
   static const _headingInset = 14.0;
   static const _headingGap = 8.0;
   static const _headingSlot = meshSearchButtonSize + _headingGap;
+  static const _headingFade = 10.0;
 
   MeshController get controller => widget.controller;
   String? _revealed;
@@ -182,6 +183,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     final editing = _selected.isNotEmpty;
     final safe = MediaQuery.viewPaddingOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final preferNative = ModalRoute.isCurrentOf(context) != false;
     final width = constraints.maxWidth;
     final height = constraints.maxHeight;
     final headingHeight = math.max(
@@ -256,7 +258,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     child: Opacity(
                       opacity: 1 - progress,
                       child: _NodeHeaderFade(
-                        hiddenUntil: safe.top,
+                        hiddenUntil: browseFadeEnd - _headingFade,
                         visibleFrom: browseFadeEnd,
                         child: browse,
                       ),
@@ -278,7 +280,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     child: Opacity(
                       opacity: progress,
                       child: _NodeHeaderFade(
-                        hiddenUntil: safe.top,
+                        hiddenUntil: normalTop - _headingFade,
                         visibleFrom: normalTop,
                         child: _nodeList(
                           context,
@@ -310,6 +312,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         icon: Icons.search_rounded,
                         label: placeholder,
                         onTap: _openSearch,
+                        preferNative: preferNative,
                       )
                     : _searching && field.width >= 120
                     ? MeshSearchEditor(
@@ -320,6 +323,8 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         initialText: _query.text,
                         onChanged: _changeQuery,
                         onDismissKeyboard: _dismissSearchKeyboard,
+                        autofocus: preferNative,
+                        preferNative: preferNative,
                       )
                     : MeshSearchLauncher(
                         placeholder: placeholder,
@@ -335,6 +340,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   icon: Icons.close_rounded,
                   label: tr(context, 'Закрыть поиск', 'Close search'),
                   onTap: _searching ? _closeSearch : null,
+                  preferNative: preferNative,
                 ),
               ),
           ],
