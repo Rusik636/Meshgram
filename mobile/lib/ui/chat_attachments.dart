@@ -379,6 +379,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
         const actionGap = 6.0;
         const trailingWidth = 2 * buttonSize + actionGap;
         const idealTitleWidth = 150.0;
+        final preferNative = ModalRoute.isCurrentOf(context) != false;
         // Balance the two trailing buttons while giving the title more
         // room on narrow phones.
         final leadingGap = useIosControls
@@ -394,11 +395,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               icon: Icons.close_rounded,
               label: tr(context, 'Закрыть', 'Close'),
               onTap: _closeSheet,
+              preferNative: preferNative,
             ),
             SizedBox(width: leadingGap),
             Expanded(
               child: MeshPageTitle(
                 location,
+                preferNative: preferNative,
                 fallback: Text(
                   location,
                   maxLines: 1,
@@ -414,6 +417,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               icon: Icons.search_rounded,
               label: tr(context, 'Искать геопозицию', 'Search locations'),
               onTap: () => unawaited(_searchLocation()),
+              preferNative: preferNative,
             ),
             const SizedBox(width: actionGap),
             GlassButton(
@@ -424,6 +428,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                   ? tr(context, 'Свернуть', 'Collapse')
                   : tr(context, 'На весь экран', 'Expand'),
               onTap: () => _snapTo(!_expanded),
+              preferNative: preferNative,
             ),
           ],
         );

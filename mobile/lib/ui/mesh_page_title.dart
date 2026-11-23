@@ -23,7 +23,7 @@ class MeshPageTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!preferNative || !useIosControls) {
+    if (!useIosControls) {
       return fallback ??
           Semantics(
             header: true,
@@ -53,19 +53,37 @@ class MeshPageTitle extends StatelessWidget {
         child: SizedBox(
           width: width,
           height: height,
-          child: IosControl(
-            kind: 'chatTitle',
-            properties: {
-              'label': title,
-              'titleFontSize': textScaler.scale(16),
-              'enabled': true,
-              'readOnly': true,
-              'dark': style.dark,
-              'accent': style.accent.toARGB32(),
-              'surface': style.surface.toARGB32(),
-              'foreground': style.text.toARGB32(),
-            },
-          ),
+          child: preferNative
+              ? IosControl(
+                  kind: 'chatTitle',
+                  properties: {
+                    'label': title,
+                    'titleFontSize': textScaler.scale(16),
+                    'enabled': true,
+                    'readOnly': true,
+                    'dark': style.dark,
+                    'accent': style.accent.toARGB32(),
+                    'surface': style.surface.toARGB32(),
+                    'foreground': style.text.toARGB32(),
+                  },
+                )
+              : GlassSurface(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: style.text,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
         ),
       ),
     );
@@ -81,10 +99,12 @@ class MeshMapPageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final preferNative = ModalRoute.isCurrentOf(context) != false;
     final back = GlassButton(
       icon: Icons.arrow_back_ios_new_rounded,
       label: tr(context, 'Назад', 'Back'),
       onTap: () => Navigator.pop(context),
+      preferNative: preferNative,
     );
     if (!useIosControls) {
       return PageHeading(
@@ -99,7 +119,7 @@ class MeshMapPageHeading extends StatelessWidget {
         children: [
           back,
           const SizedBox(width: 8),
-          Expanded(child: MeshPageTitle(title)),
+          Expanded(child: MeshPageTitle(title, preferNative: preferNative)),
           const SizedBox(width: 56),
         ],
       ),
