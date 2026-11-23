@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
@@ -466,14 +467,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     double attributionHeight,
   ) {
     final showingMap = _tab == _AttachmentTab.location;
-    final bottomGap = useIosControls ? 0.0 : 8.0;
-    final nativeInset = useIosControls
-        ? MediaQuery.viewPaddingOf(context).bottom
-        : 0.0;
-    final panelExtent =
-        MeshNavigation.contentHeight(context) + nativeInset + 6 + bottomGap;
-    final footer = MediaQuery.paddingOf(context).bottom + attributionHeight;
-    final bottomObstruction = footer + panelExtent * panelProgress;
+    final navigationBottom = MeshTabBar.bottomOffset(context);
+    final panelExtent = MeshTabBar.heightOf(context) + navigationBottom + 6;
+    final footer = math.max(
+      MediaQuery.paddingOf(context).bottom,
+      showingMap ? attributionHeight : 0.0,
+    );
+    final bottomObstruction = math.max(footer, panelExtent * panelProgress);
     return _sheetSurface(
       Stack(
         children: [
@@ -513,7 +513,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
             PositionedDirectional(
               start: 16,
               end: 16,
-              bottom: footer + bottomGap - panelExtent * (1 - panelProgress),
+              bottom: navigationBottom - panelExtent * (1 - panelProgress),
               child: IgnorePointer(
                 ignoring: _expanded,
                 child: ExcludeSemantics(
@@ -569,7 +569,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
         );
         final dragTravel = keyboard > 0 ? 0.0 : travel;
         return TweenAnimationBuilder<double>(
-          tween: Tween(end: _expanded ? 0.0 : 1.0),
+          tween: Tween(end: _expanded || keyboard > 0 ? 0.0 : 1.0),
           duration: reduceMotion
               ? Duration.zero
               : const Duration(milliseconds: 300),
