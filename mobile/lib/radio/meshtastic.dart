@@ -14,6 +14,7 @@ import '../mesh/contact_attachment.dart';
 import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
+import '../mesh/radio_settings_index.dart';
 import 'channel_keys.dart';
 
 part 'meshtastic_settings.dart';
@@ -440,6 +441,7 @@ class _TasticSession
         RemoteAdminSession,
         RadioSettingsSession,
         RadioSettingsCatalog,
+        RadioSettingsIndex,
         RadioTelemetrySession,
         NetworkNodeActions,
         NetworkRouteTracing,
@@ -2061,6 +2063,24 @@ class _TasticSession
     }
   }
 
+  Iterable<RadioSettingName> _settingNames(
+    RadioFieldSection section,
+    int? target,
+  ) sync* {
+    final spec = _tasticSections[section];
+    if (spec == null || !_supportsSection(section, spec, target)) return;
+    for (final setting in _supportedItems(spec, target)) {
+      yield (id: setting.id, title: setting.en, russian: setting.ru);
+    }
+    if (_auxiliarySettings[section] case final auxiliary? when target == null) {
+      yield (id: 'content', title: auxiliary.en, russian: auxiliary.ru);
+    }
+  }
+
+  @override
+  Iterable<RadioSettingName> settingNames(RadioFieldSection section) =>
+      _settingNames(section, null);
+
   @override
   List<RadioFieldSection> get extraSettings => _sections();
 
@@ -2363,6 +2383,7 @@ class _TasticRemoteSettings
     implements
         RadioSettingsSession,
         RadioSettingsCatalog,
+        RadioSettingsIndex,
         RemoteNodePower,
         RadioPositionSession {
   _TasticRemoteSettings(this.session, this.target);
@@ -2395,6 +2416,10 @@ class _TasticRemoteSettings
       session._writeSettings(values, target);
   @override
   List<RadioFieldSection> get extraSettings => session._sections(target);
+
+  @override
+  Iterable<RadioSettingName> settingNames(RadioFieldSection section) =>
+      session._settingNames(section, target);
 
   @override
   Future<List<RadioField>> readSection(RadioFieldSection section) =>
