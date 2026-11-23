@@ -15,9 +15,10 @@ class MeshNavigation extends StatelessWidget {
     super.key,
     required this.index,
     required this.unread,
+    this.settingsUnread = 0,
     required this.onSelect,
   });
-  final int index, unread;
+  final int index, unread, settingsUnread;
   final ValueChanged<int> onSelect;
 
   static const chatIcon = Icons.chat_bubble_outline_rounded;
@@ -58,6 +59,7 @@ class MeshNavigation extends StatelessWidget {
             'labels': labels,
             'index': index,
             'unread': unread,
+            'settingsUnread': settingsUnread,
             'dark': style.dark,
             'accent': style.accent.toARGB32(),
           },
@@ -72,6 +74,7 @@ class MeshNavigation extends StatelessWidget {
           height: height,
           index: index,
           unread: unread,
+          settingsUnread: settingsUnread,
           onSelect: onSelect,
         ),
       ),
@@ -85,13 +88,14 @@ class _FlutterTabs extends StatefulWidget {
     required this.height,
     required this.index,
     this.unread = 0,
+    this.settingsUnread = 0,
     this.textOnly = false,
     required this.onSelect,
   });
 
   final List<String> labels;
   final double height;
-  final int index, unread;
+  final int index, unread, settingsUnread;
   final bool textOnly;
   final ValueChanged<int> onSelect;
 
@@ -129,12 +133,18 @@ class _FlutterTabsState extends State<_FlutterTabs> {
       ),
     );
     if (widget.textOnly) return Center(child: text);
+    final count = index == 0 ? widget.unread : widget.settingsUnread;
+    final display = count > 99 ? (index == 0 ? '99+' : '+99') : '$count';
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Badge(
-          isLabelVisible: index == 0 && widget.unread > 0,
-          label: Text(widget.unread > 99 ? '99+' : '${widget.unread}'),
+          isLabelVisible: count > 0,
+          label: Semantics(
+            label: tr(context, 'Непрочитанных: $count', 'Unread: $count'),
+            excludeSemantics: true,
+            child: Text(display),
+          ),
           child: Icon(
             index == 0 ? MeshNavigation.chatIcon : Icons.settings_outlined,
             size: 19,

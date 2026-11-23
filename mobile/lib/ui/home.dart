@@ -468,6 +468,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       child: MeshNavigation(
                         index: _tabs.selected,
                         unread: controller.unreadTotal,
+                        settingsUnread: controller.unreadOnOtherRadios,
                         onSelect: _selectTab,
                       ),
                     ),

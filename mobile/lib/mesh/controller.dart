@@ -137,6 +137,14 @@ class MeshController extends ChangeNotifier {
       _connectionFor(radio)?.session is RadioSettingsSession;
   int unreadFor(Radio radio) =>
       _cacheFor(radio).unread.values.fold(0, (sum, item) => sum + item);
+  int get unreadOnOtherRadios {
+    final selected = active;
+    final selectedKey = selected == null ? null : radioKey(selected);
+    return radios
+        .where((radio) => radioKey(radio) != selectedKey)
+        .fold(0, (total, radio) => total + unreadFor(radio));
+  }
+
   Iterable<Peer> peersFor(Radio radio) => _cacheFor(radio).peers.values;
   bool isMutedFor(Radio radio, String chat) =>
       _cacheFor(radio).muted.contains(chat);

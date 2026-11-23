@@ -158,7 +158,14 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
       }
     }
     let unread = values["unread"] as? Int ?? 0
-    tabs.viewControllers?.first?.tabBarItem.badgeValue = unread == 0 ? nil : unread > 99 ? "99+" : String(unread)
+    let settingsUnread = values["settingsUnread"] as? Int ?? 0
+    if let controllers = tabs.viewControllers, !textOnly {
+      for (index, page) in controllers.enumerated() {
+        let count = index == 0 ? unread : settingsUnread
+        let overflow = index == 0 ? "99+" : "+99"
+        page.tabBarItem.badgeValue = count <= 0 ? nil : count > 99 ? overflow : String(count)
+      }
+    }
     if let index = values["index"] as? Int {
       select(index)
     }
