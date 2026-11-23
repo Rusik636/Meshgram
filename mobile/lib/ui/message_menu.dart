@@ -19,6 +19,7 @@ Future<String?> showMessageMenu({
   required BuildContext context,
   required Rect anchor,
   required bool canReact,
+  List<String> recentReactions = const [],
   required bool canReply,
   required bool outgoing,
   required Widget bubble,
@@ -40,6 +41,7 @@ Future<String?> showMessageMenu({
       child: _MessageMenu(
         anchor: anchor,
         canReact: canReact,
+        recentReactions: recentReactions,
         canReply: canReply,
         outgoing: outgoing,
         bubble: bubble,
@@ -58,6 +60,7 @@ class _MessageMenu extends StatefulWidget {
   const _MessageMenu({
     required this.anchor,
     required this.canReact,
+    required this.recentReactions,
     required this.canReply,
     required this.outgoing,
     required this.bubble,
@@ -68,6 +71,7 @@ class _MessageMenu extends StatefulWidget {
 
   final Rect anchor;
   final bool canReact, canReply, outgoing;
+  final List<String> recentReactions;
   final Widget bubble, details;
   final List<ChatReaction> reactions;
   final ValueChanged<Peer> onOpenProfile;
@@ -149,6 +153,7 @@ class _MessageMenuState extends State<_MessageMenu> {
                                             _show(_MenuPanel.actions),
                                       )
                                     : _QuickReactions(
+                                        recent: widget.recentReactions,
                                         onSelect: _select,
                                         onExpand: () => _show(_MenuPanel.emoji),
                                       ),
@@ -455,7 +460,13 @@ class _MenuPosition extends SingleChildLayoutDelegate {
 }
 
 class _QuickReactions extends StatelessWidget {
-  const _QuickReactions({required this.onSelect, required this.onExpand});
+  const _QuickReactions({
+    required this.recent,
+    required this.onSelect,
+    required this.onExpand,
+  });
+
+  final List<String> recent;
 
   final ValueChanged<String> onSelect;
   final VoidCallback onExpand;
@@ -463,6 +474,11 @@ class _QuickReactions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final renderedKeys = <String>{};
+    final options = [
+      for (final emoji in [...recent, ...quickReactions])
+        if (renderedKeys.add(reactionEmojiKey(emoji))) emoji,
+    ];
     return MessageMenuSurface(
       radius: 29,
       child: SizedBox(
@@ -473,10 +489,10 @@ class _QuickReactions extends StatelessWidget {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 7),
                 scrollDirection: Axis.horizontal,
-                itemCount: quickReactions.length,
+                itemCount: options.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 2),
                 itemBuilder: (context, index) {
-                  final emoji = quickReactions[index];
+                  final emoji = options[index];
                   return IconButton(
                     tooltip: '${tr(context, 'Реакция', 'React')} $emoji',
                     onPressed: () => onSelect(emoji),
