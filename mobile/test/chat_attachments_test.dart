@@ -391,38 +391,33 @@ void main() {
     await tester.pumpAndSettle();
 
     final homeBar = find.byType(MeshNavigation);
-    double homeTabCenter(String label) => tester
-        .getCenter(find.descendant(of: homeBar, matching: find.text(label)))
-        .dy;
-    final homeChatTab = homeTabCenter('Chats');
-    final homeSettingsTab = homeTabCenter('Settings');
+    final homeTabs = find.descendant(
+      of: homeBar,
+      matching: _nativeControl('tabs'),
+    );
+    final homeRect = tester.getRect(homeTabs);
     await tester.tap(find.text('Тропа'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Attachments'));
+    await _tapAttachmentControl(tester, _attachmentSource);
     await tester.pumpAndSettle();
 
-    final bar = find.byType(MeshTabBar);
-    final atRest = tester.getRect(bar);
-    final contactTab = find.descendant(of: bar, matching: find.text('Contact'));
-    void expectAligned() {
-      expect(tester.getCenter(_locationTab).dy, closeTo(homeChatTab, .5));
-      expect(tester.getCenter(contactTab).dy, closeTo(homeSettingsTab, .5));
+    final pickerTabs = find.descendant(
+      of: find.byType(MeshTabBar),
+      matching: _nativeControl('tabs'),
+    );
+    for (final index in [1, 0]) {
+      final tabs = tester.widget<IosControl>(pickerTabs);
+      expect(tester.getRect(pickerTabs), homeRect);
+      tabs.onSelect!(index);
+      await tester.pumpAndSettle();
+      expect(tester.widget<IosControl>(pickerTabs).properties['index'], index);
     }
-
-    expectAligned();
-    await tester.tap(contactTab);
-    await tester.pumpAndSettle();
-    expect(tester.getRect(bar), atRest);
-    expectAligned();
-    await tester.tap(_locationTab);
-    await tester.pumpAndSettle();
-    expect(tester.getRect(bar), atRest);
-    expectAligned();
+    expect(tester.getRect(pickerTabs), homeRect);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
-  });
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets('tracks the finger and springs to the nearest detent', (
     tester,

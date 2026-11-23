@@ -51,11 +51,12 @@ void main() {
     expect(find.text('8'), findsOneWidget);
   });
 
-  testWidgets('only the home navigation uses the native iOS tab bar', (
+  testWidgets('home and attachments share the native iOS tab bar', (
     tester,
   ) async {
     const attachmentTabs = ValueKey('attachment tabs');
     final selected = <int>[];
+    final attachmentSelections = <int>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -65,7 +66,7 @@ void main() {
             icons: const [Icons.place_outlined, Icons.person_outline_rounded],
             symbols: const ['location.fill', 'person.crop.circle'],
             index: 0,
-            onSelect: (_) {},
+            onSelect: attachmentSelections.add,
           ),
           bottomNavigationBar: MeshNavigation(
             index: 0,
@@ -79,19 +80,28 @@ void main() {
     final nativeTabs = find.byWidgetPredicate(
       (widget) => widget is IosControl && widget.kind == 'tabs',
     );
-    expect(
-      find.descendant(of: find.byType(MeshNavigation), matching: nativeTabs),
-      findsOneWidget,
+    final home = find.descendant(
+      of: find.byType(MeshNavigation),
+      matching: nativeTabs,
     );
-    final tabs = tester.widget<IosControl>(nativeTabs);
+    final attachments = find.descendant(
+      of: find.byKey(attachmentTabs),
+      matching: nativeTabs,
+    );
+    final tabs = tester.widget<IosControl>(home);
     expect(tabs.properties['labels'], ['Chats', 'Settings']);
     expect(tabs.properties['unreadCounts'], [8, 100]);
     tabs.onSelect?.call(1);
     expect(selected, [1]);
-    expect(
-      find.descendant(of: find.byKey(attachmentTabs), matching: nativeTabs),
-      findsNothing,
-    );
+    final picker = tester.widget<IosControl>(attachments);
+    expect(picker.properties['labels'], ['Location', 'Contact']);
+    expect(picker.properties['symbols'], [
+      'location.fill',
+      'person.crop.circle',
+    ]);
+    expect(tester.getSize(attachments), tester.getSize(home));
+    picker.onSelect?.call(1);
+    expect(attachmentSelections, [1]);
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   test(

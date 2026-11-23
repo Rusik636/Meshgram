@@ -613,8 +613,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
           ),
           if (panelProgress > 0)
             PositionedDirectional(
-              start: 16,
-              end: 16,
+              start: useIosControls ? 0 : 16,
+              end: useIosControls ? 0 : 16,
               bottom: navigationBottom - panelExtent * (1 - panelProgress),
               child: IgnorePointer(
                 ignoring: _expanded,

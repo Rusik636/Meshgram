@@ -58,7 +58,6 @@ class MeshNavigation extends StatelessWidget {
 
   static double bottomBarOffset(BuildContext context) {
     if (!useIosControls) return bottomContentInset(context);
-    // Align UIKit's tab icons with the icons in the attachment sheet.
     return 19 + (contentHeight(context) - 60) / 2;
   }
 
@@ -73,7 +72,6 @@ class MeshNavigation extends StatelessWidget {
     index: index,
     onSelect: onSelect,
     unreadCounts: [unread, settingsUnread],
-    nativeGlass: true,
   );
 }
 
@@ -87,7 +85,6 @@ class MeshTabBar extends StatelessWidget {
     required this.index,
     required this.onSelect,
     this.unreadCounts = const [],
-    this.nativeGlass = false,
   }) : assert(labels.length == icons.length),
        assert(labels.length == symbols.length);
 
@@ -96,13 +93,13 @@ class MeshTabBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelect;
   final List<int> unreadCounts;
-  final bool nativeGlass;
 
   static double bottomOffset(BuildContext context) =>
-      MeshNavigation.bottomContentInset(context);
+      MeshNavigation.bottomBarOffset(context);
 
   static double heightOf(BuildContext context) =>
-      MeshNavigation.contentHeight(context);
+      MeshNavigation.contentHeight(context) +
+      (useIosControls ? MediaQuery.viewPaddingOf(context).bottom : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +108,10 @@ class MeshTabBar extends StatelessWidget {
       onSelect(next);
     }
 
-    if (nativeGlass && useIosControls) {
+    if (useIosControls) {
       final style = MeshStyle.of(context);
-      final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
       return SizedBox(
-        height: heightOf(context) + safeBottom,
+        height: heightOf(context),
         child: IosControl(
           kind: 'tabs',
           horizontalDrag: true,
@@ -138,7 +134,6 @@ class MeshTabBar extends StatelessWidget {
         child: _FlutterTabs(
           labels: labels,
           icons: icons,
-          symbols: symbols,
           height: heightOf(context),
           index: index,
           unreadCounts: unreadCounts,
@@ -155,13 +150,12 @@ class _FlutterTabs extends StatefulWidget {
     required this.height,
     required this.index,
     this.icons = const [],
-    this.symbols = const [],
     this.unreadCounts = const [],
     this.textOnly = false,
     required this.onSelect,
   });
 
-  final List<String> labels, symbols;
+  final List<String> labels;
   final List<IconData> icons;
   final List<int> unreadCounts;
   final double height;
@@ -207,21 +201,6 @@ class _FlutterTabsState extends State<_FlutterTabs> {
         ? widget.unreadCounts[index]
         : 0;
     final display = count > 99 ? (index == 0 ? '99+' : '+99') : '$count';
-    final icon = useIosControls
-        ? SizedBox.square(
-            dimension: 19,
-            child: IgnorePointer(
-              child: IosControl(
-                kind: 'symbolIcon',
-                properties: {
-                  'symbol': widget.symbols[index],
-                  'selected': highlighted,
-                  'accent': color.toARGB32(),
-                },
-              ),
-            ),
-          )
-        : Icon(widget.icons[index], size: 19, color: color);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -232,7 +211,7 @@ class _FlutterTabsState extends State<_FlutterTabs> {
             excludeSemantics: true,
             child: Text(display),
           ),
-          child: icon,
+          child: Icon(widget.icons[index], size: 19, color: color),
         ),
         const SizedBox(height: 2),
         Flexible(child: text),
