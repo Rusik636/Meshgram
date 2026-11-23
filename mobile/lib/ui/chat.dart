@@ -2101,7 +2101,7 @@ class _ContactCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.badge_outlined, color: style.accent, size: 24),
+                MeshAvatar(name, size: 36),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Column(

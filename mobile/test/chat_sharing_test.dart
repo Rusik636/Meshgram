@@ -13,6 +13,7 @@ import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/message_links.dart';
+import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -50,6 +51,7 @@ void main() {
     );
     expect(find.text(contact.name), findsOneWidget);
     expect(find.text(attachment.text), findsNothing);
+    expect(_contactAvatar(attachment.id, contact.name), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
@@ -85,10 +87,13 @@ void main() {
     );
     expect(controller.cache!.peers[contact.id], isNull);
     expect(find.text(contact.name), findsOneWidget);
+    final avatar = _contactAvatar('shared-contact', contact.name);
+    expect(avatar, findsOneWidget);
     await tester.tap(find.text('Add contact'));
     await tester.pumpAndSettle();
     expect(controller.cache!.peers[contact.id]?.name, contact.name);
     expect(find.text('Add contact'), findsNothing);
+    expect(avatar, findsOneWidget);
     expect(controller.messages(chat.id).last.id, 'shared-contact');
 
     await tester.tap(find.widgetWithText(TextButton, 'Message'));
@@ -197,6 +202,13 @@ void main() {
     controller.dispose();
   });
 }
+
+Finder _contactAvatar(String messageId, String contactName) => find.descendant(
+  of: find.byKey(ValueKey(messageId)),
+  matching: find.byWidgetPredicate(
+    (widget) => widget is MeshAvatar && widget.name == contactName,
+  ),
+);
 
 Future<void> _openAttachment(WidgetTester tester, String item) async {
   await tester.tap(find.byTooltip('Attachments'));
