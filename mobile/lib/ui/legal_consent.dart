@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../app_name.dart';
 import 'about.dart';
 import 'page_route.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 const legalConsentKey = 'meshgram.acceptedLegalRevision';
@@ -100,99 +101,102 @@ class _LegalConsentPageState extends State<LegalConsentPage> {
     return Scaffold(
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(21),
-                      child: Image.asset(
-                        'assets/about/meshgrame-icon.png',
-                        width: 88,
-                        height: 88,
-                        excludeFromSemantics: true,
+          child: MeshScrollViewport(
+            tint: style.canvas,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(21),
+                        child: Image.asset(
+                          'assets/about/meshgrame-icon.png',
+                          width: 88,
+                          height: 88,
+                          excludeFromSemantics: true,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    appName,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 12),
+                    Text(
+                      appName,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    tr(
-                      context,
-                      'Прочитайте и примите оба документа, чтобы продолжить.',
-                      'Read and accept both documents to continue.',
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  Material(
-                    color: style.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        _document(
-                          tr(
-                            context,
-                            'Лицензионное соглашение',
-                            'License agreement',
-                          ),
-                          agreementAsset,
-                          tr(
-                            context,
-                            'Принимаю лицензионное соглашение',
-                            'I accept the license agreement',
-                          ),
-                          _license,
-                          (v) => _license = v,
-                        ),
-                        const Divider(height: 1),
-                        _document(
-                          tr(
-                            context,
-                            'Политика конфиденциальности',
-                            'Privacy policy',
-                          ),
-                          privacyAsset,
-                          tr(
-                            context,
-                            'Принимаю политику конфиденциальности',
-                            'I accept the privacy policy',
-                          ),
-                          _privacy,
-                          (v) => _privacy = v,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (_failed)
+                    const SizedBox(height: 20),
                     Text(
                       tr(
                         context,
-                        'Не удалось продолжить. Попробуйте ещё раз.',
-                        'Could not continue. Please try again.',
+                        'Прочитайте и примите оба документа, чтобы продолжить.',
+                        'Read and accept both documents to continue.',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Material(
+                      color: style.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          _document(
+                            tr(
+                              context,
+                              'Лицензионное соглашение',
+                              'License agreement',
+                            ),
+                            agreementAsset,
+                            tr(
+                              context,
+                              'Принимаю лицензионное соглашение',
+                              'I accept the license agreement',
+                            ),
+                            _license,
+                            (v) => _license = v,
+                          ),
+                          const Divider(height: 1),
+                          _document(
+                            tr(
+                              context,
+                              'Политика конфиденциальности',
+                              'Privacy policy',
+                            ),
+                            privacyAsset,
+                            tr(
+                              context,
+                              'Принимаю политику конфиденциальности',
+                              'I accept the privacy policy',
+                            ),
+                            _privacy,
+                            (v) => _privacy = v,
+                          ),
+                        ],
                       ),
                     ),
-                  FilledButton(
-                    onPressed: _license && _privacy && !_saving
-                        ? _accept
-                        : null,
-                    child: Text(tr(context, 'Продолжить', 'Continue')),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    if (_failed)
+                      Text(
+                        tr(
+                          context,
+                          'Не удалось продолжить. Попробуйте ещё раз.',
+                          'Could not continue. Please try again.',
+                        ),
+                      ),
+                    FilledButton(
+                      onPressed: _license && _privacy && !_saving
+                          ? _accept
+                          : null,
+                      child: Text(tr(context, 'Продолжить', 'Continue')),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

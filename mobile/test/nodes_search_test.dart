@@ -95,7 +95,12 @@ void main() {
       matching: find.byType(TextField),
     );
     final list = find.byType(CustomScrollView);
-    final edge = find.byType(MeshScrollEdge);
+    final edge = find.byWidgetPredicate(
+      (widget) => widget is MeshScrollEdge && widget.top,
+    );
+    final bottomEdge = find.byWidgetPredicate(
+      (widget) => widget is MeshScrollEdge && !widget.top,
+    );
     void expectSoftHeader() {
       expect(tester.getRect(list).top, 0);
       expect(
@@ -106,6 +111,7 @@ void main() {
       expect(edgeRect.top, tester.getRect(list).top);
       expect(edgeRect.width, tester.getRect(list).width);
       expect(edgeRect.bottom, greaterThan(tester.getRect(heading).bottom));
+      expect(tester.getRect(bottomEdge).bottom, tester.getRect(list).bottom);
       final stack = tester
           .element(heading)
           .findAncestorWidgetOfExactType<Stack>()!;

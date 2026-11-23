@@ -7,6 +7,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'profile_wallpaper.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -116,56 +117,61 @@ class _ProfilePageState extends State<ProfilePage> {
         onPointerDown: (_) => _beginGesture(),
         onPointerPanZoomStart: (_) => _beginGesture(),
         onPointerSignal: (_) => _beginGesture(),
-        child: CustomScrollView(
-          controller: _scroll,
-          // Material's stretch transforms the entire viewport, including the
-          // pinned toolbar. Move the sliver content using scroll physics.
-          scrollBehavior: android
-              ? ScrollConfiguration.of(context).copyWith(overscroll: false)
-              : null,
-          physics: _ProfileScrollPhysics(
-            travel: () => _travel,
-            keepCollapsed: () => _keepCollapsed,
-            pinLeadingEdge: android,
-            parent: android ? const BouncingScrollPhysics() : null,
-          ),
-          slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _ProfileHeader(
-                page: widget,
-                minExtent: collapsedHeight,
-                maxExtent: expandedHeight,
-                titleStyle: titleStyle,
-                subtitleStyle: subtitleStyle,
-                compactStyle: compactStyle,
-                compactNameWidth: compactNameWidth,
-                wallpaper: switch (widget.identity) {
-                  final identity? => ProfileWallpaper(
-                    identity: identity,
-                    coverage: expandedHeight,
-                  ),
-                  null => null,
-                },
+        child: MeshScrollViewport(
+          tint: MeshStyle.of(context).canvas,
+          fadeTop: false,
+          edgeExtent: math.max(18.0, widget.padding.bottom),
+          child: CustomScrollView(
+            controller: _scroll,
+            // Material's stretch transforms the entire viewport, including the
+            // pinned toolbar. Move the sliver content using scroll physics.
+            scrollBehavior: android
+                ? ScrollConfiguration.of(context).copyWith(overscroll: false)
+                : null,
+            physics: _ProfileScrollPhysics(
+              travel: () => _travel,
+              keepCollapsed: () => _keepCollapsed,
+              pinLeadingEdge: android,
+              parent: android ? const BouncingScrollPhysics() : null,
+            ),
+            slivers: [
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _ProfileHeader(
+                  page: widget,
+                  minExtent: collapsedHeight,
+                  maxExtent: expandedHeight,
+                  titleStyle: titleStyle,
+                  subtitleStyle: subtitleStyle,
+                  compactStyle: compactStyle,
+                  compactNameWidth: compactNameWidth,
+                  wallpaper: switch (widget.identity) {
+                    final identity? => ProfileWallpaper(
+                      identity: identity,
+                      coverage: expandedHeight,
+                    ),
+                    null => null,
+                  },
+                ),
               ),
-            ),
-            SliverPadding(
-              padding: widget.padding.copyWith(top: 0),
-              sliver: SliverList.list(children: widget.children),
-            ),
-            SliverLayoutBuilder(
-              builder: (context, layout) => SliverToBoxAdapter(
-                child: SizedBox(
-                  height: math.max(
-                    0,
-                    layout.viewportMainAxisExtent +
-                        _travel -
-                        layout.precedingScrollExtent,
+              SliverPadding(
+                padding: widget.padding.copyWith(top: 0),
+                sliver: SliverList.list(children: widget.children),
+              ),
+              SliverLayoutBuilder(
+                builder: (context, layout) => SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: math.max(
+                      0,
+                      layout.viewportMainAxisExtent +
+                          _travel -
+                          layout.precedingScrollExtent,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },

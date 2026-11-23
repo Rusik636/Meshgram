@@ -16,6 +16,7 @@ import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import 'ios_control.dart';
 import 'qr_scanner.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 import 'page_route.dart';
 
@@ -391,10 +392,15 @@ class _ContactQrState extends State<_ContactQrPage>
                       );
                     }
                     return Center(
-                      child: SingleChildScrollView(
-                        clipBehavior: nativeContact ? Clip.none : Clip.hardEdge,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: content,
+                      child: MeshScrollViewport(
+                        edgeExtent: 12,
+                        child: SingleChildScrollView(
+                          clipBehavior: nativeContact
+                              ? Clip.none
+                              : Clip.hardEdge,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: content,
+                        ),
                       ),
                     );
                   },

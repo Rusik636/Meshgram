@@ -12,6 +12,7 @@ import 'emoji_text.dart';
 import 'message_reactions.dart';
 import 'ios_control.dart';
 import 'navigation.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 Future<String?> showMessageMenu({
@@ -127,66 +128,78 @@ class _MessageMenuState extends State<_MessageMenu> {
                     width:
                         bounds.maxWidth.clamp(0.0, 560.0) -
                         (bounds.maxWidth < 28 ? 0 : 28),
-                    child: SingleChildScrollView(
-                      primary: false,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (showPicker && widget.canReact)
-                            AnimatedSwitcher(
-                              duration: meshMotion(context),
-                              child: ScaleTransition(
-                                alignment: Alignment.bottomCenter,
-                                scale: ModalRoute.of(context)!.animation!.drive(
-                                  Tween<double>(begin: .78, end: 1).chain(
-                                    CurveTween(curve: Curves.easeOutBack),
-                                  ),
-                                ),
-                                child: _panel == _MenuPanel.emoji
-                                    ? EmojiPicker(
-                                        key: const ValueKey('emoji-catalog'),
-                                        gridHeight: (bounds.maxHeight * .39)
-                                            .clamp(95, 275)
-                                            .toDouble(),
-                                        onSelect: _select,
-                                        onCollapse: () =>
-                                            _show(_MenuPanel.actions),
-                                      )
-                                    : _QuickReactions(
-                                        recent: widget.recentReactions,
-                                        onSelect: _select,
-                                        onExpand: () => _show(_MenuPanel.emoji),
-                                      ),
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          IgnorePointer(child: widget.bubble),
-                          if (_panel != _MenuPanel.emoji) ...[
-                            const SizedBox(height: 9),
-                            Align(
-                              alignment: align,
-                              child: SizedBox(
-                                width: _panel == _MenuPanel.actions ? 242 : 362,
+                    child: MeshScrollViewport(
+                      edgeExtent: 12,
+                      child: SingleChildScrollView(
+                        primary: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showPicker && widget.canReact)
+                              AnimatedSwitcher(
+                                duration: meshMotion(context),
                                 child: ScaleTransition(
-                                  alignment: widget.outgoing
-                                      ? Alignment.topRight
-                                      : Alignment.topLeft,
+                                  alignment: Alignment.bottomCenter,
                                   scale: ModalRoute.of(context)!.animation!
                                       .drive(
                                         Tween<double>(begin: .78, end: 1).chain(
                                           CurveTween(curve: Curves.easeOutBack),
                                         ),
                                       ),
-                                  child: _actionSurface(
-                                    _panel == _MenuPanel.actions
-                                        ? _actions(style)
-                                        : _details(bounds, style),
+                                  child: _panel == _MenuPanel.emoji
+                                      ? EmojiPicker(
+                                          key: const ValueKey('emoji-catalog'),
+                                          gridHeight: (bounds.maxHeight * .39)
+                                              .clamp(95, 275)
+                                              .toDouble(),
+                                          onSelect: _select,
+                                          onCollapse: () =>
+                                              _show(_MenuPanel.actions),
+                                        )
+                                      : _QuickReactions(
+                                          recent: widget.recentReactions,
+                                          onSelect: _select,
+                                          onExpand: () =>
+                                              _show(_MenuPanel.emoji),
+                                        ),
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            IgnorePointer(child: widget.bubble),
+                            if (_panel != _MenuPanel.emoji) ...[
+                              const SizedBox(height: 9),
+                              Align(
+                                alignment: align,
+                                child: SizedBox(
+                                  width: _panel == _MenuPanel.actions
+                                      ? 242
+                                      : 362,
+                                  child: ScaleTransition(
+                                    alignment: widget.outgoing
+                                        ? Alignment.topRight
+                                        : Alignment.topLeft,
+                                    scale: ModalRoute.of(context)!.animation!
+                                        .drive(
+                                          Tween<double>(
+                                            begin: .78,
+                                            end: 1,
+                                          ).chain(
+                                            CurveTween(
+                                              curve: Curves.easeOutBack,
+                                            ),
+                                          ),
+                                        ),
+                                    child: _actionSurface(
+                                      _panel == _MenuPanel.actions
+                                          ? _actions(style)
+                                          : _details(bounds, style),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -354,49 +367,52 @@ class _ReactionListState extends State<_ReactionList> {
           ),
         SizedBox(
           height: math.min(widget.maxHeight, visible.length * 61.0),
-          child: ListView.builder(
-            key: ValueKey(_filter),
-            primary: false,
-            padding: const EdgeInsets.only(bottom: 6),
-            itemCount: visible.length,
-            itemBuilder: (context, index) {
-              final item = visible[index];
-              final time = item.reaction.time?.toLocal();
-              final peer = item.author.peer;
-              return ListTile(
-                dense: true,
-                onTap: peer == null ? null : () => widget.onOpenProfile(peer),
-                leading: ReactionAvatar(item.author, size: 32),
-                title: Text(
-                  item.reaction.own
-                      ? tr(context, 'Вы', 'You')
-                      : item.author.name ??
-                            tr(context, 'Неизвестный узел', 'Unknown node'),
-                ),
-                subtitle: time == null
-                    ? null
-                    : Text(
-                        '${locale.formatShortDate(time)} · ${locale.formatTimeOfDay(TimeOfDay.fromDateTime(time), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}',
-                        style: TextStyle(color: style.secondary),
+          child: MeshScrollViewport(
+            edgeExtent: 10,
+            child: ListView.builder(
+              key: ValueKey(_filter),
+              primary: false,
+              padding: const EdgeInsets.only(bottom: 6),
+              itemCount: visible.length,
+              itemBuilder: (context, index) {
+                final item = visible[index];
+                final time = item.reaction.time?.toLocal();
+                final peer = item.author.peer;
+                return ListTile(
+                  dense: true,
+                  onTap: peer == null ? null : () => widget.onOpenProfile(peer),
+                  leading: ReactionAvatar(item.author, size: 32),
+                  title: Text(
+                    item.reaction.own
+                        ? tr(context, 'Вы', 'You')
+                        : item.author.name ??
+                              tr(context, 'Неизвестный узел', 'Unknown node'),
+                  ),
+                  subtitle: time == null
+                      ? null
+                      : Text(
+                          '${locale.formatShortDate(time)} · ${locale.formatTimeOfDay(TimeOfDay.fromDateTime(time), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}',
+                          style: TextStyle(color: style.secondary),
+                        ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 6,
+                    children: [
+                      Text(
+                        item.reaction.emoji,
+                        style: emojiGlyphStyle(const TextStyle(fontSize: 20)),
                       ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 6,
-                  children: [
-                    Text(
-                      item.reaction.emoji,
-                      style: emojiGlyphStyle(const TextStyle(fontSize: 20)),
-                    ),
-                    if (peer != null)
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: style.secondary,
-                        size: 18,
-                      ),
-                  ],
-                ),
-              );
-            },
+                      if (peer != null)
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: style.secondary,
+                          size: 18,
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],

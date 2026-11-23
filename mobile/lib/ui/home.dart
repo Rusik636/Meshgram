@@ -26,6 +26,7 @@ import 'notification_settings.dart';
 import 'radio_settings.dart';
 import 'profile_page.dart';
 import 'search_field.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 import 'page_route.dart';
 
@@ -523,9 +524,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       );
       final normalHeaderHeight =
           normalCategoriesTop + (categoriesInChats ? categoryHeight : 0) + 8;
-      final headerColor = style.canvas.withValues(
-        alpha: MediaQuery.highContrastOf(context) ? 1 : .96,
-      );
       final chatList = _chats(style, normalHeaderHeight, collapseRange);
       final searchResults = _searchActive || _searchMotion.value > 0
           ? _searchResults(style)
@@ -642,21 +640,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 left: 0,
                 right: 0,
                 height: lerpDouble(headerHeight, resultsTop, progress)!,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          headerColor,
-                          headerColor,
-                          headerColor.withValues(alpha: 0),
-                        ],
-                        stops: const [0, .96, 1],
-                      ),
-                    ),
-                  ),
+                child: MeshScrollEdge(
+                  top: true,
+                  tint: style.canvas,
+                  opaqueEdge: true,
                 ),
               ),
               if (progress < 1)
@@ -771,156 +758,163 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       );
     }
 
-    return CustomScrollView(
-      key: const PageStorageKey('chats'),
-      controller: _chatScroll,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      slivers: [
-        SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
-        if (_showHidden || hiddenCount > 0)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: GlassActionButton(
-                  width: 166,
-                  height: 38,
-                  primary: false,
-                  label: _showHidden
-                      ? tr(context, 'Все чаты', 'All chats')
-                      : tr(
-                          context,
-                          'Скрытые ($hiddenCount)',
-                          'Hidden ($hiddenCount)',
-                        ),
-                  onTap: _editingChats ? null : () => _showChats(!_showHidden),
-                ),
-              ),
-            ),
-          ),
-        if (visible.isNotEmpty) ...[
-          SliverPadding(
-            padding: EdgeInsets.only(bottom: _scrollBottom),
-            sliver: _editingChats
-                ? SliverReorderableList(
-                    itemCount: visible.length,
-                    itemBuilder: item,
-                    onReorderItem: (from, to) {
-                      if (_removingChats) return;
-                      final ids = visible.map((peer) => peer.id).toList();
-                      ids.insert(to, ids.removeAt(from));
-                      controller.reorderChats(ids, hidden: _showHidden);
-                    },
-                  )
-                : SliverList.builder(
-                    itemCount: visible.length,
-                    itemBuilder: item,
-                    findChildIndexCallback: (key) {
-                      final index = visible.indexWhere(
-                        (peer) => ValueKey(peer.id) == key,
-                      );
-                      return index < 0 ? null : index;
-                    },
-                  ),
-          ),
-          if (!_editingChats && !_showHidden)
-            SliverLayoutBuilder(
-              builder: (context, layout) => SliverToBoxAdapter(
-                child: SizedBox(
-                  height: math.max(
-                    0,
-                    layout.viewportMainAxisExtent +
-                        collapseRange -
-                        layout.precedingScrollExtent,
-                  ),
-                ),
-              ),
-            ),
-        ] else
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: FadeTransition(
-              opacity: _chatCategories.visibility(
-                shared: _visibleChats(_chatCategories.counterpart).isEmpty,
-              ),
+    return MeshScrollViewport(
+      tint: style.canvas,
+      fadeTop: false,
+      edgeExtent: _scrollBottom,
+      child: CustomScrollView(
+        key: const PageStorageKey('chats'),
+        controller: _chatScroll,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
+          if (_showHidden || hiddenCount > 0)
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(24, 4, 24, _scrollBottom),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 82,
-                          height: 82,
-                          decoration: BoxDecoration(
-                            color: style.field,
-                            shape: BoxShape.circle,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GlassActionButton(
+                    width: 166,
+                    height: 38,
+                    primary: false,
+                    label: _showHidden
+                        ? tr(context, 'Все чаты', 'All chats')
+                        : tr(
+                            context,
+                            'Скрытые ($hiddenCount)',
+                            'Hidden ($hiddenCount)',
                           ),
-                          child: MeshNavigation.activeChatIcon(
-                            style.accent,
-                            35,
+                    onTap: _editingChats
+                        ? null
+                        : () => _showChats(!_showHidden),
+                  ),
+                ),
+              ),
+            ),
+          if (visible.isNotEmpty) ...[
+            SliverPadding(
+              padding: EdgeInsets.only(bottom: _scrollBottom),
+              sliver: _editingChats
+                  ? SliverReorderableList(
+                      itemCount: visible.length,
+                      itemBuilder: item,
+                      onReorderItem: (from, to) {
+                        if (_removingChats) return;
+                        final ids = visible.map((peer) => peer.id).toList();
+                        ids.insert(to, ids.removeAt(from));
+                        controller.reorderChats(ids, hidden: _showHidden);
+                      },
+                    )
+                  : SliverList.builder(
+                      itemCount: visible.length,
+                      itemBuilder: item,
+                      findChildIndexCallback: (key) {
+                        final index = visible.indexWhere(
+                          (peer) => ValueKey(peer.id) == key,
+                        );
+                        return index < 0 ? null : index;
+                      },
+                    ),
+            ),
+            if (!_editingChats && !_showHidden)
+              SliverLayoutBuilder(
+                builder: (context, layout) => SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: math.max(
+                      0,
+                      layout.viewportMainAxisExtent +
+                          collapseRange -
+                          layout.precedingScrollExtent,
+                    ),
+                  ),
+                ),
+              ),
+          ] else
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: FadeTransition(
+                opacity: _chatCategories.visibility(
+                  shared: _visibleChats(_chatCategories.counterpart).isEmpty,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, 4, 24, _scrollBottom),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 82,
+                            height: 82,
+                            decoration: BoxDecoration(
+                              color: style.field,
+                              shape: BoxShape.circle,
+                            ),
+                            child: MeshNavigation.activeChatIcon(
+                              style.accent,
+                              35,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 17),
-                        Text(
-                          _showHidden
-                              ? tr(
-                                  context,
-                                  'Скрытых чатов нет',
-                                  'No hidden chats',
-                                )
-                              : tr(context, 'Пока нет чатов', 'No chats yet'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (!controller.connected) ...[
-                          const SizedBox(height: 7),
+                          const SizedBox(height: 17),
                           Text(
-                            tr(
-                              context,
-                              'Подключите рацию в настройках, чтобы начать переписку.',
-                              'Connect a radio in Settings to start messaging.',
-                            ),
+                            _showHidden
+                                ? tr(
+                                    context,
+                                    'Скрытых чатов нет',
+                                    'No hidden chats',
+                                  )
+                                : tr(context, 'Пока нет чатов', 'No chats yet'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: style.secondary,
-                              fontSize: 15,
+                            style: const TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
-                            child: GlassSurface(
-                              radius: 24,
-                              color: style.surface,
-                              child: TextButton.icon(
-                                onPressed: _openSettings,
-                                icon: const Icon(Icons.cell_tower_rounded),
-                                label: Text(
-                                  tr(
-                                    context,
-                                    'Подключить рацию',
-                                    'Connect a radio',
+                          if (!controller.connected) ...[
+                            const SizedBox(height: 7),
+                            Text(
+                              tr(
+                                context,
+                                'Подключите рацию в настройках, чтобы начать переписку.',
+                                'Connect a radio in Settings to start messaging.',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: style.secondary,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: GlassSurface(
+                                radius: 24,
+                                color: style.surface,
+                                child: TextButton.icon(
+                                  onPressed: _openSettings,
+                                  icon: const Icon(Icons.cell_tower_rounded),
+                                  label: Text(
+                                    tr(
+                                      context,
+                                      'Подключить рацию',
+                                      'Connect a radio',
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -985,118 +979,128 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           }
           return false;
         },
-        child: CustomScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          slivers: [
-            if (shortcuts.isNotEmpty)
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 95,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-                    itemCount: shortcuts.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 9),
-                    itemBuilder: (context, index) {
-                      final peer = shortcuts[index];
-                      return FadeTransition(
-                        key: ValueKey(peer.id),
-                        opacity: _searchCategories.visibility(
-                          shared: counterpartShortcuts.contains(peer.id),
-                        ),
-                        child: SizedBox(
-                          width: 68,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(17),
-                            onTap: () => unawaited(_openChat(peer)),
-                            child: Column(
-                              children: [
-                                MeshAvatar(
-                                  peer.name,
-                                  size: 55,
-                                  channel: peer.channel,
-                                  online: controller.isNodeOnline(peer.id),
-                                  onTap: () => unawaited(
-                                    _openProfile(peer, allowReadOnlyChat: true),
+        child: MeshScrollViewport(
+          tint: style.canvas,
+          child: CustomScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            slivers: [
+              if (shortcuts.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 95,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                      itemCount: shortcuts.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 9),
+                      itemBuilder: (context, index) {
+                        final peer = shortcuts[index];
+                        return FadeTransition(
+                          key: ValueKey(peer.id),
+                          opacity: _searchCategories.visibility(
+                            shared: counterpartShortcuts.contains(peer.id),
+                          ),
+                          child: SizedBox(
+                            width: 68,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(17),
+                              onTap: () => unawaited(_openChat(peer)),
+                              child: Column(
+                                children: [
+                                  MeshAvatar(
+                                    peer.name,
+                                    size: 55,
+                                    channel: peer.channel,
+                                    online: controller.isNodeOnline(peer.id),
+                                    onTap: () => unawaited(
+                                      _openProfile(
+                                        peer,
+                                        allowReadOnlyChat: true,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  peer.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    peer.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-            if (query.isEmpty && results.isNotEmpty)
-              SliverToBoxAdapter(
-                child: FadeTransition(
-                  opacity: _searchCategories.visibility(
-                    shared: counterpartHasResults,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 17, right: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            tr(context, 'Недавние', 'Recent'),
-                            style: TextStyle(
-                              color: style.secondary,
-                              fontWeight: FontWeight.w600,
+              if (query.isEmpty && results.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: FadeTransition(
+                    opacity: _searchCategories.visibility(
+                      shared: counterpartHasResults,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 17, right: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              tr(context, 'Недавние', 'Recent'),
+                              style: TextStyle(
+                                color: style.secondary,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: controller.clearSearchHistory,
-                          child: Text(tr(context, 'Очистить', 'Clear')),
-                        ),
+                          TextButton(
+                            onPressed: controller.clearSearchHistory,
+                            child: Text(tr(context, 'Очистить', 'Clear')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (query.isNotEmpty && results.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: FadeTransition(
+                    opacity: _searchCategories.visibility(
+                      shared: !counterpartHasResults,
+                    ),
+                    child: Center(
+                      child: Text(
+                        tr(context, 'Ничего не найдено', 'No results'),
+                        style: TextStyle(color: style.secondary),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverList.builder(
+                  itemCount: results.length,
+                  itemBuilder: (_, index) => FadeTransition(
+                    key: ValueKey(results[index].id),
+                    opacity: _searchCategories.visibility(
+                      shared: unchanged(results[index]),
+                    ),
+                    child: Column(
+                      children: [
+                        _chatRow(results[index], style),
+                        if (index < results.length - 1)
+                          Divider(
+                            height: 1,
+                            indent: 79,
+                            color: style.separator,
+                          ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            if (query.isNotEmpty && results.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: FadeTransition(
-                  opacity: _searchCategories.visibility(
-                    shared: !counterpartHasResults,
-                  ),
-                  child: Center(
-                    child: Text(
-                      tr(context, 'Ничего не найдено', 'No results'),
-                      style: TextStyle(color: style.secondary),
-                    ),
-                  ),
-                ),
-              )
-            else
-              SliverList.builder(
-                itemCount: results.length,
-                itemBuilder: (_, index) => FadeTransition(
-                  key: ValueKey(results[index].id),
-                  opacity: _searchCategories.visibility(
-                    shared: unchanged(results[index]),
-                  ),
-                  child: Column(
-                    children: [
-                      _chatRow(results[index], style),
-                      if (index < results.length - 1)
-                        Divider(height: 1, indent: 79, color: style.separator),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

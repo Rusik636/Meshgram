@@ -10,6 +10,7 @@ import '../local_notifications.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import 'page_route.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 class NotificationSettingsPage extends StatelessWidget {
@@ -478,9 +479,12 @@ class _NotificationPage extends StatelessWidget {
           Expanded(
             child: ListenableBuilder(
               listenable: Listenable.merge([notifications, controller]),
-              builder: (context, _) => ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: buildGroups(context),
+              builder: (context, _) => MeshScrollViewport(
+                tint: MeshStyle.of(context).canvas,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  children: buildGroups(context),
+                ),
               ),
             ),
           ),

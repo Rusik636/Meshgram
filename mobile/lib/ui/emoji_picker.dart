@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'emoji_text.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 const quickReactions = [
@@ -339,30 +340,37 @@ class _EmojiPickerState extends State<EmojiPicker> {
                     ),
                   );
                 }
-                return GridView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 49,
-                  ),
-                  itemCount: emoji.length,
-                  itemBuilder: (context, index) {
-                    final entry = emoji[index];
-                    final variants = catalog._variants[entry];
-                    return Builder(
-                      builder: (context) => IconButton(
-                        tooltip: entry.label(context),
-                        onPressed: () => widget.onSelect(entry.glyph),
-                        onLongPress: variants == null
-                            ? null
-                            : () => _showTones(context, entry, variants),
-                        icon: Text(
-                          entry.glyph,
-                          style: emojiGlyphStyle(const TextStyle(fontSize: 24)),
+                return MeshScrollViewport(
+                  tint: style.surface,
+                  edgeExtent: 12,
+                  child: GridView.builder(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 49,
                         ),
-                      ),
-                    );
-                  },
+                    itemCount: emoji.length,
+                    itemBuilder: (context, index) {
+                      final entry = emoji[index];
+                      final variants = catalog._variants[entry];
+                      return Builder(
+                        builder: (context) => IconButton(
+                          tooltip: entry.label(context),
+                          onPressed: () => widget.onSelect(entry.glyph),
+                          onLongPress: variants == null
+                              ? null
+                              : () => _showTones(context, entry, variants),
+                          icon: Text(
+                            entry.glyph,
+                            style: emojiGlyphStyle(
+                              const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),

@@ -41,7 +41,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
   static const _headingInset = 14.0;
   static const _headingGap = 8.0;
   static const _headingSlot = meshSearchButtonSize + _headingGap;
-  static const _headingFade = 10.0;
 
   MeshController get controller => widget.controller;
   String? _revealed;
@@ -186,7 +185,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     final safe = MediaQuery.viewPaddingOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final preferNative = ModalRoute.isCurrentOf(context) != false;
-    final useBlurredHeading = Theme.of(context).platform == TargetPlatform.iOS;
+    final surface = Theme.of(context).scaffoldBackgroundColor;
     final width = constraints.maxWidth;
     final height = constraints.maxHeight;
     final headingHeight = math.max(
@@ -200,6 +199,8 @@ class _MeshNodesPageState extends State<MeshNodesPage>
       safe.bottom,
       MediaQuery.systemGestureInsetsOf(context).bottom,
     );
+    final browseEnd = math.max(38.0, safeBottom + 12);
+    const resultsEnd = 24.0;
     final activeTop = math.max(
       0.0,
       height - math.max(keyboard, safeBottom) - fieldHeight - 8,
@@ -225,7 +226,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
       nodes: nodes,
       padding: EdgeInsets.only(
         top: normalTop + (canSearch ? collapseRange : 0),
-        bottom: safeBottom + 12,
+        bottom: browseEnd,
       ),
       editing: editing,
       collapseRange: canSearch ? collapseRange : 0,
@@ -250,16 +251,9 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           progress: progress,
           collapse: collapse,
         );
-        final browseFadeEnd =
-            normalTop +
-            (canSearch ? collapseRange * (1 - collapse) * (1 - progress) : 0);
-        Widget belowHeading(Widget list, double edge) => useBlurredHeading
-            ? list
-            : _NodeHeaderFade(
-                hiddenUntil: edge - _headingFade,
-                visibleFrom: edge,
-                child: list,
-              );
+        final resultsBottom = (height - activeTop + 8).clamp(0.0, height);
+        final bottom = resultsBottom * progress;
+        final edgeHeight = lerpDouble(browseEnd, resultsEnd, progress)!;
         return Stack(
           children: [
             Positioned.fill(
@@ -269,10 +263,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   ignoring: _searching,
                   child: ExcludeSemantics(
                     excluding: _searching,
-                    child: Opacity(
-                      opacity: 1 - progress,
-                      child: belowHeading(browse, browseFadeEnd),
-                    ),
+                    child: Opacity(opacity: 1 - progress, child: browse),
                   ),
                 ),
               ),
@@ -282,36 +273,42 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: (height - activeTop + 8).clamp(0.0, height),
+                bottom: resultsBottom,
                 child: IgnorePointer(
                   ignoring: !_searching,
                   child: ExcludeSemantics(
                     excluding: !_searching,
                     child: Opacity(
                       opacity: progress,
-                      child: belowHeading(
-                        _nodeList(
-                          context,
-                          scroll: _results,
-                          nodes: results,
-                          padding: EdgeInsets.only(top: normalTop, bottom: 12),
-                          editing: false,
-                          searching: true,
+                      child: _nodeList(
+                        context,
+                        scroll: _results,
+                        nodes: results,
+                        padding: EdgeInsets.only(
+                          top: normalTop,
+                          bottom: resultsEnd,
                         ),
-                        normalTop,
+                        editing: false,
+                        searching: true,
                       ),
                     ),
                   ),
                 ),
               ),
-            if (useBlurredHeading)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: normalTop,
-                child: const MeshScrollEdge(top: true),
-              ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: math.min(height, normalTop + 12),
+              child: MeshScrollEdge(top: true, tint: surface, opaqueEdge: true),
+            ),
+            Positioned(
+              bottom: bottom,
+              left: 0,
+              right: 0,
+              height: math.min(height - bottom, edgeHeight),
+              child: MeshScrollEdge(top: false, tint: surface),
+            ),
             Positioned(
               key: const ValueKey('nodes-heading'),
               top: safe.top + 7,
@@ -577,39 +574,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           ),
         ),
       );
-}
-
-class _NodeHeaderFade extends StatelessWidget {
-  const _NodeHeaderFade({
-    required this.hiddenUntil,
-    required this.visibleFrom,
-    required this.child,
-  });
-
-  final double hiddenUntil, visibleFrom;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => ShaderMask(
-    blendMode: BlendMode.dstIn,
-    shaderCallback: (bounds) {
-      final height = math.max(1.0, bounds.height);
-      final start = (hiddenUntil / height).clamp(0.0, 1.0);
-      final end = (visibleFrom / height).clamp(start, 1.0);
-      return LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: const [
-          Colors.transparent,
-          Colors.transparent,
-          Color(0x66ffffff),
-          Colors.white,
-        ],
-        stops: [0, start, (start + end) / 2, end],
-      ).createShader(bounds);
-    },
-    child: child,
-  );
 }
 
 class _NodeMapPage extends StatelessWidget {

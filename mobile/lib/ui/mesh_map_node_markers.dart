@@ -221,21 +221,27 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
       );
     Widget buildList(BuildContext context) => SafeArea(
       top: false,
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 8),
-        itemCount: members.length,
-        itemBuilder: (context, index) {
-          final pin = members[index];
-          final name = pin._avatarName!;
-          return ListTile(
-            leading: MeshAvatar(name, size: 38, online: pin._online),
-            title: Text(name),
-            subtitle: Text(pin._nodeId!),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            enabled: pin.onTap != null,
-            onTap: pin.onTap == null ? null : () => Navigator.pop(context, pin),
-          );
-        },
+      child: MeshScrollViewport(
+        tint: style.surface,
+        edgeExtent: 12,
+        child: ListView.builder(
+          padding: const EdgeInsets.only(bottom: 8),
+          itemCount: members.length,
+          itemBuilder: (context, index) {
+            final pin = members[index];
+            final name = pin._avatarName!;
+            return ListTile(
+              leading: MeshAvatar(name, size: 38, online: pin._online),
+              title: Text(name),
+              subtitle: Text(pin._nodeId!),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              enabled: pin.onTap != null,
+              onTap: pin.onTap == null
+                  ? null
+                  : () => Navigator.pop(context, pin),
+            );
+          },
+        ),
       ),
     );
     final presentingRoute = useIosControls ? ModalRoute.of(context) : null;

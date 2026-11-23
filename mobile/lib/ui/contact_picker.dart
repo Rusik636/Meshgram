@@ -3,7 +3,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show FragmentProgram, FragmentShader, ImageFilter, lerpDouble;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -272,7 +272,6 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     final height = constraints.maxHeight;
     final fieldHeight = meshSearchFieldHeight(context);
     final searchBottom = MediaQuery.paddingOf(context).bottom + searchBottomGap;
-    final useViewportEdges = Theme.of(context).platform == TargetPlatform.iOS;
     final surface = MeshStyle.of(context).surface;
     final compact = Rect.fromLTWH(
       width - side - meshSearchButtonSize,
@@ -290,21 +289,14 @@ class _AttachmentContactsState extends State<AttachmentContacts>
       fieldHeight,
     );
     return AnimatedBuilder(
-      animation: Listenable.merge([_motion, _scroll]),
+      animation: _motion,
       builder: (context, _) {
         final progress = meshSearchProgress(_motion);
-        final offset = _scroll.hasClients ? _scroll.offset : 0.0;
-        final topEdge =
-            headingHeight *
-            Curves.easeOut.transform((offset / headingHeight).clamp(0.0, 1.0)) *
-            (1 - progress);
         final obstruction = math.max(
           widget.bottomObstruction,
           (searchBottom + fieldHeight + gap) * progress,
         );
-        final bottomEdge = useViewportEdges
-            ? math.max(38.0, obstruction)
-            : (obstruction * .7).clamp(38.0, 92.0);
+        final bottomEdge = math.max(38.0, obstruction);
         final field = Rect.lerp(compact, active, progress)!;
         final list = _list(
           context,
@@ -314,36 +306,21 @@ class _AttachmentContactsState extends State<AttachmentContacts>
         );
         return Stack(
           children: [
-            Positioned.fill(
-              child: useViewportEdges
-                  ? list
-                  : _ContactScrollEdges(
-                      top: topEdge,
-                      bottom: bottomEdge,
-                      height: height,
-                      child: list,
-                    ),
+            Positioned.fill(child: list),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: math.min(height, headingHeight + 12),
+              child: MeshScrollEdge(top: true, tint: surface, opaqueEdge: true),
             ),
-            if (useViewportEdges) ...[
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: headingHeight + 12,
-                child: MeshScrollEdge(
-                  top: true,
-                  tint: surface,
-                  opaqueEdge: true,
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: math.min(height, bottomEdge),
-                child: MeshScrollEdge(top: false, tint: surface),
-              ),
-            ],
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: math.min(height, bottomEdge),
+              child: MeshScrollEdge(top: false, tint: surface),
+            ),
             Positioned(
               top: 0,
               left: side + meshSearchButtonSize + 12,
@@ -444,104 +421,6 @@ class _AttachmentContactsState extends State<AttachmentContacts>
           ],
         );
       },
-    );
-  }
-}
-
-class _ContactScrollEdges extends StatefulWidget {
-  const _ContactScrollEdges({
-    required this.top,
-    required this.bottom,
-    required this.height,
-    required this.child,
-  });
-
-  final double top, bottom, height;
-  final Widget child;
-
-  @override
-  State<_ContactScrollEdges> createState() => _ContactScrollEdgesState();
-}
-
-class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
-  static Future<FragmentProgram>? _program;
-  final _content = GlobalKey();
-  FragmentProgram? _loadedProgram;
-  FragmentShader? _shader;
-  (double, double)? _extents;
-
-  @override
-  void initState() {
-    super.initState();
-    if (ImageFilter.isShaderFilterSupported) unawaited(_loadShader());
-  }
-
-  Future<void> _loadShader() async {
-    try {
-      final program = await (_program ??= FragmentProgram.fromAsset(
-        'shaders/contact_scroll_edges.frag',
-      ));
-      if (mounted) setState(() => _loadedProgram = program);
-    } catch (_) {
-      // A transparent alpha ramp is also available without a shader filter.
-    }
-  }
-
-  @override
-  void dispose() {
-    _shader?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final child = KeyedSubtree(key: _content, child: widget.child);
-    if (widget.height <= 0) return child;
-    final extent = math.max(widget.height, widget.top + widget.bottom);
-    final top = widget.top / extent;
-    final bottom = widget.bottom / extent;
-    final program = _loadedProgram;
-    if (program != null && !MediaQuery.highContrastOf(context)) {
-      if (_extents != (top, bottom)) {
-        _shader?.dispose();
-        _shader = program.fragmentShader()
-          ..setFloat(2, top)
-          ..setFloat(3, bottom);
-        _extents = (top, bottom);
-      }
-      return ImageFiltered(
-        imageFilter: ImageFilter.shader(_shader!),
-        child: child,
-      );
-    }
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (bounds) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          if (top > 0) ...const [
-            Colors.transparent,
-            Colors.transparent,
-            Color(0x40ffffff),
-            Color(0xbfffffff),
-          ],
-          Colors.white,
-          Colors.white,
-          Color(0xbfffffff),
-          Color(0x40ffffff),
-          Colors.transparent,
-        ],
-        stops: [
-          if (top > 0) ...[0, .45 * top, .63 * top, .82 * top],
-          top,
-          1 - bottom,
-          1 - .67 * bottom,
-          1 - .33 * bottom,
-          1,
-        ],
-      ).createShader(bounds),
-      child: child,
     );
   }
 }

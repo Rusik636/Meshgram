@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_name.dart';
 import 'page_route.dart';
 import 'profile_page.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 const agreementAsset = 'assets/about/license-agreement.md';
@@ -442,39 +443,42 @@ class _LicensesPageState extends State<_LicensesPage> {
                 if (rows == null) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return ListView.separated(
-                  padding: padding.copyWith(
-                    top: 0,
-                    left: padding.left + 16,
-                    right: padding.right + 16,
-                  ),
-                  itemCount: rows.length,
-                  separatorBuilder: (context, index) =>
-                      Divider(height: 1, color: style.separator),
-                  itemBuilder: (context, index) {
-                    final notice = rows[index];
-                    return MeshRow(
-                      title: notice.title,
-                      subtitle: notice.license.isEmpty
-                          ? tr(
-                              context,
-                              'Уведомление правообладателя',
-                              'Copyright notice',
-                            )
-                          : notice.license,
-                      icon: Icons.description_outlined,
-                      tint: style.accent,
-                      onTap: () => _push(
-                        context,
-                        DocumentPage(
-                          title: notice.title,
-                          asset: notice.asset,
-                          text: notice.text,
-                          url: notice.url,
+                return MeshScrollViewport(
+                  tint: style.canvas,
+                  child: ListView.separated(
+                    padding: padding.copyWith(
+                      top: 0,
+                      left: padding.left + 16,
+                      right: padding.right + 16,
+                    ),
+                    itemCount: rows.length,
+                    separatorBuilder: (context, index) =>
+                        Divider(height: 1, color: style.separator),
+                    itemBuilder: (context, index) {
+                      final notice = rows[index];
+                      return MeshRow(
+                        title: notice.title,
+                        subtitle: notice.license.isEmpty
+                            ? tr(
+                                context,
+                                'Уведомление правообладателя',
+                                'Copyright notice',
+                              )
+                            : notice.license,
+                        icon: Icons.description_outlined,
+                        tint: style.accent,
+                        onTap: () => _push(
+                          context,
+                          DocumentPage(
+                            title: notice.title,
+                            asset: notice.asset,
+                            text: notice.text,
+                            url: notice.url,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),

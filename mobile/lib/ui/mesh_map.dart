@@ -22,6 +22,7 @@ import 'mesh_sheet_route.dart';
 import 'navigation.dart' show meshMotion;
 import 'page_route.dart';
 import 'sheet_control_clip.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 part 'mesh_map_node_markers.dart';

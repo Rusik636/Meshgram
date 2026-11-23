@@ -13,6 +13,7 @@ import 'mesh_sheet_route.dart';
 import 'sheet_control_clip.dart';
 import 'sheet_scroll.dart';
 import 'tokens.dart';
+import 'mesh_scroll_edge.dart';
 
 String tr(BuildContext context, String ru, String en) =>
     Localizations.localeOf(context).languageCode == 'ru' ? ru : en;
@@ -685,7 +686,7 @@ class MeshRow extends StatelessWidget {
   }
 }
 
-class PinnedPageList extends StatefulWidget {
+class PinnedPageList extends StatelessWidget {
   const PinnedPageList({
     super.key,
     required this.padding,
@@ -698,74 +699,18 @@ class PinnedPageList extends StatefulWidget {
   final List<Widget> children;
 
   @override
-  State<PinnedPageList> createState() => _PinnedPageListState();
-}
-
-class _PinnedPageListState extends State<PinnedPageList> {
-  static const _edgeHeight = 14.0;
-  final _edgeOpacity = ValueNotifier(0.0);
-
-  @override
-  void dispose() {
-    _edgeOpacity.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Padding(
-        padding: widget.padding.copyWith(bottom: 0),
-        child: widget.header,
-      ),
+      Padding(padding: padding.copyWith(bottom: 0), child: header),
       Expanded(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification.depth == 0) {
-                  _edgeOpacity.value =
-                      (notification.metrics.extentBefore / _edgeHeight).clamp(
-                        0.0,
-                        1.0,
-                      );
-                }
-                return false;
-              },
-              child: ListView(
-                padding: widget.padding.copyWith(top: 0),
-                children: widget.children,
-              ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: _edgeHeight,
-              child: IgnorePointer(
-                child: ValueListenableBuilder(
-                  valueListenable: _edgeOpacity,
-                  builder: (context, opacity, _) {
-                    final canvas = MeshStyle.of(context).canvas;
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            canvas.withValues(alpha: opacity),
-                            canvas.withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+        child: MeshScrollViewport(
+          tint: MeshStyle.of(context).canvas,
+          edgeExtent: 14,
+          child: ListView(
+            padding: padding.copyWith(top: 0),
+            children: children,
+          ),
         ),
       ),
     ],
@@ -916,28 +861,31 @@ class MeshDialog extends StatelessWidget {
           child: GlassSurface(
             modal: true,
             radius: 26,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DefaultTextStyle(
-                    style: TextStyle(
-                      color: style.text,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+            child: MeshScrollViewport(
+              edgeExtent: 14,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DefaultTextStyle(
+                      style: TextStyle(
+                        color: style.text,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                      child: title,
                     ),
-                    textAlign: TextAlign.center,
-                    child: title,
-                  ),
-                  if (content != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: content,
-                    ),
-                  for (final action in buttons ?? const <Widget>[])
-                    SizedBox(width: double.infinity, child: action),
-                ],
+                    if (content != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: content,
+                      ),
+                    for (final action in buttons ?? const <Widget>[])
+                      SizedBox(width: double.infinity, child: action),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1157,22 +1105,28 @@ class SheetBody extends StatelessWidget {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * .66,
         ),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 7, 2, 9),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 23,
-                  fontWeight: FontWeight.w700,
+        child: MeshScrollViewport(
+          tint:
+              Theme.of(context).bottomSheetTheme.backgroundColor ??
+              MeshStyle.of(context).canvas,
+          edgeExtent: 12,
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 7, 2, 9),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-            ...children,
-          ],
+              ...children,
+            ],
+          ),
         ),
       ),
     ),

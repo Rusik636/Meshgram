@@ -6,6 +6,93 @@ import 'dart:ui' show FragmentProgram, FragmentShader, ImageFilter;
 
 import 'package:flutter/material.dart';
 
+/// Keeps the fade on the viewport while the scrollable content moves.
+class MeshScrollViewport extends StatefulWidget {
+  const MeshScrollViewport({
+    super.key,
+    required this.child,
+    this.tint,
+    this.edgeExtent = 18,
+    this.fadeTop = true,
+  }) : assert(edgeExtent > 0);
+
+  final Widget child;
+  final Color? tint;
+  final double edgeExtent;
+  final bool fadeTop;
+
+  @override
+  State<MeshScrollViewport> createState() => _MeshScrollViewportState();
+}
+
+class _MeshScrollViewportState extends State<MeshScrollViewport> {
+  double _top = 0;
+  double _bottom = 0;
+
+  void _update(ScrollMetrics metrics, int depth) {
+    if (depth != 0 || metrics.axis != Axis.vertical) return;
+    final extent = widget.edgeExtent;
+    final top = (metrics.extentBefore / extent).clamp(0.0, 1.0);
+    final bottom = (metrics.extentAfter / extent).clamp(0.0, 1.0);
+    if (top == _top && bottom == _bottom) return;
+    setState(() {
+      _top = top;
+      _bottom = bottom;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    clipBehavior: Clip.none,
+    children: [
+      NotificationListener<ScrollMetricsNotification>(
+        onNotification: (notice) {
+          _update(notice.metrics, notice.depth);
+          return false;
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notice) {
+            _update(notice.metrics, notice.depth);
+            return false;
+          },
+          child: widget.child,
+        ),
+      ),
+      if (widget.fadeTop && _top > 0)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: widget.edgeExtent,
+          child: Opacity(
+            opacity: _top,
+            child: MeshScrollEdge(
+              top: true,
+              tint: widget.tint,
+              opaqueEdge: true,
+            ),
+          ),
+        ),
+      if (_bottom > 0)
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: widget.edgeExtent,
+          child: Opacity(
+            opacity: _bottom,
+            child: MeshScrollEdge(
+              top: false,
+              tint: widget.tint,
+              opaqueEdge: true,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
 class MeshScrollEdge extends StatefulWidget {
   const MeshScrollEdge({
     super.key,

@@ -37,7 +37,6 @@ flutter:
   uses-material-design: true
   shaders:
     - shaders/chat_edge.frag
-    - shaders/contact_scroll_edges.frag
   assets:
     - assets/emoji/
     - assets/boards/

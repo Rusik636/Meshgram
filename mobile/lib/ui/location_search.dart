@@ -7,6 +7,7 @@ import '../mesh/chat_position.dart';
 import '../mesh/nodes.dart';
 import 'ios_control.dart';
 import 'mesh_map.dart';
+import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
 typedef AttachmentLocationNode = ({String name, NodePosition position});
@@ -120,33 +121,40 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                         ),
                       ),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                      children: [
-                        if (coordinates != null)
-                          ListTile(
-                            leading: Icon(
-                              Icons.place_rounded,
-                              color: style.accent,
+                  : MeshScrollViewport(
+                      tint: style.canvas,
+                      edgeExtent: 12,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        children: [
+                          if (coordinates != null)
+                            ListTile(
+                              leading: Icon(
+                                Icons.place_rounded,
+                                color: style.accent,
+                              ),
+                              title: Text(
+                                tr(context, 'Координаты', 'Coordinates'),
+                              ),
+                              subtitle: Text(formatMapCoordinates(coordinates)),
+                              onTap: () => Navigator.pop(context, coordinates),
                             ),
-                            title: Text(
-                              tr(context, 'Координаты', 'Coordinates'),
+                          for (final node in visible)
+                            ListTile(
+                              leading: MeshAvatar(node.name, size: 36),
+                              title: Text(
+                                node.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                formatMapCoordinates(node.position),
+                              ),
+                              onTap: () =>
+                                  Navigator.pop(context, node.position),
                             ),
-                            subtitle: Text(formatMapCoordinates(coordinates)),
-                            onTap: () => Navigator.pop(context, coordinates),
-                          ),
-                        for (final node in visible)
-                          ListTile(
-                            leading: MeshAvatar(node.name, size: 36),
-                            title: Text(
-                              node.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(formatMapCoordinates(node.position)),
-                            onTap: () => Navigator.pop(context, node.position),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
             ),
           ],
