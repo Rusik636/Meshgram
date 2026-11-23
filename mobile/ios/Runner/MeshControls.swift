@@ -157,7 +157,8 @@ private final class MeshSymbolIcon: NSObject, FlutterPlatformView {
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     image = UIImageView(frame: frame)
     self.channel = channel
-    pointSize = input["kind"] as? String == "symbolIcon" ? 19 : 35
+    let defaultSize: CGFloat = input["kind"] as? String == "symbolIcon" ? 19 : 35
+    pointSize = (input["pointSize"] as? NSNumber).map { CGFloat(truncating: $0) } ?? defaultSize
     super.init()
     image.contentMode = .scaleAspectFit
     image.isAccessibilityElement = false
