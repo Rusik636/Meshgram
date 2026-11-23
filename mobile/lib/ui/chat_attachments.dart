@@ -69,6 +69,8 @@ class _AttachmentSheet extends StatefulWidget {
 
 class _AttachmentSheetState extends State<_AttachmentSheet>
     with SingleTickerProviderStateMixin {
+  static const _gripHeight = 18.0;
+  static const _attributionMargin = 8.0;
   static const _spring = SpringDescription(
     mass: 5,
     stiffness: 900,
@@ -381,7 +383,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
       child: Column(
         children: [
           SizedBox(
-            height: 18,
+            height: _gripHeight,
             width: double.infinity,
             child: Center(
               child: Container(
@@ -439,93 +441,88 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     );
   }
 
-  Widget _content(double travel) {
-    if (_tab == _AttachmentTab.location) return _location();
-    return AttachmentContacts(
-      contacts: widget.contacts,
-      controller: widget.controller,
-      search: _contactSearch,
-      expanded: _expanded,
-      onClose: _closeSheet,
-      onToggleExpand: () => _snapTo(!_expanded),
-      onSelect: _closeSheet,
-      beginSheetDrag: () => _startSheetDrag(travel),
-    );
-  }
-
-  Widget _layout(String location, double travel, double panelProgress) {
+  Widget _layout(
+    String location,
+    double travel,
+    double panelProgress,
+    double attributionHeight,
+  ) {
+    final showingMap = _tab == _AttachmentTab.location;
     final bottomGap = useIosControls ? 0.0 : 8.0;
     final nativeInset = useIosControls
         ? MediaQuery.viewPaddingOf(context).bottom
         : 0.0;
     final panelExtent =
         MeshNavigation.contentHeight(context) + nativeInset + 6 + bottomGap;
+    final footer = MediaQuery.paddingOf(context).bottom + attributionHeight;
+    final bottomObstruction = footer + panelExtent * panelProgress;
     return _sheetSurface(
-      Column(
+      Stack(
         children: [
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.paddingOf(context).bottom,
-              ),
-              child: Stack(
+          if (showingMap)
+            Positioned.fill(
+              bottom: bottomObstruction,
+              child: Column(
                 children: [
-                  Positioned.fill(
-                    bottom: panelExtent * panelProgress,
-                    child: Column(
-                      children: [
-                        _header(location, travel),
-                        Expanded(child: _content(travel)),
-                      ],
-                    ),
-                  ),
-                  if (panelProgress > 0)
-                    PositionedDirectional(
-                      start: 16,
-                      end: 16,
-                      bottom: bottomGap - panelExtent * (1 - panelProgress),
-                      child: IgnorePointer(
-                        ignoring: _expanded,
-                        child: ExcludeSemantics(
-                          excluding: _expanded,
-                          child: MeshTabBar(
-                            labels: [
-                              location,
-                              tr(context, 'Контакт', 'Contact'),
-                            ],
-                            icons: const [
-                              Icons.place_outlined,
-                              Icons.person_outline_rounded,
-                            ],
-                            symbols: const [
-                              'location.fill',
-                              'person.crop.circle',
-                            ],
-                            index: _tab.index,
-                            onSelect: _select,
-                          ),
-                        ),
-                      ),
-                    ),
+                  _header(location, travel),
+                  Expanded(child: _location()),
                 ],
               ),
+            )
+          else ...[
+            Positioned.fill(
+              top: _gripHeight,
+              child: AttachmentContacts(
+                contacts: widget.contacts,
+                controller: widget.controller,
+                search: _contactSearch,
+                expanded: _expanded,
+                bottomObstruction: bottomObstruction,
+                onClose: _closeSheet,
+                onToggleExpand: () => _snapTo(!_expanded),
+                onSelect: _closeSheet,
+                beginSheetDrag: () => _startSheetDrag(travel),
+              ),
             ),
-          ),
-          // Keep the same space below the shared bar in both tabs. The
-          // attribution itself sits at the map's physical edge.
-          Visibility(
-            visible: _tab == _AttachmentTab.location,
-            maintainSize: true,
-            maintainAnimation: true,
-            maintainState: true,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _header(location, travel),
+            ),
+          ],
+          if (panelProgress > 0)
+            PositionedDirectional(
+              start: 16,
+              end: 16,
+              bottom: footer + bottomGap - panelExtent * (1 - panelProgress),
+              child: IgnorePointer(
+                ignoring: _expanded,
+                child: ExcludeSemantics(
+                  excluding: _expanded,
+                  child: MeshTabBar(
+                    labels: [location, tr(context, 'Контакт', 'Contact')],
+                    icons: const [
+                      Icons.place_outlined,
+                      Icons.person_outline_rounded,
+                    ],
+                    symbols: const ['location.fill', 'person.crop.circle'],
+                    index: _tab.index,
+                    onSelect: _select,
+                  ),
+                ),
+              ),
+            ),
+          if (showingMap)
+            const PositionedDirectional(
+              start: _attributionMargin,
+              end: _attributionMargin,
+              bottom: 0,
               child: Align(
                 alignment: AlignmentDirectional.bottomEnd,
                 child: MeshMapAttribution(),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -538,6 +535,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
+        final attributionHeight = MeshMapAttribution.heightFor(
+          context,
+          constraints.maxWidth - _attributionMargin * 2,
+        );
         final available = (constraints.maxHeight - keyboard).clamp(
           0.0,
           constraints.maxHeight,
@@ -558,7 +559,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
           curve: Curves.easeInOut,
           builder: (context, panelProgress, _) => AnimatedBuilder(
             animation: _inset,
-            child: _layout(location, travel, panelProgress),
+            child: _layout(location, travel, panelProgress, attributionHeight),
             builder: (context, child) {
               final topInset = _inset.value.clamp(0.0, 1.0) * travel;
               final overshoot = (_inset.value - 1).clamp(0.0, double.infinity);

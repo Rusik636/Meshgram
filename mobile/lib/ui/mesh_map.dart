@@ -323,6 +323,27 @@ class _MapMarker extends StatelessWidget {
 class MeshMapAttribution extends StatelessWidget {
   const MeshMapAttribution({super.key});
 
+  static const _label = '© OpenStreetMap contributors';
+  static const _padding = EdgeInsets.symmetric(horizontal: 9, vertical: 4);
+
+  static TextStyle _textStyle(BuildContext context) =>
+      TextStyle(color: MeshStyle.of(context).text, fontSize: 10);
+
+  static double heightFor(BuildContext context, double width) {
+    final text = TextPainter(
+      text: TextSpan(
+        text: _label,
+        style: DefaultTextStyle.of(context).style.merge(_textStyle(context)),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: math.max(0, width - _padding.horizontal));
+    final height = text.height + _padding.vertical;
+    text.dispose();
+    return height;
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
@@ -335,11 +356,11 @@ class MeshMapAttribution extends StatelessWidget {
           launchUrl(Uri.https('www.openstreetmap.org', '/copyright')),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          padding: _padding,
           child: Text(
-            '© OpenStreetMap contributors',
+            _label,
             textAlign: TextAlign.center,
-            style: TextStyle(color: style.text, fontSize: 10),
+            style: _textStyle(context),
           ),
         ),
       ),
