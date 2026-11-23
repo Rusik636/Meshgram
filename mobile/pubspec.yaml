@@ -1,7 +1,7 @@
 name: meshgrame
 description: Universal LoRa mesh messenger
 publish_to: none
-version: 0.3.62+71
+version: 0.3.62+72
 environment:
   sdk: ^3.13.7
   flutter: 3.47.9
