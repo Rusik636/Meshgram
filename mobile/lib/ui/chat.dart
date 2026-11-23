@@ -29,6 +29,7 @@ import 'radio_settings.dart';
 import 'profile_page.dart';
 import 'haptics.dart';
 import 'message_input.dart';
+import 'message_link_metadata.dart' show canFetchMessageLink;
 import 'message_links.dart';
 import 'message_details.dart';
 import 'message_menu.dart';
@@ -998,31 +999,11 @@ class _ChatState extends State<MeshChatPage>
                                   loadTiles: false,
                                 );
                               }
-                              if (link == null || item.suppressLinkPreview) {
-                                return null;
-                              }
-                              if (!interactive) {
-                                return MessageLinkPreview(
-                                  uri: link,
-                                  foreground: style.text,
-                                  autoLoad: false,
-                                );
-                              }
-                              return ValueListenableBuilder(
-                                valueListenable: _visibleLinkMessages,
-                                builder: (_, visible, _) => MessageLinkPreview(
-                                  uri: link,
-                                  foreground: style.text,
-                                  autoLoad:
-                                      _canPreviewLinks &&
-                                      visible.contains(item.id),
-                                ),
-                              );
+                              return null;
                             }
 
-                            _Bubble bubble([ValueChanged<Rect>? onMenu]) {
-                              final attachment = card(onMenu != null);
-                              return _Bubble(
+                            Widget bubble([ValueChanged<Rect>? onMenu]) {
+                              _Bubble content(Widget? attachment) => _Bubble(
                                 item: item,
                                 emoji: emoji,
                                 hideText:
@@ -1068,6 +1049,32 @@ class _ChatState extends State<MeshChatPage>
                                         onMenu != null
                                     ? () => unawaited(_retry(peer, item))
                                     : null,
+                              );
+                              if (contact != null ||
+                                  location != null ||
+                                  link == null ||
+                                  item.suppressLinkPreview ||
+                                  !canFetchMessageLink(link)) {
+                                return content(card(onMenu != null));
+                              }
+                              if (onMenu == null) {
+                                return MessageLinkPreview(
+                                  uri: link,
+                                  foreground: style.text,
+                                  autoLoad: false,
+                                  builder: content,
+                                );
+                              }
+                              return ValueListenableBuilder(
+                                valueListenable: _visibleLinkMessages,
+                                builder: (_, visible, _) => MessageLinkPreview(
+                                  uri: link,
+                                  foreground: style.text,
+                                  autoLoad:
+                                      _canPreviewLinks &&
+                                      visible.contains(item.id),
+                                  builder: content,
+                                ),
                               );
                             }
 
@@ -1377,15 +1384,18 @@ class _ChatState extends State<MeshChatPage>
                     ),
                   ),
                 if (previewLink != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(7, 7, 7, 0),
-                    child: MessageLinkPreview(
-                      uri: previewLink,
-                      compact: true,
-                      autoLoad: _canPreviewLinks,
-                      onDismiss: () =>
-                          setState(() => _dismissedDraftLink = previewLink),
-                    ),
+                  MessageLinkPreview(
+                    uri: previewLink,
+                    compact: true,
+                    autoLoad: _canPreviewLinks,
+                    onDismiss: () =>
+                        setState(() => _dismissedDraftLink = previewLink),
+                    builder: (card) => card == null
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.fromLTRB(7, 7, 7, 0),
+                            child: card,
+                          ),
                   ),
                 MessageInput(
                   key: _input,

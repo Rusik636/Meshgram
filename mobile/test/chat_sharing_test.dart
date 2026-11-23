@@ -159,7 +159,7 @@ void main() {
 
     const text = 'Check https://example.org/route';
     await tester.enterText(find.byType(TextField), text);
-    await tester.pumpAndSettle();
+    await tester.pump();
     final preview = find.byType(MessageLinkPreview);
     expect(tester.widget<MessageLinkPreview>(preview).compact, isTrue);
 
@@ -196,11 +196,21 @@ void main() {
     expect(tester.widget<MessageLinkPreview>(preview).compact, isTrue);
     await tester.tap(find.byTooltip('Send'));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 13));
     expect(controller.messages(chat.id).last.suppressLinkPreview, isFalse);
     expect(tester.widget<MessageLinkPreview>(preview).compact, isFalse);
-    await tester.tap(
-      find.descendant(of: preview, matching: find.text('example.org')),
+    expect(find.text('Preview unavailable'), findsNothing);
+    final latestUrl = tester.renderObject<RenderParagraph>(
+      find.descendant(of: preview, matching: find.byType(RichText)).first,
     );
+    final urlRect = latestUrl
+        .getBoxesForSelection(
+          TextSelection(baseOffset: 6, extentOffset: text.length),
+        )
+        .first
+        .toRect();
+    await tester.tapAt(latestUrl.localToGlobal(urlRect.center));
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
     expect(opened, ['https://example.org/route', 'https://example.org/route']);
     expect(tester.takeException(), isNull);
