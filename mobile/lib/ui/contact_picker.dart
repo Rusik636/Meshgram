@@ -14,6 +14,7 @@ import '../mesh/nodes.dart';
 import 'ios_control.dart';
 import 'node_list.dart';
 import 'search_field.dart';
+import 'sheet_scroll.dart';
 import 'style.dart';
 
 typedef ShareableNode = ({Peer peer, String? link});
@@ -48,8 +49,9 @@ class AttachmentContacts extends StatefulWidget {
 
 class _AttachmentContactsState extends State<AttachmentContacts>
     with SingleTickerProviderStateMixin {
-  late final _scroll = _AttachmentContactScrollController(
+  late final _scroll = MeshSheetScrollController(
     () => widget.beginSheetDrag(),
+    transferRemainder: Theme.of(context).platform == TargetPlatform.iOS,
   );
   final _focus = FocusNode();
   final _iosSearch = GlobalKey<IosControlState>();
@@ -521,71 +523,5 @@ class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
       ).createShader(bounds),
       child: child,
     );
-  }
-}
-
-class _AttachmentContactScrollController extends ScrollController {
-  _AttachmentContactScrollController(this.beginSheetDrag);
-
-  final Drag? Function() beginSheetDrag;
-
-  @override
-  ScrollPosition createScrollPosition(
-    ScrollPhysics physics,
-    ScrollContext context,
-    ScrollPosition? oldPosition,
-  ) => _AttachmentContactScrollPosition(
-    physics: physics,
-    context: context,
-    oldPosition: oldPosition,
-    beginSheetDrag: beginSheetDrag,
-  );
-}
-
-class _AttachmentContactScrollPosition extends ScrollPositionWithSingleContext {
-  _AttachmentContactScrollPosition({
-    required super.physics,
-    required super.context,
-    required super.oldPosition,
-    required this.beginSheetDrag,
-  });
-
-  final Drag? Function() beginSheetDrag;
-
-  @override
-  Drag drag(DragStartDetails details, VoidCallback dragCancelCallback) =>
-      _ContactDrag(
-        super.drag(details, dragCancelCallback),
-        () => pixels <= minScrollExtent + 1 ? beginSheetDrag() : null,
-      );
-}
-
-class _ContactDrag extends Drag {
-  _ContactDrag(this._scroll, this._beginSheetDrag);
-
-  final Drag _scroll;
-  final Drag? Function() _beginSheetDrag;
-  Drag? _sheet;
-
-  @override
-  void update(DragUpdateDetails details) {
-    if (details.delta.dy > 0) _sheet ??= _beginSheetDrag();
-    (_sheet ?? _scroll).update(details);
-  }
-
-  @override
-  void end(DragEndDetails details) {
-    if (_sheet case final sheet?) {
-      _scroll.cancel();
-      sheet.end(details);
-    } else {
-      _scroll.end(details);
-    }
-  }
-
-  @override
-  void cancel() {
-    _scroll.cancel();
-    _sheet?.cancel();
   }
 }

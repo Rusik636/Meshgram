@@ -66,6 +66,7 @@ class _AttachmentSheet extends StatefulWidget {
 class _AttachmentSheetState extends State<_AttachmentSheet>
     with TickerProviderStateMixin {
   static const _gripHeight = 18.0;
+  static const _gripTargetHeight = 48.0;
   static const _attributionMargin = 8.0;
   static const _spring = SpringDescription(
     mass: 5,
@@ -371,25 +372,40 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
 
   Widget _header(String location, double travel) {
     final style = MeshStyle.of(context);
+    final showingMap = _tab == _AttachmentTab.location;
+    final extendGrip =
+        !showingMap && Theme.of(context).platform == TargetPlatform.iOS;
+    final canDrag = travel > 0 && _expandedBeforeContactSearch == null;
     return GestureDetector(
       key: const ValueKey('attachment-grip'),
-      behavior: HitTestBehavior.opaque,
+      // The invisible extension overlaps the Contacts header. Let its
+      // controls receive taps while recognizing vertical drags here.
+      behavior: extendGrip
+          ? HitTestBehavior.translucent
+          : HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onVerticalDragStart: travel > 0
+      onVerticalDragStart: canDrag
           ? (_) => _gripDrag = _startSheetDrag(travel)
           : null,
-      onVerticalDragUpdate: (details) => _gripDrag?.update(details),
-      onVerticalDragEnd: (details) {
-        final drag = _gripDrag;
-        _gripDrag = null;
-        drag?.end(details);
-      },
-      onVerticalDragCancel: () {
-        final drag = _gripDrag;
-        _gripDrag = null;
-        drag?.cancel();
-      },
+      onVerticalDragUpdate: canDrag
+          ? (details) => _gripDrag?.update(details)
+          : null,
+      onVerticalDragEnd: canDrag
+          ? (details) {
+              final drag = _gripDrag;
+              _gripDrag = null;
+              drag?.end(details);
+            }
+          : null,
+      onVerticalDragCancel: canDrag
+          ? () {
+              final drag = _gripDrag;
+              _gripDrag = null;
+              drag?.cancel();
+            }
+          : null,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             height: _gripHeight,
@@ -405,7 +421,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               ),
             ),
           ),
-          if (_tab == _AttachmentTab.location)
+          if (showingMap)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Row(
@@ -444,7 +460,9 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                   ),
                 ],
               ),
-            ),
+            )
+          else if (extendGrip)
+            const SizedBox(height: _gripTargetHeight - _gripHeight),
         ],
       ),
     );
