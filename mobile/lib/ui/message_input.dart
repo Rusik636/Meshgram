@@ -159,19 +159,27 @@ class MessageInputState extends State<MessageInput> {
         tween: Tween(end: _height),
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
+            : const Duration(milliseconds: 100),
+        curve: Curves.easeInOut,
         builder: (context, height, editor) =>
             SizedBox(height: height, child: editor),
-        child: MeshSheetControlClip(
-          child: UiKitView(
-            viewType: 'meshgrame/composer',
-            creationParams: {...?_appearance, 'text': widget.controller.text},
-            creationParamsCodec: const StandardMessageCodec(),
-            gestureRecognizers: {
-              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-            },
-            onPlatformViewCreated: _created,
+        child: MeshIosGlassFrame(
+          child: MeshSheetControlClip(
+            child: UiKitView(
+              viewType: 'meshgrame/composer',
+              creationParams: {
+                ...?_appearance,
+                'text': widget.controller.text,
+                'visualOutset': meshIosGlassOutset,
+              },
+              creationParamsCodec: const StandardMessageCodec(),
+              gestureRecognizers: {
+                Factory<OneSequenceGestureRecognizer>(
+                  EagerGestureRecognizer.new,
+                ),
+              },
+              onPlatformViewCreated: _created,
+            ),
           ),
         ),
       );

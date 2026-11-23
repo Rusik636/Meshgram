@@ -9,23 +9,25 @@ import XCTest
 
 class RunnerTests: XCTestCase {
   @MainActor
-  func testComposerKeepsEditableTextAboveGlassAcrossCoverAndResize() throws {
+  func testComposerUsesInteractiveGlassAndKeepsTheSameEditor() throws {
     let draft = "Первая строка\nВторая 👋"
     let input = appearance(dark: true).merging([
-      "text": draft, "placeholder": "Сообщение",
+      "text": draft, "placeholder": "Сообщение", "visualOutset": 8,
     ]) { _, value in value }
-    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 240, height: 46),
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 62),
       id: 0, input: input, messenger: TestMessenger())
     let root = composer.view()
     root.layoutIfNeeded()
-    let glass = try XCTUnwrap(root.subviews.first as? UIVisualEffectView)
-    let editor = try XCTUnwrap(root.subviews.last as? UITextView)
+    let field = try XCTUnwrap(root.subviews.first)
+    let glass = try XCTUnwrap(field.subviews.first as? UIVisualEffectView)
+    let interactive = glass.isUserInteractionEnabled
+    let editor = try XCTUnwrap((interactive ? glass.contentView : field).subviews.last as? UITextView)
     let placeholder = try XCTUnwrap(editor.subviews.compactMap { $0 as? UILabel }.first {
       $0.text == "Сообщение"
     })
-    let press = try XCTUnwrap(root.gestureRecognizers?.first as? UILongPressGestureRecognizer)
+    let press = try XCTUnwrap(field.gestureRecognizers?.first as? UILongPressGestureRecognizer)
     XCTAssertFalse(root.clipsToBounds)
-    XCTAssertFalse(glass.isUserInteractionEnabled)
+    XCTAssertEqual(field.frame, root.bounds.insetBy(dx: 8, dy: 8))
     XCTAssertFalse(press.cancelsTouchesInView)
     XCTAssertFalse(press.delaysTouchesBegan)
     XCTAssertTrue(composer.gestureRecognizer(press,
@@ -40,21 +42,27 @@ class RunnerTests: XCTestCase {
       composer.updateAppearance(input.merging(["coveredByModal": covered]) { _, value in value })
       root.frame.size.height = covered ? 84 : 66
       root.layoutIfNeeded()
-      XCTAssertTrue(root.subviews.last === editor)
-      XCTAssertEqual(editor.bounds.height, root.bounds.height)
+      XCTAssertTrue((interactive ? glass.contentView : field).subviews.last === editor)
+      XCTAssertEqual(editor.bounds.height, field.bounds.height)
       XCTAssertEqual(editor.text, draft)
       XCTAssertEqual(editor.selectedRange, selection)
       XCTAssertTrue(editor.transform.isIdentity)
       XCTAssertEqual(root.accessibilityElementsHidden, covered)
-      XCTAssertEqual(press.isEnabled, !covered && !UIAccessibility.isReduceMotionEnabled)
+      XCTAssertEqual(press.isEnabled, !interactive && !covered && !UIAccessibility.isReduceMotionEnabled)
       if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-        XCTAssertNil(try XCTUnwrap(glass.effect as? UIGlassEffect).tintColor)
+        let material = try XCTUnwrap(glass.effect as? UIGlassEffect)
+        XCTAssertNil(material.tintColor)
+        XCTAssertEqual(material.isInteractive, !UIAccessibility.isReduceMotionEnabled)
       }
     }
 
     composer.updateAppearance(input.merging(["highContrast": true]) { _, value in value })
-    XCTAssertNil(glass.effect)
-    XCTAssertEqual(glass.backgroundColor, meshColor(input["surface"], .clear))
+    let opaque = try XCTUnwrap(field.subviews.first as? UIVisualEffectView)
+    XCTAssertNil(opaque.effect)
+    XCTAssertEqual(opaque.backgroundColor, meshColor(input["surface"], .clear))
+    XCTAssertTrue(field.subviews.last === editor)
+    XCTAssertEqual(editor.text, draft)
+    XCTAssertEqual(editor.selectedRange, selection)
     editor.text = ""
     composer.textViewDidChange(editor)
     XCTAssertFalse(placeholder.isHidden)

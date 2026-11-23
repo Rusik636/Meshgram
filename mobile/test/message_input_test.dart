@@ -110,7 +110,9 @@ void main() {
         expect(viewId, isNotNull);
         final editor = find.byType(UiKitView);
         final original = tester.element(editor);
-        expect(tester.getSize(editor).height, 46);
+        final composer = find.byType(MessageInput);
+        expect(tester.getSize(composer).height, 46);
+        expect(tester.getRect(editor), tester.getRect(composer).inflate(8));
 
         Future<void> receive(String type, Object value) =>
             messenger.handlePlatformMessage(
@@ -125,20 +127,20 @@ void main() {
         await receive('text', multiline);
         await receive('height', 88.0);
         await tester.pump();
-        expect(tester.getSize(editor).height, reduceMotion ? 88 : 46);
+        expect(tester.getSize(composer).height, reduceMotion ? 88 : 46);
         if (!reduceMotion) {
           await tester.pump(const Duration(milliseconds: 60));
-          expect(tester.getSize(editor).height, inExclusiveRange(46.0, 88.0));
+          expect(tester.getSize(composer).height, inExclusiveRange(46.0, 88.0));
         }
         await tester.pumpAndSettle();
-        expect(tester.getSize(editor).height, 88);
+        expect(tester.getSize(composer).height, 88);
         expect(tester.element(editor), same(original));
         expect(controller.text, multiline);
         expect(changes, [multiline]);
 
         await receive('height', 46.0);
         await tester.pumpAndSettle();
-        expect(tester.getSize(editor).height, 46);
+        expect(tester.getSize(composer).height, 46);
         expect(tester.element(editor), same(original));
         expect(controller.text, multiline);
       },

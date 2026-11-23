@@ -15,6 +15,30 @@ bool get useIosControls =>
     defaultTargetPlatform == TargetPlatform.iOS &&
     !const bool.fromEnvironment('FLUTTER_TEST');
 
+const meshIosGlassOutset = 8.0;
+
+class MeshIosGlassFrame extends StatelessWidget {
+  const MeshIosGlassFrame({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      // Give UIKit room to draw interactive glass beyond its resting frame.
+      final width = constraints.maxWidth + meshIosGlassOutset * 2;
+      final height = constraints.maxHeight + meshIosGlassOutset * 2;
+      return OverflowBox(
+        minWidth: width,
+        maxWidth: width,
+        minHeight: height,
+        maxHeight: height,
+        child: child,
+      );
+    },
+  );
+}
+
 class IosControl extends StatefulWidget {
   const IosControl({
     super.key,
@@ -40,9 +64,9 @@ class IosControl extends StatefulWidget {
 class IosControlState extends State<IosControl> {
   MethodChannel? _channel;
 
-  double get _visualOutset => switch (widget.kind) {
-    'button' || 'chatTitle' || 'chatAvatar' => 8,
-    _ => 0,
+  bool get _hasGlassOutset => switch (widget.kind) {
+    'button' || 'chatTitle' || 'chatAvatar' => true,
+    _ => false,
   };
 
   void dismissKeyboard() => unawaited(_send('dismissKeyboard', true));
@@ -71,7 +95,7 @@ class IosControlState extends State<IosControl> {
 
   @override
   Widget build(BuildContext context) {
-    final outset = _visualOutset;
+    final hasGlassOutset = _hasGlassOutset;
     final view = UiKitView(
       viewType: 'meshgrame/controls',
       gestureBlockingPolicy: widget.eagerGestures
@@ -80,7 +104,7 @@ class IosControlState extends State<IosControl> {
       creationParams: {
         'kind': widget.kind,
         ...widget.properties,
-        if (outset > 0) 'visualOutset': outset,
+        if (hasGlassOutset) 'visualOutset': meshIosGlassOutset,
       },
       creationParamsCodec: const StandardMessageCodec(),
       gestureRecognizers: {
@@ -106,21 +130,6 @@ class IosControlState extends State<IosControl> {
       },
     );
     final clippedView = MeshSheetControlClip(child: view);
-    if (outset == 0) return clippedView;
-
-    // Give UIKit room to draw the pressed glass beyond its resting frame.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth + outset * 2;
-        final height = constraints.maxHeight + outset * 2;
-        return OverflowBox(
-          minWidth: width,
-          maxWidth: width,
-          minHeight: height,
-          maxHeight: height,
-          child: clippedView,
-        );
-      },
-    );
+    return hasGlassOutset ? MeshIosGlassFrame(child: clippedView) : clippedView;
   }
 }

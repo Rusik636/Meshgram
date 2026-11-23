@@ -56,7 +56,9 @@ private final class ComposerTextView: UITextView {
 
 final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIGestureRecognizerDelegate {
   private let container = UIView()
-  private let glass = MeshInputGlass(effect: nil)
+  private let fieldContainer = UIView()
+  private var glass = MeshInputGlass(effect: nil)
+  private var nativeInteractive: Bool?
   private let textView: ComposerTextView
   private let placeholder = UILabel()
   private let channel: FlutterMethodChannel
@@ -72,28 +74,16 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     container.frame = frame
     container.backgroundColor = .clear
 
-    glass.maximumRadius = 23
-    glass.layer.cornerCurve = .continuous
-    glass.clipsToBounds = true
-    glass.isUserInteractionEnabled = false
-    glass.accessibilityElementsHidden = true
-    glass.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(glass)
+    let outset = CGFloat((input["visualOutset"] as? NSNumber)?.doubleValue ?? 0)
+    fieldContainer.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(fieldContainer)
     NSLayoutConstraint.activate([
-      glass.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      glass.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      glass.topAnchor.constraint(equalTo: container.topAnchor),
-      glass.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      fieldContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: outset),
+      fieldContainer.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -outset),
+      fieldContainer.topAnchor.constraint(equalTo: container.topAnchor, constant: outset),
+      fieldContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -outset),
     ])
-    // Keep the editor above the backdrop so glyphs and the caret stay sharp.
-    container.addSubview(textView)
-    textView.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      textView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      textView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      textView.topAnchor.constraint(equalTo: container.topAnchor),
-      textView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-    ])
+    textView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     textView.delegate = self
     textView.backgroundColor = .clear
     textView.textContainerInset = UIEdgeInsets(top: 12, left: 22, bottom: 12, right: 22)
@@ -122,12 +112,12 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     press.delaysTouchesBegan = false
     press.delaysTouchesEnded = false
     press.delegate = self
-    container.addGestureRecognizer(press)
+    fieldContainer.addGestureRecognizer(press)
     self.press = press
 
     NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
       name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
-    NotificationCenter.default.addObserver(self, selector: #selector(updatePressAvailability),
+    NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
       name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
     updateAppearance(input)
     updatePlaceholder()
@@ -140,7 +130,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       case "dismissKeyboard":
         self.textView.resignFirstResponder()
       case "focus":
-        self.textView.becomeFirstResponder()
+        if self.container.isUserInteractionEnabled { self.textView.becomeFirstResponder() }
       case "replaceText":
         if let value = call.arguments as? String {
           if value != self.textView.text {
@@ -192,17 +182,54 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     }
   }
 
-  @objc private func updatePressAvailability() {
-    let enabled = container.isUserInteractionEnabled && !UIAccessibility.isReduceMotionEnabled
+  private func updatePressAvailability() {
+    let enabled = nativeInteractive != true && container.isUserInteractionEnabled &&
+      !UIAccessibility.isReduceMotionEnabled
     press?.isEnabled = enabled
-    if !enabled {
+    if !enabled && nativeInteractive == false {
       glass.layer.removeAllAnimations()
       glass.transform = .identity
     }
   }
 
   @objc private func updateGlass() {
-    glass.applyMaterial(surface: surface, opaque: highContrast)
+    let opaque = highContrast || UIAccessibility.isReduceTransparencyEnabled
+    var interactive = false
+    if #available(iOS 26.0, *) {
+      interactive = !opaque && !UIAccessibility.isReduceMotionEnabled
+    }
+    if nativeInteractive != interactive {
+      nativeInteractive = interactive
+      let effect: UIVisualEffect?
+      if #available(iOS 26.0, *), interactive {
+        let material = UIGlassEffect(style: .regular)
+        material.isInteractive = true
+        effect = material
+      } else {
+        effect = nil
+      }
+      // UIKit attaches its press interaction when the effect view is created.
+      let replacement = MeshInputGlass(effect: effect)
+      replacement.maximumRadius = 23
+      replacement.frame = fieldContainer.bounds
+      replacement.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      replacement.layer.cornerCurve = .continuous
+      replacement.clipsToBounds = !interactive
+      replacement.isUserInteractionEnabled = interactive
+      replacement.accessibilityElementsHidden = !interactive
+      fieldContainer.insertSubview(replacement, at: 0)
+      let wasFocused = textView.isFirstResponder
+      let selection = textView.selectedRange
+      let parent = interactive ? replacement.contentView : fieldContainer
+      parent.addSubview(textView)
+      textView.frame = parent.bounds
+      glass.removeFromSuperview()
+      glass = replacement
+      if wasFocused && !textView.isFirstResponder { textView.becomeFirstResponder() }
+      textView.selectedRange = selection
+    }
+    if !interactive { glass.applyMaterial(surface: surface, opaque: highContrast) }
+    updatePressAvailability()
   }
 
   func textViewDidChange(_ textView: UITextView) {
@@ -236,13 +263,13 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let style: UIUserInterfaceStyle = dark ? .dark : .light
     let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
     let nextContrast = input["highContrast"] as? Bool == true
-    if style != glass.overrideUserInterfaceStyle || nextSurface != surface || nextContrast != highContrast {
-      glass.overrideUserInterfaceStyle = style
+    if nativeInteractive == nil || style != container.overrideUserInterfaceStyle ||
+      nextSurface != surface || nextContrast != highContrast {
+      container.overrideUserInterfaceStyle = style
       surface = nextSurface
       highContrast = nextContrast
       updateGlass()
     }
-    container.overrideUserInterfaceStyle = style
     textView.keyboardAppearance = dark ? .dark : .light
     textView.textColor = meshColor(input["foreground"], .label)
     textView.tintColor = meshColor(input["accent"], .systemBlue)
