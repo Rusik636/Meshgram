@@ -32,8 +32,8 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
     if input["kind"] as? String == "chatSearch" {
       return MeshSearchField(frame: frame, channel: channel, input: input)
     }
-    if input["kind"] as? String == "chatIcon" {
-      return MeshChatIcon(frame: frame, channel: channel, input: input)
+    if let kind = input["kind"] as? String, kind == "chatIcon" || kind == "symbolIcon" {
+      return MeshSymbolIcon(frame: frame, channel: channel, input: input)
     }
     return MeshControlSurface(frame: frame, channel: channel, input: input)
   }
@@ -125,31 +125,42 @@ func meshColor(_ input: Any?, _ fallback: UIColor) -> UIColor {
                  alpha: CGFloat(value >> 24 & 255) / 255)
 }
 
-private final class MeshChatIcon: NSObject, FlutterPlatformView {
+private final class MeshSymbolIcon: NSObject, FlutterPlatformView {
   private let image: UIImageView
   private let channel: FlutterMethodChannel
+  private let pointSize: CGFloat
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     image = UIImageView(frame: frame)
     self.channel = channel
+    pointSize = input["kind"] as? String == "symbolIcon" ? 19 : 35
     super.init()
-    image.image = UIImage(systemName: meshChatSymbol + ".fill",
-                          withConfiguration: UIImage.SymbolConfiguration(pointSize: 35, weight: .medium))
     image.contentMode = .scaleAspectFit
     image.isAccessibilityElement = false
     image.isUserInteractionEnabled = false
-    image.tintColor = meshColor(input["accent"], .systemBlue)
+    update(input)
     channel.setMethodCallHandler { [weak self] call, result in
       guard call.method == "update", let values = call.arguments as? [String: Any] else {
         result(FlutterMethodNotImplemented)
         return
       }
-      self?.image.tintColor = meshColor(values["accent"], .systemBlue)
+      self?.update(values)
       result(nil)
     }
   }
 
   func view() -> UIView { image }
+
+  private func update(_ input: [String: Any]) {
+    let symbol = input["symbol"] as? String ?? meshChatSymbol + ".fill"
+    let selected = input["selected"] as? Bool == true
+    let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+    let normal = UIImage(systemName: symbol, withConfiguration: configuration)
+    image.image = selected
+      ? UIImage(systemName: symbol + ".fill", withConfiguration: configuration) ?? normal
+      : normal
+    image.tintColor = meshColor(input["accent"], .systemBlue)
+  }
 
   deinit { channel.setMethodCallHandler(nil) }
 }

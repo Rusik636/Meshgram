@@ -4135,9 +4135,7 @@ void main() {
       await swipe.moveBy(const Offset(500, 0));
       await tester.pump();
       await tester.pump();
-      final tabs = find.byWidgetPredicate(
-        (widget) => widget is IosControl && widget.kind == 'tabs',
-      );
+      final tabs = find.byType(MeshNavigation);
       final back = find.byWidgetPredicate(
         (widget) =>
             widget is IosControl && widget.properties['label'] == 'Back',
