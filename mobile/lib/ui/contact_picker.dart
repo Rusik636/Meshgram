@@ -249,6 +249,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     const side = 16.0;
     const gap = 6.0;
     const headingTop = 7.0;
+    const edgeFeather = 18.0;
     const compactRight = side + (meshSearchButtonSize + gap) * 2;
     final headingHeight =
         math.max(
@@ -291,11 +292,11 @@ class _AttachmentContactsState extends State<AttachmentContacts>
         );
         final topEdge = lerpDouble(
           lerpDouble(
-            18,
+            edgeFeather,
             normalHeaderHeight - collapseRange * collapse,
             scrollFade,
           )!,
-          listTop,
+          edgeFeather,
           progress,
         )!;
         final bottomEdge = (widget.bottomObstruction * .7).clamp(38.0, 92.0);
