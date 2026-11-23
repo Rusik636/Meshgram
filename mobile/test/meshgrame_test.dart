@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/rendering.dart'
-    show RenderParagraph, RenderRepaintBoundary;
+    show RenderParagraph, RenderRepaintBoundary, SliverPaintOrder;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
@@ -4850,6 +4850,13 @@ void main() {
       final back = find.byTooltip('Back');
       final avatarView = find.byKey(avatar);
       final wallpaper = find.byType(ProfileWallpaper);
+      SliverPaintOrder paintOrder() => tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .paintOrder;
+      final expandedOrder = defaultTargetPlatform == TargetPlatform.iOS
+          ? SliverPaintOrder.lastIsTop
+          : SliverPaintOrder.firstIsTop;
+      expect(paintOrder(), expandedOrder);
       final buttonPosition = tester.getTopLeft(back);
       final expandedAvatar = tester.getTopLeft(avatarView);
       expect(buttonPosition.dy, greaterThanOrEqualTo(inset.top));
@@ -4859,6 +4866,7 @@ void main() {
       await drag.moveBy(const Offset(0, -24));
       await drag.moveBy(const Offset(0, -50));
       await tester.pump();
+      expect(paintOrder(), expandedOrder);
       expect(tester.getTopLeft(wallpaper).dy, lessThan(0));
       expect(tester.getCenter(avatarView).dx, lessThan(expandedAvatar.dx + 52));
       expect(
@@ -4869,6 +4877,7 @@ void main() {
       await drag.up();
       await tester.pumpAndSettle();
       expect(wallpaper, findsNothing);
+      expect(paintOrder(), SliverPaintOrder.firstIsTop);
       final samples = (await sampleBackdrop([16, 76, 112, 140]))!;
       expect(samples.first.r, greaterThan(style.canvas.r));
       for (var i = 1; i < samples.length; i++) {

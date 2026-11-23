@@ -78,15 +78,17 @@ class RunnerTests: XCTestCase {
       ("chat avatar", ["kind": "chatAvatar", "label": "Chat profile", "initials": "R"]),
       ("map title", ["kind": "chatTitle", "label": "Геопозиция", "readOnly": true]),
       ("location action", ["label": "Геопозиция"]),
+      ("profile action", ["symbol": "bubble.left", "label": "Чат", "stacked": true, "verticalVisualOutset": 24]),
     ]
 
     for dark in [false, true] {
       for (name, properties) in controls {
         let input = appearance(dark: dark).merging(properties) { _, value in value }
           .merging(["visualOutset": 8]) { _, value in value }
+        let profileAction = name == "profile action"
         let messenger = TestMessenger()
         let control = MeshControlSurface(
-          frame: CGRect(x: 0, y: 0, width: 176, height: 64),
+          frame: CGRect(x: 0, y: 0, width: 176, height: profileAction ? 120 : 64),
           channel: channel(messenger),
           input: input
         )
@@ -94,7 +96,13 @@ class RunnerTests: XCTestCase {
         root.layoutIfNeeded()
         let button = try XCTUnwrap(root.subviews.compactMap { $0 as? UIButton }.first)
         XCTAssertFalse(root.clipsToBounds)
-        XCTAssertEqual(button.bounds.height, name == "attach" ? 40 : name == "location action" ? 48 : 44)
+        if profileAction {
+          XCTAssertEqual(button.frame, CGRect(x: 8, y: 24, width: 160, height: 72))
+          XCTAssertNil(root.hitTest(CGPoint(x: 88, y: 23), with: nil))
+          XCTAssertTrue(root.hitTest(CGPoint(x: 88, y: 25), with: nil) === button)
+        } else {
+          XCTAssertEqual(button.bounds.height, name == "attach" ? 40 : name == "location action" ? 48 : 44)
+        }
         button.layoutIfNeeded()
         let initial = try XCTUnwrap(button.configuration)
         if let title = initial.attributedTitle.map({ String($0.characters) }) ?? initial.title {

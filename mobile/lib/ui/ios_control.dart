@@ -18,16 +18,21 @@ bool get useIosControls =>
 const meshIosGlassOutset = 8.0;
 
 class MeshIosGlassFrame extends StatelessWidget {
-  const MeshIosGlassFrame({super.key, required this.child});
+  const MeshIosGlassFrame({
+    super.key,
+    required this.child,
+    this.verticalOutset = meshIosGlassOutset,
+  });
 
   final Widget child;
+  final double verticalOutset;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       // Give UIKit room to draw interactive glass beyond its resting frame.
       final width = constraints.maxWidth + meshIosGlassOutset * 2;
-      final height = constraints.maxHeight + meshIosGlassOutset * 2;
+      final height = constraints.maxHeight + verticalOutset * 2;
       return OverflowBox(
         minWidth: width,
         maxWidth: width,
@@ -96,6 +101,11 @@ class IosControlState extends State<IosControl> {
   @override
   Widget build(BuildContext context) {
     final hasGlassOutset = _hasGlassOutset;
+    // The taller glass buttons in profiles stretch further on a vertical drag.
+    final verticalOutset =
+        widget.kind == 'button' && widget.properties['stacked'] == true
+        ? 24.0
+        : meshIosGlassOutset;
     final view = UiKitView(
       viewType: 'meshgrame/controls',
       gestureBlockingPolicy: widget.eagerGestures
@@ -105,6 +115,8 @@ class IosControlState extends State<IosControl> {
         'kind': widget.kind,
         ...widget.properties,
         if (hasGlassOutset) 'visualOutset': meshIosGlassOutset,
+        if (verticalOutset != meshIosGlassOutset)
+          'verticalVisualOutset': verticalOutset,
       },
       creationParamsCodec: const StandardMessageCodec(),
       gestureRecognizers: {
@@ -130,6 +142,8 @@ class IosControlState extends State<IosControl> {
       },
     );
     final clippedView = MeshSheetControlClip(child: view);
-    return hasGlassOutset ? MeshIosGlassFrame(child: clippedView) : clippedView;
+    return hasGlassOutset
+        ? MeshIosGlassFrame(verticalOutset: verticalOutset, child: clippedView)
+        : clippedView;
   }
 }

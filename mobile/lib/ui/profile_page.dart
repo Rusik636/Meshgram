@@ -5,9 +5,11 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SliverPaintOrder;
 
-import 'profile_wallpaper.dart';
+import 'ios_control.dart';
 import 'mesh_scroll_edge.dart';
+import 'profile_wallpaper.dart';
 import 'style.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -45,6 +47,19 @@ class _ProfilePageState extends State<ProfilePage> {
   final _scroll = ScrollController();
   var _travel = 0.0;
   var _keepCollapsed = false;
+  var _headerOverlapsContent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (useIosControls) _scroll.addListener(_updatePaintOrder);
+  }
+
+  void _updatePaintOrder() {
+    final overlaps = _scroll.offset > _travel;
+    if (overlaps == _headerOverlapsContent) return;
+    setState(() => _headerOverlapsContent = overlaps);
+  }
 
   void _beginGesture() {
     // A new pull from the top may expand the profile. A fling from the
@@ -112,6 +127,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final collapsedHeight = widget.padding.top + _ProfileHeader.toolbarHeight;
       _travel = 10 + widget.avatarSize + 13 + titleHeight + subtitleHeight + 18;
       final expandedHeight = collapsedHeight + _travel;
+      _headerOverlapsContent = _scroll.hasClients && _scroll.offset > _travel;
       return Listener(
         behavior: HitTestBehavior.opaque,
         onPointerDown: (_) => _beginGesture(),
@@ -123,6 +139,11 @@ class _ProfilePageState extends State<ProfilePage> {
           edgeExtent: math.max(18.0, widget.padding.bottom),
           child: CustomScrollView(
             controller: _scroll,
+            // Let glass buttons stretch over the expanded header's lower edge.
+            // Paint the compact toolbar over content once it starts overlapping.
+            paintOrder: useIosControls && !_headerOverlapsContent
+                ? SliverPaintOrder.lastIsTop
+                : SliverPaintOrder.firstIsTop,
             // Material's stretch transforms the entire viewport, including the
             // pinned toolbar. Move the sliver content using scroll physics.
             scrollBehavior: android

@@ -218,6 +218,7 @@ private final class MeshButtonContent: UIButton {
 private final class MeshButtonHost: UIView {
   let button = MeshButtonContent(type: .system)
   var visualOutset: CGFloat = 0
+  var verticalVisualOutset: CGFloat = 0
   var buttonInset: CGFloat = 0
   var stacked = false
   private let legacyGlass: UIVisualEffectView?
@@ -249,14 +250,15 @@ private final class MeshButtonHost: UIView {
   override func layoutSubviews() {
     super.layoutSubviews()
     button.hitInset = buttonInset
-    let inset = visualOutset + buttonInset
-    button.frame = bounds.insetBy(dx: inset, dy: inset)
+    button.frame = bounds.insetBy(
+      dx: visualOutset + buttonInset, dy: verticalVisualOutset + buttonInset
+    )
     legacyGlass?.frame = button.frame
     legacyGlass?.layer.cornerRadius = stacked ? 19 : button.bounds.height / 2
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    let hitBounds = bounds.insetBy(dx: visualOutset, dy: visualOutset)
+    let hitBounds = bounds.insetBy(dx: visualOutset, dy: verticalVisualOutset)
     guard isUserInteractionEnabled, !isHidden, button.isEnabled, hitBounds.contains(point) else { return nil }
     return button
   }
@@ -277,6 +279,8 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     super.init()
 
     root.visualOutset = (input["visualOutset"] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
+    root.verticalVisualOutset = (input["verticalVisualOutset"] as? NSNumber)
+      .map { CGFloat($0.doubleValue) } ?? root.visualOutset
     button.addAction(UIAction { [weak self] _ in
       self?.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
