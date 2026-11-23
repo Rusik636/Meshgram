@@ -15,6 +15,7 @@ import '../mesh/nodes.dart';
 import 'contact_picker.dart';
 import 'ios_control.dart';
 import 'location_search.dart';
+import 'mesh_page_title.dart';
 import 'navigation.dart';
 import 'position_picker.dart';
 import 'style.dart';
@@ -370,6 +371,66 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     );
   }
 
+  Widget _locationHeading(String location) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        const buttonSize = 48.0;
+        const actionGap = 6.0;
+        const trailingWidth = 2 * buttonSize + actionGap;
+        const idealTitleWidth = 150.0;
+        // Balance the two trailing buttons while giving the title more
+        // room on narrow phones.
+        final leadingGap = useIosControls
+            ? (constraints.maxWidth -
+                      buttonSize -
+                      trailingWidth -
+                      idealTitleWidth)
+                  .clamp(12.0, trailingWidth - buttonSize)
+            : 12.0;
+        return Row(
+          children: [
+            GlassButton(
+              icon: Icons.close_rounded,
+              label: tr(context, 'Закрыть', 'Close'),
+              onTap: _closeSheet,
+            ),
+            SizedBox(width: leadingGap),
+            Expanded(
+              child: MeshPageTitle(
+                location,
+                fallback: Text(
+                  location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            GlassButton(
+              icon: Icons.search_rounded,
+              label: tr(context, 'Искать геопозицию', 'Search locations'),
+              onTap: () => unawaited(_searchLocation()),
+            ),
+            const SizedBox(width: actionGap),
+            GlassButton(
+              icon: _expanded
+                  ? Icons.close_fullscreen_rounded
+                  : Icons.open_in_full_rounded,
+              label: _expanded
+                  ? tr(context, 'Свернуть', 'Collapse')
+                  : tr(context, 'На весь экран', 'Expand'),
+              onTap: () => _snapTo(!_expanded),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
   Widget _header(String location, double travel) {
     final style = MeshStyle.of(context);
     final showingMap = _tab == _AttachmentTab.location;
@@ -422,45 +483,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
             ),
           ),
           if (showingMap)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                children: [
-                  GlassButton(
-                    icon: Icons.close_rounded,
-                    label: tr(context, 'Закрыть', 'Close'),
-                    onTap: _closeSheet,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      location,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  GlassButton(
-                    icon: Icons.search_rounded,
-                    label: tr(context, 'Искать геопозицию', 'Search locations'),
-                    onTap: () => unawaited(_searchLocation()),
-                  ),
-                  const SizedBox(width: 6),
-                  GlassButton(
-                    icon: _expanded
-                        ? Icons.close_fullscreen_rounded
-                        : Icons.open_in_full_rounded,
-                    label: _expanded
-                        ? tr(context, 'Свернуть', 'Collapse')
-                        : tr(context, 'На весь экран', 'Expand'),
-                    onTap: () => _snapTo(!_expanded),
-                  ),
-                ],
-              ),
-            )
+            _locationHeading(location)
           else if (extendGrip)
             const SizedBox(height: _gripTargetHeight - _gripHeight),
         ],
