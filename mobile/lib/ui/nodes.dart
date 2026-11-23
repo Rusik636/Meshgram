@@ -12,6 +12,7 @@ import '../mesh/network.dart';
 import 'chat_management.dart';
 import 'ios_control.dart';
 import 'mesh_map.dart';
+import 'mesh_page_title.dart';
 import 'message_details.dart';
 import 'node_list.dart';
 import 'page_route.dart';
@@ -623,14 +624,9 @@ class _NodeMapPage extends StatelessWidget {
               left: safe.left,
               right: safe.right,
               top: safe.top,
-              child: PageHeading(
+              child: MeshMapPageHeading(
                 tr(context, 'Карта узлов', 'Node map'),
-                titleBackground: style.surface,
-                leading: GlassButton(
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  label: tr(context, 'Назад', 'Back'),
-                  onTap: () => Navigator.pop(context),
-                ),
+                fallbackBackground: style.surface,
               ),
             ),
             if (pins.isEmpty)
