@@ -1157,7 +1157,7 @@ class _ChatState extends State<MeshChatPage>
                   left: 0,
                   right: 0,
                   height: top + _headerHeight + 8,
-                  child: const MeshScrollEdge(top: true),
+                  child: MeshScrollEdge(top: true, tint: style.canvas),
                 ),
                 if (!_searching)
                   Positioned(
@@ -1165,7 +1165,7 @@ class _ChatState extends State<MeshChatPage>
                     left: 0,
                     right: 0,
                     height: bottom + _footerHeight + 9,
-                    child: const MeshScrollEdge(top: false),
+                    child: MeshScrollEdge(top: false, tint: style.canvas),
                   ),
                 Positioned(
                   top: top,

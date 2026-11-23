@@ -89,6 +89,7 @@ void main() {
       matching: find.byType(MeshScrollEdge),
     );
     expect(softEdges, findsOneWidget);
+    expect(tester.widget<MeshScrollEdge>(headingEdge).tint, isNull);
     expect(tester.getRect(headingEdge).top, bounds.top);
     expect(tester.getRect(headingEdge).width, bounds.width);
     expect(

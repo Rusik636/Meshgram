@@ -6,13 +6,11 @@ import 'dart:ui' show FragmentProgram, FragmentShader, ImageFilter;
 
 import 'package:flutter/material.dart';
 
-import 'style.dart';
-
 class MeshScrollEdge extends StatefulWidget {
-  const MeshScrollEdge({super.key, required this.top, this.background});
+  const MeshScrollEdge({super.key, required this.top, this.tint});
 
   final bool top;
-  final Color? background;
+  final Color? tint;
 
   @override
   State<MeshScrollEdge> createState() => _MeshScrollEdgeState();
@@ -49,35 +47,39 @@ class _MeshScrollEdgeState extends State<MeshScrollEdge> {
 
   @override
   Widget build(BuildContext context) {
-    final canvas = widget.background ?? MeshStyle.of(context).canvas;
+    final tint = widget.tint;
     final top = widget.top;
     final shader = _shader;
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (shader != null && !MediaQuery.highContrastOf(context))
+          if (!MediaQuery.highContrastOf(context) &&
+              (shader != null || tint == null))
             ClipRect(
               child: BackdropFilter(
-                filter: ImageFilter.shader(shader),
+                filter: shader == null
+                    ? ImageFilter.blur(sigmaX: 2, sigmaY: 2)
+                    : ImageFilter.shader(shader),
                 child: const SizedBox.expand(),
               ),
             ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: top ? Alignment.topCenter : Alignment.bottomCenter,
-                end: top ? Alignment.bottomCenter : Alignment.topCenter,
-                colors: [
-                  canvas.withValues(alpha: .84),
-                  canvas.withValues(alpha: .55),
-                  canvas.withValues(alpha: .17),
-                  canvas.withValues(alpha: 0),
-                ],
-                stops: const [0, .40, .73, 1],
+          if (tint != null)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: top ? Alignment.topCenter : Alignment.bottomCenter,
+                  end: top ? Alignment.bottomCenter : Alignment.topCenter,
+                  colors: [
+                    tint.withValues(alpha: .84),
+                    tint.withValues(alpha: .55),
+                    tint.withValues(alpha: .17),
+                    tint.withValues(alpha: 0),
+                  ],
+                  stops: const [0, .40, .73, 1],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
