@@ -17,6 +17,7 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
   private let textOnly: Bool
   private var input: [String: Any] = [:]
   private var labels: [String] = []
+  private var symbols: [String] = []
 
   private var textTabScale: CGFloat {
     if #available(iOS 26.0, *) { return 0.73 }
@@ -142,26 +143,26 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
       updateTextTabAppearance((values["titleSize"] as? NSNumber)?.doubleValue ?? 15)
     }
     let current = values["labels"] as? [String] ?? []
-    if labels != current {
+    let currentSymbols = values["symbols"] as? [String] ?? []
+    if labels != current || symbols != currentSymbols {
       labels = current
+      symbols = currentSymbols
       tabs.viewControllers = labels.enumerated().map { index, label in
         let page = UIViewController()
         page.view.backgroundColor = .clear
         page.view.isUserInteractionEnabled = false
-        let image = index == 0 ? meshChatSymbol : "gearshape"
-        let selected = index == 0 ? meshChatSymbol + ".fill" : "gearshape.fill"
-        page.tabBarItem = UITabBarItem(title: label,
-          image: textOnly ? Self.textTabImage : tabImage(image),
-          selectedImage: textOnly ? Self.textTabImage : tabImage(selected))
+        let name = symbols.indices.contains(index) ? symbols[index] : "circle"
+        let image = textOnly ? Self.textTabImage : tabImage(name)
+        let selected = textOnly ? Self.textTabImage : tabImage(name + ".fill") ?? image
+        page.tabBarItem = UITabBarItem(title: label, image: image, selectedImage: selected)
         page.tabBarItem.tag = index
         return page
       }
     }
-    let unread = values["unread"] as? Int ?? 0
-    let settingsUnread = values["settingsUnread"] as? Int ?? 0
+    let unreadCounts = values["unreadCounts"] as? [Int] ?? []
     if let controllers = tabs.viewControllers, !textOnly {
       for (index, page) in controllers.enumerated() {
-        let count = index == 0 ? unread : settingsUnread
+        let count = unreadCounts.indices.contains(index) ? unreadCounts[index] : 0
         let overflow = index == 0 ? "99+" : "+99"
         page.tabBarItem.badgeValue = count <= 0 ? nil : count > 99 ? overflow : String(count)
       }

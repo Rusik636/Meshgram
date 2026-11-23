@@ -44,30 +44,64 @@ class MeshNavigation extends StatelessWidget {
           .toDouble();
 
   @override
-  Widget build(BuildContext context) {
-    final labels = [
+  Widget build(BuildContext context) => MeshTabBar(
+    labels: [
       tr(context, 'Чаты', 'Chats'),
       tr(context, 'Настройки', 'Settings'),
-    ];
+    ],
+    icons: const [chatIcon, Icons.settings_outlined],
+    symbols: const ['bubble.left', 'gearshape'],
+    index: index,
+    onSelect: onSelect,
+    unreadCounts: [unread, settingsUnread],
+  );
+}
+
+/// Shared bottom navigation for the app and its compact attachment sheet.
+class MeshTabBar extends StatelessWidget {
+  const MeshTabBar({
+    super.key,
+    required this.labels,
+    required this.icons,
+    required this.symbols,
+    required this.index,
+    required this.onSelect,
+    this.unreadCounts = const [],
+    this.includeBottomInset = true,
+  }) : assert(labels.length == icons.length),
+       assert(labels.length == symbols.length);
+
+  final List<String> labels, symbols;
+  final List<IconData> icons;
+  final int index;
+  final ValueChanged<int> onSelect;
+  final List<int> unreadCounts;
+  final bool includeBottomInset;
+
+  @override
+  Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final height = contentHeight(context);
+    final height = MeshNavigation.contentHeight(context);
     void select(int next) {
       if (next != index) unawaited(playMeshHaptic(MeshHaptic.selection));
       onSelect(next);
     }
 
     if (useIosControls) {
+      final inset = includeBottomInset
+          ? MediaQuery.viewPaddingOf(context).bottom
+          : 0.0;
       return SizedBox(
-        height: height + MediaQuery.viewPaddingOf(context).bottom,
+        height: height + inset,
         child: IosControl(
           kind: 'tabs',
           horizontalDrag: true,
           onSelect: select,
           properties: {
             'labels': labels,
+            'symbols': symbols,
             'index': index,
-            'unread': unread,
-            'settingsUnread': settingsUnread,
+            'unreadCounts': unreadCounts,
             'dark': style.dark,
             'accent': style.accent.toARGB32(),
           },
@@ -79,10 +113,10 @@ class MeshNavigation extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 208),
         child: _FlutterTabs(
           labels: labels,
+          icons: icons,
           height: height,
           index: index,
-          unread: unread,
-          settingsUnread: settingsUnread,
+          unreadCounts: unreadCounts,
           onSelect: select,
         ),
       ),
@@ -95,15 +129,17 @@ class _FlutterTabs extends StatefulWidget {
     required this.labels,
     required this.height,
     required this.index,
-    this.unread = 0,
-    this.settingsUnread = 0,
+    this.icons = const [],
+    this.unreadCounts = const [],
     this.textOnly = false,
     required this.onSelect,
   });
 
   final List<String> labels;
+  final List<IconData> icons;
+  final List<int> unreadCounts;
   final double height;
-  final int index, unread, settingsUnread;
+  final int index;
   final bool textOnly;
   final ValueChanged<int> onSelect;
 
@@ -141,7 +177,9 @@ class _FlutterTabsState extends State<_FlutterTabs> {
       ),
     );
     if (widget.textOnly) return Center(child: text);
-    final count = index == 0 ? widget.unread : widget.settingsUnread;
+    final count = index < widget.unreadCounts.length
+        ? widget.unreadCounts[index]
+        : 0;
     final display = count > 99 ? (index == 0 ? '99+' : '+99') : '$count';
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -153,11 +191,7 @@ class _FlutterTabsState extends State<_FlutterTabs> {
             excludeSemantics: true,
             child: Text(display),
           ),
-          child: Icon(
-            index == 0 ? MeshNavigation.chatIcon : Icons.settings_outlined,
-            size: 19,
-            color: color,
-          ),
+          child: Icon(widget.icons[index], size: 19, color: color),
         ),
         const SizedBox(height: 2),
         Flexible(child: text),
