@@ -36,11 +36,15 @@ void main() {
 
     final map = find.byType(MeshMap);
     final action = find.text('Send location');
+    final attribution = find.byType(MeshMapAttribution);
+    final tabs = find.byType(MeshTabBar);
     expect(tester.getRect(map).contains(tester.getCenter(action)), isTrue);
+    expect(tester.getRect(map).contains(tester.getCenter(tabs)), isTrue);
     expect(
-      tester.getRect(map).contains(tester.getCenter(find.byType(MeshTabBar))),
-      isTrue,
+      tester.getTopLeft(attribution).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(tabs).dy),
     );
+    expect(tester.getBottomLeft(attribution).dy, _size.height - 34);
 
     await tester.tap(find.byTooltip('Expand'));
     await tester.pumpAndSettle();
@@ -51,7 +55,8 @@ void main() {
       isTrue,
     );
     expect(expanded.contains(tester.getCenter(action)), isTrue);
-    expect(find.byType(MeshTabBar), findsNothing);
+    expect(tester.getBottomLeft(attribution).dy, _size.height - 34);
+    expect(tabs, findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

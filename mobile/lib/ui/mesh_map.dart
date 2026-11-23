@@ -492,7 +492,7 @@ class _LocationMapPage extends StatelessWidget {
           Positioned(
             left: safe.left + 12,
             right: safe.right + 12,
-            bottom: safe.bottom + 4,
+            bottom: safe.bottom,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -535,7 +535,10 @@ class _LocationMapPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                const MeshMapAttribution(),
+                const Align(
+                  alignment: AlignmentDirectional.bottomEnd,
+                  child: MeshMapAttribution(),
+                ),
               ],
             ),
           ),

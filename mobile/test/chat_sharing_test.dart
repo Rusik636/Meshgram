@@ -132,7 +132,8 @@ void main() {
       find.descendant(of: preview, matching: find.text('Location')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Coordinates'), findsOneWidget);
+    expect(find.byTooltip('Copy coordinates'), findsOneWidget);
+    expect(find.text('55.750000, 49.140000'), findsOneWidget);
     final map = tester.widget<MeshMap>(find.byType(MeshMap));
     expect(map.interactive, isTrue);
     expect(map.pins.single.position, point);

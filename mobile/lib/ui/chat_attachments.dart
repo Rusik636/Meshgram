@@ -231,7 +231,25 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(_expanded ? 0 : 26),
-      child: Stack(fit: StackFit.expand, children: [_locationMap(), child]),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _locationMap(),
+          Column(
+            children: [
+              Expanded(child: child),
+              const SafeArea(
+                top: false,
+                minimum: EdgeInsets.symmetric(horizontal: 8),
+                child: Align(
+                  alignment: AlignmentDirectional.bottomEnd,
+                  child: MeshMapAttribution(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -299,8 +317,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                         ),
                   label: tr(context, 'Отправить геопозицию', 'Send location'),
                 ),
-                const SizedBox(height: 5),
-                const Center(child: MeshMapAttribution()),
               ],
             ),
           ),
@@ -335,7 +351,9 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
               SafeArea(
                 top: false,
                 // The compact native bar occupies the bottom inset itself.
-                bottom: _expanded || !useIosControls,
+                bottom:
+                    _tab != _AttachmentTab.location &&
+                    (_expanded || !useIosControls),
                 child: Column(
                   children: [
                     GestureDetector(
