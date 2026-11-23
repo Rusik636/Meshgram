@@ -255,6 +255,8 @@ class _AttachmentContactsState extends State<AttachmentContacts>
   ) {
     final title = tr(context, 'Контакты', 'Contacts');
     final placeholder = tr(context, 'Поиск узлов', 'Search nodes');
+    // Nested sheets dim this header as part of the same Flutter layer.
+    final preferNative = ModalRoute.isCurrentOf(context) != false;
     const side = 16.0;
     const gap = 6.0;
     const headingTop = 7.0;
@@ -356,6 +358,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                   GlassButton(
                     icon: Icons.close_rounded,
                     label: tr(context, 'Закрыть', 'Close'),
+                    preferNative: preferNative,
                     onTap: widget.onClose,
                   ),
                   const Spacer(),
@@ -369,6 +372,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                           child: GlassButton(
                             icon: Icons.sort_rounded,
                             label: tr(context, 'Сортировка', 'Sort by'),
+                            preferNative: preferNative,
                             onTap: contacts.isEmpty
                                 ? null
                                 : () => unawaited(_sortContacts()),
@@ -393,6 +397,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 initialText: widget.search.text,
                 active: _searching,
                 progress: progress,
+                preferNative: preferNative,
                 onActivate: _startSearch,
                 onChanged: _changeQuery,
                 onDismissKeyboard: _dismissKeyboard,
@@ -409,6 +414,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 child: GlassButton(
                   icon: Icons.close_rounded,
                   label: tr(context, 'Закрыть поиск', 'Close search'),
+                  preferNative: preferNative,
                   onTap: _searching ? _closeSearch : null,
                 ),
               ),
