@@ -226,13 +226,7 @@ class LocalMessageNotifications extends ChangeNotifier {
 
   void _publish(Radio radio, Peer peer, String body) {
     if (isForeground) {
-      if (radioKey(radio) ==
-              (_controller.active == null
-                  ? null
-                  : radioKey(_controller.active!)) &&
-          _controller.openedChat == peer.id) {
-        return;
-      }
+      if (_controller.viewingLatest(radio, peer.id)) return;
       if (option(NotificationSetting.inAppSound)) {
         unawaited(_invoke<void>('playInAppSound'));
       }

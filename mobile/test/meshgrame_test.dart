@@ -1276,10 +1276,17 @@ void main() {
         expect(controller.connected, isTrue);
         expect(service, platform == TargetPlatform.android ? [true] : isEmpty);
 
-        controller.readChat('node:42');
+        final stopTracking = controller.trackChatViewport(
+          radioKey(radio),
+          'node:42',
+          () => true,
+        );
+        addTearDown(stopTracking);
         link.incoming(1, 'While reading'.codeUnits, id: 711);
         await tester.pump();
         expect(posted, isEmpty);
+        final visible = controller.messages('node:42').last;
+        controller.readChatThrough(radioKey(radio), 'node:42', visible.id);
         expect(controller.cache?.unread['node:42'], isNull);
 
         for (final state in [
@@ -2650,7 +2657,7 @@ void main() {
       await controller.connect(two);
       expect(transport.links.first.closed, isFalse);
       expect(controller.connectedRadios, [one, two]);
-      controller.readChat(_peer.id);
+      controller.markChatsRead([_peer.id]);
       adapter.sessions.first.stream.add(
         TextReceived(
           MeshMessage(
@@ -5789,6 +5796,7 @@ void main() {
               ),
             ),
         ]);
+      controller.markChatsRead(['ch:0']);
       await tester.pumpWidget(
         MaterialApp(
           home: MeshChatPage(controller: controller, peer: channel),

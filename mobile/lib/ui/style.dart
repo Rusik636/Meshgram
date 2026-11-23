@@ -238,6 +238,7 @@ class GlassButton extends StatelessWidget {
       final symbol = switch (icon) {
         Icons.arrow_back_ios_new_rounded => 'chevron.left',
         Icons.arrow_upward_rounded => 'arrow.up',
+        Icons.keyboard_arrow_down_rounded => 'chevron.down',
         Icons.edit_note_rounded => 'square.and.pencil',
         Icons.edit_outlined => 'pencil',
         Icons.close_rounded => 'xmark',

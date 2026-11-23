@@ -366,6 +366,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         .where((peer) => _selectedChats.contains(peer.id))
         .toList();
     final read = selected.isEmpty ? visible : selected;
+    final markUnread =
+        selected.isNotEmpty &&
+        !selected.any((peer) => controller.isChatUnread(peer.id));
     return Row(
       children: [
         Expanded(
@@ -374,11 +377,18 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             primary: false,
             label: selected.isEmpty
                 ? tr(context, 'Прочитать все', 'Read all')
+                : markUnread
+                ? tr(context, 'Не прочитано', 'Unread')
                 : tr(context, 'Прочитать', 'Read'),
             onTap: _removingChats || read.isEmpty
                 ? null
                 : () {
-                    controller.markChatsRead(read.map((peer) => peer.id));
+                    final ids = read.map((peer) => peer.id);
+                    if (markUnread) {
+                      controller.markChatsUnread(ids);
+                    } else {
+                      controller.markChatsRead(ids);
+                    }
                     setState(_selectedChats.clear);
                   },
           ),
@@ -1198,6 +1208,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }) {
     final message = controller.messages(peer.id).lastOrNull;
     final unread = controller.cache?.unread[peer.id] ?? 0;
+    final markedUnread =
+        controller.cache?.markedUnread.contains(peer.id) ?? false;
     final muted = controller.cache?.muted.contains(peer.id) ?? false;
     final draft = controller.draft(peer.id);
     final summary = draft.isNotEmpty
@@ -1291,7 +1303,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            if (!editing && (message != null || unread > 0)) ...[
+            if (!editing &&
+                (message != null || unread > 0 || markedUnread)) ...[
               const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1326,6 +1339,24 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                                 ? const Color(0xff0f2445)
                                 : Colors.white,
                           ),
+                        ),
+                      ),
+                    ),
+                  if (unread == 0 && markedUnread)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Semantics(
+                        label: tr(
+                          context,
+                          'Отмечено как непрочитанное',
+                          'Marked unread',
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: muted ? style.secondary : style.accent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const SizedBox.square(dimension: 10),
                         ),
                       ),
                     ),
