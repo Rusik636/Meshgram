@@ -40,6 +40,10 @@ class _PositionPickerState extends State<_PositionPicker> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final safe = MediaQuery.paddingOf(context);
+    final attributionHeight = MeshMapAttribution.heightFor(
+      context,
+      MediaQuery.sizeOf(context).width,
+    );
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -49,7 +53,6 @@ class _PositionPickerState extends State<_PositionPicker> {
             zoom: widget.initial == null ? 3 : 16,
             onCenterChanged: (point) => _center.value = point,
             showCrosshair: true,
-            showAttribution: false,
           ),
           Positioned(
             left: safe.left + 16,
@@ -61,44 +64,34 @@ class _PositionPickerState extends State<_PositionPicker> {
             ),
           ),
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 0,
+            left: safe.left + 16,
+            right: safe.right + 16,
+            bottom: safe.bottom + attributionHeight + 8,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Padding(
-                  padding: EdgeInsets.only(left: safe.left, right: safe.right),
-                  child: Column(
-                    children: [
-                      GlassSurface(
-                        radius: 16,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 7,
-                          ),
-                          child: ValueListenableBuilder(
-                            valueListenable: _center,
-                            builder: (context, position, _) => Text(
-                              formatMapCoordinates(position, digits: 6),
-                              style: TextStyle(color: style.text, fontSize: 13),
-                            ),
-                          ),
-                        ),
+                GlassSurface(
+                  radius: 16,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    child: ValueListenableBuilder(
+                      valueListenable: _center,
+                      builder: (context, position, _) => Text(
+                        formatMapCoordinates(position, digits: 6),
+                        style: TextStyle(color: style.text, fontSize: 13),
                       ),
-                      const SizedBox(height: 9),
-                      GlassActionButton(
-                        primary: true,
-                        label: tr(context, 'Установить', 'Set'),
-                        onTap: () => Navigator.pop(context, _center.value),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-                SizedBox(height: safe.bottom + 8),
-                const Center(child: MeshMapAttribution()),
+                const SizedBox(height: 9),
+                GlassActionButton(
+                  primary: true,
+                  label: tr(context, 'Установить', 'Set'),
+                  onTap: () => Navigator.pop(context, _center.value),
+                ),
               ],
             ),
           ),
