@@ -10,16 +10,10 @@ import 'style.dart';
 
 /// A centered title using the same native glass control as the chat header.
 class MeshPageTitle extends StatelessWidget {
-  const MeshPageTitle(
-    this.title, {
-    super.key,
-    this.fallback,
-    this.preferNative = true,
-  });
+  const MeshPageTitle(this.title, {super.key, this.fallback});
 
   final String title;
   final Widget? fallback;
-  final bool preferNative;
 
   @override
   Widget build(BuildContext context) {
@@ -53,37 +47,21 @@ class MeshPageTitle extends StatelessWidget {
         child: SizedBox(
           width: width,
           height: height,
-          child: preferNative
-              ? IosControl(
-                  kind: 'chatTitle',
-                  properties: {
-                    'label': title,
-                    'titleFontSize': textScaler.scale(16),
-                    'enabled': true,
-                    'readOnly': true,
-                    'dark': style.dark,
-                    'accent': style.accent.toARGB32(),
-                    'surface': style.surface.toARGB32(),
-                    'foreground': style.text.toARGB32(),
-                  },
-                )
-              : GlassSurface(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 13),
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: style.text,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+          child: IosControl(
+            kind: 'chatTitle',
+            capsule: true,
+            properties: {
+              'label': title,
+              'titleFontSize': textScaler.scale(16),
+              'enabled': true,
+              'readOnly': true,
+              'coveredByModal': ModalRoute.isCurrentOf(context) == false,
+              'dark': style.dark,
+              'accent': style.accent.toARGB32(),
+              'surface': style.surface.toARGB32(),
+              'foreground': style.text.toARGB32(),
+            },
+          ),
         ),
       ),
     );
@@ -99,12 +77,10 @@ class MeshMapPageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preferNative = ModalRoute.isCurrentOf(context) != false;
     final back = GlassButton(
       icon: Icons.arrow_back_ios_new_rounded,
       label: tr(context, 'Назад', 'Back'),
       onTap: () => Navigator.pop(context),
-      preferNative: preferNative,
     );
     if (!useIosControls) {
       return PageHeading(
@@ -119,7 +95,7 @@ class MeshMapPageHeading extends StatelessWidget {
         children: [
           back,
           const SizedBox(width: 8),
-          Expanded(child: MeshPageTitle(title, preferNative: preferNative)),
+          Expanded(child: MeshPageTitle(title)),
           const SizedBox(width: 56),
         ],
       ),

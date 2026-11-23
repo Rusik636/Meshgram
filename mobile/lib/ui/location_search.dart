@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../mesh/chat_position.dart';
 import '../mesh/nodes.dart';
+import 'ios_control.dart';
 import 'mesh_map.dart';
 import 'style.dart';
 
@@ -82,11 +83,18 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: tr(context, 'Закрыть поиск', 'Close search'),
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
+                  if (useIosControls)
+                    GlassButton(
+                      icon: Icons.close_rounded,
+                      label: tr(context, 'Закрыть поиск', 'Close search'),
+                      onTap: () => Navigator.pop(context),
+                    )
+                  else
+                    IconButton(
+                      tooltip: tr(context, 'Закрыть поиск', 'Close search'),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
                 ],
               ),
             ),

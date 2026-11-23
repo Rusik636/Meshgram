@@ -318,7 +318,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         icon: Icons.search_rounded,
                         label: placeholder,
                         onTap: _openSearch,
-                        preferNative: preferNative,
                       )
                     : _searching && field.width >= 120
                     ? MeshSearchEditor(
@@ -330,7 +329,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         onChanged: _changeQuery,
                         onDismissKeyboard: _dismissSearchKeyboard,
                         autofocus: preferNative,
-                        preferNative: preferNative,
                       )
                     : MeshSearchLauncher(
                         placeholder: placeholder,
@@ -346,7 +344,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   icon: Icons.close_rounded,
                   label: tr(context, 'Закрыть поиск', 'Close search'),
                   onTap: _searching ? _closeSearch : null,
-                  preferNative: preferNative,
                 ),
               ),
           ],
@@ -361,13 +358,11 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     bool editing,
     double searchSlotWidth,
   ) {
-    final preferNative = ModalRoute.isCurrentOf(context) != false;
     return Row(
       children: [
         GlassButton(
           icon: Icons.arrow_back_ios_new_rounded,
           label: tr(context, 'Назад', 'Back'),
-          preferNative: preferNative,
           onTap: () {
             if (_searching) {
               _closeSearch();
@@ -420,7 +415,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           GlassButton(
             icon: Icons.map_outlined,
             label: tr(context, 'Карта узлов', 'Node map'),
-            preferNative: preferNative,
             onTap: () {
               if (_searching) _dismissSearchKeyboard();
               unawaited(_openMap(context));
@@ -430,7 +424,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           GlassButton(
             icon: Icons.sort_rounded,
             label: tr(context, 'Сортировка', 'Sort by'),
-            preferNative: preferNative,
             onTap: controller.active == null
                 ? null
                 : () => unawaited(_pickSort(context)),

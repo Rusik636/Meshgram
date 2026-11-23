@@ -19,7 +19,6 @@ import UserNotifications
     engine.run()
     GeneratedPluginRegistrant.register(with: engine)
     registerPlatformControls()
-    MeshSymbols.register(with: engine.binaryMessenger)
     RadioMessageNotifications.register(with: engine.binaryMessenger)
     wifiPush.register(with: engine.binaryMessenger)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -47,49 +46,6 @@ import UserNotifications
       registrar.register(MeshComposerFactory(registrar.messenger()), withId: "meshgrame/composer")
       backSwipeSnapshot.register(with: registrar)
     }
-  }
-}
-
-private enum MeshSymbols {
-  static func register(with messenger: FlutterBinaryMessenger) {
-    let channel = FlutterMethodChannel(name: "meshgrame/symbols", binaryMessenger: messenger)
-    channel.setMethodCallHandler { call, result in
-      guard call.method == "render" else {
-        result(FlutterMethodNotImplemented)
-        return
-      }
-      guard let names = call.arguments as? [String] else {
-        result(FlutterError(code: "arguments", message: "Expected a list of symbol names", details: nil))
-        return
-      }
-      result(render(Set(names)))
-    }
-  }
-
-  private static func render(_ names: Set<String>) -> [String: FlutterStandardTypedData] {
-    // Match the visual extent of the symbol inside a standard 48-point
-    // glass button when Flutter is compositing a sheet over the button.
-    let canvas = CGSize(width: 31, height: 31)
-    let format = UIGraphicsImageRendererFormat()
-    format.opaque = false
-    format.scale = 3
-    format.preferredRange = .standard
-    let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
-    let configuration = UIImage.SymbolConfiguration(pointSize: 23.25, weight: .medium)
-    var masks: [String: FlutterStandardTypedData] = [:]
-    for name in names {
-      guard let symbol = UIImage(systemName: name, withConfiguration: configuration),
-            symbol.size.width > 0, symbol.size.height > 0 else { continue }
-      let image = symbol.withTintColor(.white, renderingMode: .alwaysOriginal)
-      let scale = min(1, canvas.width / image.size.width, canvas.height / image.size.height)
-      let width = image.size.width * scale
-      let height = image.size.height * scale
-      let frame = CGRect(x: (canvas.width - width) / 2, y: (canvas.height - height) / 2,
-                         width: width, height: height)
-      let png = renderer.pngData { _ in image.draw(in: frame) }
-      masks[name] = FlutterStandardTypedData(bytes: png)
-    }
-    return masks
   }
 }
 

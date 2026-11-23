@@ -137,9 +137,8 @@ class _ChatState extends State<MeshChatPage>
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
-  // Keep chat controls on a single Flutter layer under modal barriers. UIKit
-  // platform views otherwise split the barrier into separate overlay regions.
-  bool get _useNativeChatControls => !_menuVisible && !_attachmentOpen;
+  // Remove the composer platform view while a modal can own the keyboard.
+  bool get _useNativeComposer => !_menuVisible && !_attachmentOpen;
 
   bool get _canReadHistory => !_searching && _canPreviewLinks;
 
@@ -348,7 +347,7 @@ class _ChatState extends State<MeshChatPage>
                     'Go to latest message',
                   ),
                   onTap: () => unawaited(_goToLatest()),
-                  preferNative: _useNativeChatControls,
+                  coveredByModal: !_useNativeComposer,
                 ),
                 if (unread > 0)
                   Positioned(
@@ -1358,7 +1357,7 @@ class _ChatState extends State<MeshChatPage>
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         GlassButton(
-          preferNative: _useNativeChatControls,
+          coveredByModal: !_useNativeComposer,
           icon: Icons.attach_file_rounded,
           label: tr(context, 'Вложения', 'Attachments'),
           onTap:
@@ -1370,7 +1369,7 @@ class _ChatState extends State<MeshChatPage>
         Expanded(
           child: GlassSurface(
             radius: 23,
-            modal: _useNativeChatControls,
+            modal: _useNativeComposer,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1414,7 +1413,7 @@ class _ChatState extends State<MeshChatPage>
                   ),
                 MessageInput(
                   key: _input,
-                  hidePlatformView: !_useNativeChatControls,
+                  hidePlatformView: !_useNativeComposer,
                   controller: _draft,
                   onChanged: (value) {
                     controller.setDraft(peer.id, value);
@@ -1431,7 +1430,7 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         GlassButton(
-          preferNative: _useNativeChatControls,
+          coveredByModal: !_useNativeComposer,
           icon: Icons.arrow_upward_rounded,
           primary: send,
           label: tr(context, 'Отправить', 'Send'),
@@ -1445,13 +1444,14 @@ class _ChatState extends State<MeshChatPage>
     final title = peer.channel
         ? tr(context, 'Канал', 'Channel')
         : tr(context, 'Личный чат', 'Direct chat');
-    final ios = useIosControls;
-    final native = ios && _useNativeChatControls;
+    final native = useIosControls;
     final (avatarTop, avatarBottom) = MeshAvatar.colorsFor(peer.name);
     final avatar = MeshAvatar.initialsFor(peer.name);
     final properties = <String, Object>{
       'dark': style.dark,
       'enabled': true,
+      'coveredByModal':
+          !_useNativeComposer || ModalRoute.isCurrentOf(context) == false,
       'foreground': style.text.toARGB32(),
       'surface': style.surface.toARGB32(),
       'accent': style.accent.toARGB32(),
@@ -1462,7 +1462,7 @@ class _ChatState extends State<MeshChatPage>
       child: Row(
         children: [
           GlassButton(
-            preferNative: _useNativeChatControls,
+            coveredByModal: !_useNativeComposer,
             icon: Icons.arrow_back_ios_new_rounded,
             label: tr(context, 'Назад', 'Back'),
             onTap: () => Navigator.maybePop(context),
@@ -1484,6 +1484,7 @@ class _ChatState extends State<MeshChatPage>
               dimension: 48,
               child: IosControl(
                 kind: 'chatAvatar',
+                capsule: true,
                 properties: {
                   ...properties,
                   'label': tr(context, 'Профиль чата', 'Chat profile'),
@@ -1514,9 +1515,8 @@ class _ChatState extends State<MeshChatPage>
               onPressed: () => unawaited(_profile(peer)),
               icon: MeshAvatar(
                 peer.name,
-                size: ios ? 35 : 43,
+                size: 43,
                 channel: peer.channel,
-                monogram: ios && peer.channel ? '#' : null,
                 online: widget.controller.isNodeOnline(peer.id),
               ),
             ),
@@ -2386,6 +2386,7 @@ class _ChatTitle extends StatelessWidget {
       child: properties != null
           ? IosControl(
               kind: 'chatTitle',
+              capsule: true,
               properties: {
                 ...properties,
                 'label': name,

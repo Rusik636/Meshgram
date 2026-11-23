@@ -259,6 +259,10 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     let foreground = meshColor(input["foreground"], .label)
     let surface = meshColor(input["surface"], .secondarySystemBackground)
     let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+    let coveredByModal = input["coveredByModal"] as? Bool == true
+    let readOnly = input["readOnly"] as? Bool == true
+    root.isUserInteractionEnabled = !coveredByModal && !readOnly
+    root.accessibilityElementsHidden = coveredByModal
 
     let primary = input["primary"] as? Bool == true
     let enabled = input["enabled"] as? Bool == true
@@ -267,7 +271,9 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     button.accessibilityLabel = title
     button.tintColor = accent
     var configuration: UIButton.Configuration
-    if #available(iOS 26.0, *), !reduceTransparency {
+    // A Flutter modal already composites a scrim over the capsule. Keep the
+    // UIKit control and its symbol, and suspend live backdrop refraction.
+    if #available(iOS 26.0, *), !reduceTransparency, !coveredByModal {
       configuration = primary ? .prominentGlass() : .glass()
       if primary { configuration.baseBackgroundColor = accent }
     } else {
@@ -277,8 +283,7 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     configuration.baseForegroundColor = primary ? meshColor(input["onAccent"], .white) : foreground
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
-      if input["readOnly"] as? Bool == true {
-        root.isUserInteractionEnabled = false
+      if readOnly {
         button.accessibilityTraits = [.header, .staticText]
       }
       var heading = AttributedString(title)

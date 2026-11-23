@@ -22,6 +22,7 @@ class IosControl extends StatefulWidget {
     this.onTextChanged,
     this.horizontalDrag = false,
     this.eagerGestures = false,
+    this.capsule = false,
   });
 
   final String kind;
@@ -29,7 +30,7 @@ class IosControl extends StatefulWidget {
   final ValueChanged<int>? onSelect;
   final ValueChanged<String>? onTextChanged;
   final bool horizontalDrag;
-  final bool eagerGestures;
+  final bool eagerGestures, capsule;
 
   @override
   IosControlState createState() => IosControlState();
@@ -63,33 +64,38 @@ class IosControlState extends State<IosControl> {
   }
 
   @override
-  Widget build(BuildContext context) => UiKitView(
-    viewType: 'meshgrame/controls',
-    gestureBlockingPolicy: widget.eagerGestures
-        ? UiKitViewGestureBlockingPolicy.doNotBlockGesture
-        : UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
-    creationParams: {'kind': widget.kind, ...widget.properties},
-    creationParamsCodec: const StandardMessageCodec(),
-    gestureRecognizers: {
-      if (widget.horizontalDrag)
-        Factory<OneSequenceGestureRecognizer>(
-          HorizontalDragGestureRecognizer.new,
-        )
-      else if (widget.eagerGestures || widget.onTextChanged != null)
-        Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-    },
-    onPlatformViewCreated: (id) {
-      final channel = _channel = MethodChannel('meshgrame/controls/$id');
-      channel.setMethodCallHandler((call) async {
-        if (!mounted) return;
-        switch ((call.method, call.arguments)) {
-          case ('select', final int index):
-            widget.onSelect?.call(index);
-          case ('text', final String text):
-            widget.onTextChanged?.call(text);
-        }
-      });
-      unawaited(_send('update', widget.properties));
-    },
-  );
+  Widget build(BuildContext context) {
+    final view = UiKitView(
+      viewType: 'meshgrame/controls',
+      gestureBlockingPolicy: widget.eagerGestures
+          ? UiKitViewGestureBlockingPolicy.doNotBlockGesture
+          : UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
+      creationParams: {'kind': widget.kind, ...widget.properties},
+      creationParamsCodec: const StandardMessageCodec(),
+      gestureRecognizers: {
+        if (widget.horizontalDrag)
+          Factory<OneSequenceGestureRecognizer>(
+            HorizontalDragGestureRecognizer.new,
+          )
+        else if (widget.eagerGestures || widget.onTextChanged != null)
+          Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+      },
+      onPlatformViewCreated: (id) {
+        final channel = _channel = MethodChannel('meshgrame/controls/$id');
+        channel.setMethodCallHandler((call) async {
+          if (!mounted) return;
+          switch ((call.method, call.arguments)) {
+            case ('select', final int index):
+              widget.onSelect?.call(index);
+            case ('text', final String text):
+              widget.onTextChanged?.call(text);
+          }
+        });
+        unawaited(_send('update', widget.properties));
+      },
+    );
+    return widget.capsule
+        ? ClipRRect(borderRadius: BorderRadius.circular(999), child: view)
+        : view;
+  }
 }
