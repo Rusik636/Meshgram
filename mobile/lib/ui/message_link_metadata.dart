@@ -8,11 +8,20 @@ import 'dart:ui' as ui;
 import 'package:html/parser.dart' as html;
 
 class MessageLinkMetadata {
-  const MessageLinkMetadata({this.title, this.description, this.image});
+  const MessageLinkMetadata({
+    this.siteName,
+    this.title,
+    this.description,
+    this.image,
+    this.imageWidth,
+    this.imageHeight,
+    this.prefersLargeImage = false,
+  });
 
-  final String? title;
-  final String? description;
+  final String? siteName, title, description;
   final Uint8List? image;
+  final int? imageWidth, imageHeight;
+  final bool prefersLargeImage;
 }
 
 bool canFetchMessageLink(Uri uri) =>
@@ -25,11 +34,14 @@ bool canFetchMessageLink(Uri uri) =>
     !uri.host.endsWith('.localhost');
 
 /// Read only Open Graph and HTML metadata. The page is never rendered.
-({String? title, String? description, Uri? image}) parseMessageLinkMetadata(
-  Uint8List body,
-  Uri page, {
-  String? encoding,
-}) {
+({
+  String? siteName,
+  String? title,
+  String? description,
+  Uri? image,
+  bool prefersLargeImage,
+})
+parseMessageLinkMetadata(Uint8List body, Uri page, {String? encoding}) {
   final head = html.parse(body, encoding: encoding).head;
 
   String? clean(String? value, int limit) {
@@ -40,22 +52,34 @@ bool canFetchMessageLink(Uri uri) =>
   }
 
   final tags = head?.querySelectorAll('meta') ?? const [];
-  String? meta(String key) {
+  Iterable<String> metaValues(String key) sync* {
     for (final tag in tags) {
       if (tag.attributes['property']?.toLowerCase() == key ||
           tag.attributes['name']?.toLowerCase() == key) {
         final value = tag.attributes['content'];
-        if (value != null && value.trim().isNotEmpty) return value.trim();
+        if (value != null && value.trim().isNotEmpty) yield value.trim();
       }
     }
-    return null;
   }
 
-  final image =
-      meta('og:image:secure_url') ?? meta('og:image') ?? meta('twitter:image');
-  final reference = image == null ? null : Uri.tryParse(image);
-  final resolved = reference == null ? null : page.resolveUri(reference);
+  String? meta(String key) => metaValues(key).firstOrNull;
+
+  // Publishers can host their advertised image on another public HTTPS origin.
+  final images = [
+    for (final key in [
+      'og:image:secure_url',
+      'og:image',
+      'og:image:url',
+      'twitter:image',
+      'twitter:image:src',
+    ])
+      for (final value in metaValues(key))
+        if (Uri.tryParse(value) case final reference?)
+          page.resolveUri(reference),
+  ];
+  final type = meta('og:type')?.toLowerCase();
   return (
+    siteName: clean(meta('og:site_name'), 80),
     title: clean(
       meta('og:title') ??
           meta('twitter:title') ??
@@ -68,23 +92,16 @@ bool canFetchMessageLink(Uri uri) =>
           meta('description'),
       360,
     ),
-    image: resolved != null && _mayRequestPreviewImage(page, resolved)
-        ? resolved
-        : null,
+    image: images.where(canFetchMessageLink).firstOrNull,
+    prefersLargeImage:
+        meta('twitter:card')?.toLowerCase() == 'summary_large_image' ||
+        type == 'article' ||
+        type == 'video' ||
+        type?.startsWith('video.') == true,
   );
 }
 
 const _timeout = Duration(seconds: 6);
-
-bool _sameOrigin(Uri a, Uri b) =>
-    a.scheme == b.scheme && a.host == b.host && a.port == b.port;
-
-// RuStore hosts its Open Graph images on a dedicated first-party CDN.
-bool _mayRequestPreviewImage(Uri page, Uri image) =>
-    canFetchMessageLink(image) &&
-    (_sameOrigin(page, image) ||
-        ((page.host == 'www.rustore.ru' || page.host == 'rustore.ru') &&
-            image.host == 'static.rustore.ru'));
 
 bool _publicAddress(InternetAddress address) {
   final bytes = address.rawAddress;
@@ -136,13 +153,9 @@ Future<_Download?> _download(
   required Set<String> contentTypes,
   required int limit,
   bool readPrefix = false,
-  Uri? origin,
 }) async {
   for (var redirects = 0; redirects <= 3; redirects++) {
-    if (!canFetchMessageLink(uri) ||
-        (origin != null && !_sameOrigin(origin, uri))) {
-      return null;
-    }
+    if (!canFetchMessageLink(uri)) return null;
     final request = await client.getUrl(uri.removeFragment()).timeout(_timeout);
     request
       ..followRedirects = false
@@ -224,17 +237,27 @@ Future<MessageLinkMetadata?> _fetchPreview(HttpClient client, Uri uri) async {
     ).timeout(const Duration(seconds: 3), onTimeout: () => null),
     null => null,
   };
-  if (metadata.title == null && metadata.description == null && image == null) {
+  if (metadata.siteName == null &&
+      metadata.title == null &&
+      metadata.description == null &&
+      image == null) {
     return null;
   }
   return MessageLinkMetadata(
+    siteName: metadata.siteName,
     title: metadata.title,
     description: metadata.description,
-    image: image,
+    image: image?.bytes,
+    imageWidth: image?.width,
+    imageHeight: image?.height,
+    prefersLargeImage: metadata.prefersLargeImage,
   );
 }
 
-Future<Uint8List?> _previewImage(HttpClient client, Uri uri) async {
+Future<({Uint8List bytes, int width, int height})?> _previewImage(
+  HttpClient client,
+  Uri uri,
+) async {
   try {
     const imageTypes = {'image/jpeg', 'image/png', 'image/webp'};
     final download = await _download(
@@ -243,7 +266,6 @@ Future<Uint8List?> _previewImage(HttpClient client, Uri uri) async {
       accept: imageTypes.join(', '),
       contentTypes: imageTypes,
       limit: 512 * 1024,
-      origin: uri,
     );
     if (download == null) return null;
     final buffer = await ui.ImmutableBuffer.fromUint8List(download.body);
@@ -255,7 +277,7 @@ Future<Uint8List?> _previewImage(HttpClient client, Uri uri) async {
         if (width > 4096 || height > 4096 || width * height > 2048 * 2048) {
           return null;
         }
-        return download.body;
+        return (bytes: download.body, width: width, height: height);
       } finally {
         descriptor.dispose();
       }
