@@ -151,6 +151,58 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('searches the current conversation from its shared profile', (
+    tester,
+  ) async {
+    const peer = (
+      id: 'node:5151',
+      name: 'Bridge relay',
+      writable: true,
+      channel: false,
+    );
+    final identity = (publicKey: 'ae' * 32, type: null, shortName: 'BR');
+    final (controller, _) = await _openChat(
+      tester,
+      directPeer: peer,
+      prepare: (controller, _) {
+        controller.cache!
+          ..peers[peer.id] = peer
+          ..identities[peer.id] = identity
+          ..messages.add(
+            MeshMessage(
+              id: 'shared-current-contact',
+              chat: peer.id,
+              author: peer.name,
+              text: const MeshtasticAdapter()
+                  .contactCode(peer, identity)!
+                  .toString(),
+              time: DateTime.now(),
+              delivery: Delivery.received,
+            ),
+          );
+      },
+    );
+    await tester.tap(_contactAvatar('shared-current-contact', peer.name));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 650));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(MeshChatProfile),
+        matching: find.text('Search'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 650));
+    await tester.pump();
+
+    expect(find.text('Search messages'), findsOneWidget);
+    expect(find.byType(MeshChatProfile), findsNothing);
+    expect(find.byType(MeshChatPage), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   testWidgets('sends a point and opens its message preview on a map', (
     tester,
   ) async {
@@ -281,6 +333,7 @@ Future<void> _openAttachment(WidgetTester tester, String item) async {
 
 Future<(MeshController, Peer)> _openChat(
   WidgetTester tester, {
+  Peer? directPeer,
   void Function(MeshController, Peer)? prepare,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -294,7 +347,7 @@ Future<(MeshController, Peer)> _openChat(
     adapters: const [MeshtasticAdapter()],
     preview: true,
   );
-  final chat = controller.cache!.peers['ch:0']!;
+  final chat = directPeer ?? controller.cache!.peers['ch:0']!;
   prepare?.call(controller, chat);
   await tester.pumpWidget(
     MaterialApp(

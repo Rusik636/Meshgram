@@ -788,16 +788,19 @@ class _ChatState extends State<MeshChatPage>
     if (result == true && mounted) setState(() => _searching = true);
   }
 
-  Future<void> _openPeerProfile(Peer peer) => Navigator.of(context).push<void>(
-    meshPageRoute<void>(
-      context,
-      builder: (_) => MeshChatProfile(
-        controller: widget.controller,
-        peer: peer,
-        openNewChat: peer.id != widget.peer.id,
+  Future<void> _openPeerProfile(Peer peer) {
+    if (peer.id == widget.peer.id) return _profile(peer);
+    return Navigator.of(context).push<void>(
+      meshPageRoute<void>(
+        context,
+        builder: (_) => MeshChatProfile(
+          controller: widget.controller,
+          peer: peer,
+          openNewChat: true,
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder(
