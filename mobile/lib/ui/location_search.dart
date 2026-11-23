@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../mesh/chat_position.dart';
 import '../mesh/nodes.dart';
+import 'mesh_icon.dart';
 import 'mesh_map.dart';
 import 'style.dart';
 
@@ -72,7 +73,7 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                           'Узел или координаты',
                           'Node or coordinates',
                         ),
-                        prefixIcon: const Icon(Icons.search_rounded),
+                        prefixIcon: const MeshIcon(Icons.search_rounded),
                         filled: true,
                         fillColor: style.field,
                         border: OutlineInputBorder(
@@ -85,7 +86,7 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                   IconButton(
                     tooltip: tr(context, 'Закрыть поиск', 'Close search'),
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const MeshIcon(Icons.close_rounded),
                   ),
                 ],
               ),
@@ -117,7 +118,7 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                       children: [
                         if (coordinates != null)
                           ListTile(
-                            leading: Icon(
+                            leading: MeshIcon(
                               Icons.place_rounded,
                               color: style.accent,
                             ),

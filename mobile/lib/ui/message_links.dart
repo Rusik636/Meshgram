@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'emoji_text.dart';
+import 'mesh_icon.dart';
 import 'message_link_metadata.dart';
 import 'style.dart';
 
@@ -547,7 +548,7 @@ class _MessageLinkCard extends StatelessWidget {
               tooltip: tr(context, 'Убрать предпросмотр', 'Remove preview'),
               onPressed: dismiss,
               color: color,
-              icon: const Icon(Icons.close_rounded, size: 20),
+              icon: const MeshIcon(Icons.close_rounded, size: 20),
             ),
         ],
       ),
