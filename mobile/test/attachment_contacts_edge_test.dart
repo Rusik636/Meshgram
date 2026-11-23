@@ -90,10 +90,15 @@ void main() {
       matching: find.byType(MeshScrollEdge),
     );
     expect(softEdges, findsOneWidget);
-    expect(
-      tester.widget<MeshScrollEdge>(headingEdge).tint,
-      MeshStyle.of(tester.element(picker)).surface,
+    final surfaceColor = MeshStyle.of(tester.element(picker)).surface;
+    final tintLayer = find.descendant(
+      of: headingEdge,
+      matching: find.byType(DecoratedBox),
     );
+    final decoration = tester.widget<DecoratedBox>(tintLayer).decoration;
+    final gradient = (decoration as BoxDecoration).gradient! as LinearGradient;
+    expect(gradient.colors.first, surfaceColor);
+    expect(gradient.colors.last.a, 0);
     expect(tester.getRect(headingEdge).top, bounds.top);
     expect(tester.getRect(headingEdge).width, bounds.width);
     expect(

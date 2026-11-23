@@ -324,10 +324,11 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 left: 0,
                 right: 0,
                 top: 0,
-                height: headingHeight + 8,
+                height: headingHeight + 12,
                 child: MeshScrollEdge(
                   top: true,
                   tint: MeshStyle.of(context).surface,
+                  opaqueEdge: true,
                 ),
               ),
             Positioned(

@@ -7,10 +7,16 @@ import 'dart:ui' show FragmentProgram, FragmentShader, ImageFilter;
 import 'package:flutter/material.dart';
 
 class MeshScrollEdge extends StatefulWidget {
-  const MeshScrollEdge({super.key, required this.top, this.tint});
+  const MeshScrollEdge({
+    super.key,
+    required this.top,
+    this.tint,
+    this.opaqueEdge = false,
+  });
 
   final bool top;
   final Color? tint;
+  final bool opaqueEdge;
 
   @override
   State<MeshScrollEdge> createState() => _MeshScrollEdgeState();
@@ -50,6 +56,13 @@ class _MeshScrollEdgeState extends State<MeshScrollEdge> {
     final tint = widget.tint;
     final top = widget.top;
     final shader = _shader;
+    // Start at the surface color where the edge meets a clipped list viewport.
+    final (opacity, stops) = widget.opaqueEdge
+        ? (
+            const [1.0, .98, .82, .5, .15, 0.0],
+            const [0.0, .1, .3, .55, .8, 1.0],
+          )
+        : (const [.84, .55, .17, 0.0], const [0.0, .4, .73, 1.0]);
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -71,12 +84,9 @@ class _MeshScrollEdgeState extends State<MeshScrollEdge> {
                   begin: top ? Alignment.topCenter : Alignment.bottomCenter,
                   end: top ? Alignment.bottomCenter : Alignment.topCenter,
                   colors: [
-                    tint.withValues(alpha: .84),
-                    tint.withValues(alpha: .55),
-                    tint.withValues(alpha: .17),
-                    tint.withValues(alpha: 0),
+                    for (final alpha in opacity) tint.withValues(alpha: alpha),
                   ],
-                  stops: const [0, .40, .73, 1],
+                  stops: stops,
                 ),
               ),
             ),
