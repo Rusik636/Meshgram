@@ -41,6 +41,11 @@ class IosControl extends StatefulWidget {
 class IosControlState extends State<IosControl> {
   MethodChannel? _channel;
 
+  double get _visualOutset => switch (widget.kind) {
+    'button' || 'chatTitle' || 'chatAvatar' => 8,
+    _ => 0,
+  };
+
   void dismissKeyboard() => unawaited(_send('dismissKeyboard', true));
 
   Future<void> _send(String method, Object value) async {
@@ -67,12 +72,17 @@ class IosControlState extends State<IosControl> {
 
   @override
   Widget build(BuildContext context) {
+    final outset = _visualOutset;
     final view = UiKitView(
       viewType: 'meshgrame/controls',
       gestureBlockingPolicy: widget.eagerGestures
           ? UiKitViewGestureBlockingPolicy.doNotBlockGesture
           : UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
-      creationParams: {'kind': widget.kind, ...widget.properties},
+      creationParams: {
+        'kind': widget.kind,
+        ...widget.properties,
+        if (outset > 0) 'visualOutset': outset,
+      },
       creationParamsCodec: const StandardMessageCodec(),
       gestureRecognizers: {
         if (widget.horizontalDrag)
@@ -96,10 +106,26 @@ class IosControlState extends State<IosControl> {
         unawaited(_send('update', widget.properties));
       },
     );
-    return MeshSheetControlClip(
+    final clippedView = MeshSheetControlClip(
       child: widget.capsule
           ? ClipRRect(borderRadius: BorderRadius.circular(999), child: view)
           : view,
+    );
+    if (outset == 0) return clippedView;
+
+    // Give UIKit room to draw the pressed glass beyond its resting frame.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth + outset * 2;
+        final height = constraints.maxHeight + outset * 2;
+        return OverflowBox(
+          minWidth: width,
+          maxWidth: width,
+          minHeight: height,
+          maxHeight: height,
+          child: clippedView,
+        );
+      },
     );
   }
 }

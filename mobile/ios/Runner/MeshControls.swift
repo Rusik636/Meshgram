@@ -5,7 +5,7 @@ import Flutter
 import UIKit
 
 let meshChatSymbol = "bubble.left"
-// Navigation controls and the search capsule share Telegram's regular panel tint.
+// Tint for the search capsule and navigation controls on older iOS versions.
 func meshPanelTint(dark: Bool) -> UIColor {
   UIColor(white: 1, alpha: dark ? 0.025 : 0.10)
 }
@@ -213,79 +213,51 @@ private final class MeshButtonContent: UIButton {
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
     bounds.insetBy(dx: -hitInset, dy: -hitInset).contains(point)
   }
-
-  override var isHighlighted: Bool {
-    didSet {
-      guard isHighlighted != oldValue else { return }
-      let duration = isHighlighted || UIAccessibility.isReduceMotionEnabled ? 0.0 : 0.2
-      UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-        self.alpha = self.isHighlighted ? 0.6 : (self.isEnabled ? 1 : 0.45)
-      }
-    }
-  }
 }
 
 private final class MeshButtonHost: UIView {
-  let glass = UIVisualEffectView()
-  let button = MeshButtonContent(type: .custom)
-  var glassInset: CGFloat = 0
-  var maximumRadius: CGFloat?
-  private var appearance: Appearance?
-
-  private struct Appearance: Equatable {
-    let dark: Bool
-    let tint: UIColor
-    let fallback: UIColor
-    let interactive: Bool
-    let reduced: Bool
-  }
+  let button = MeshButtonContent(type: .system)
+  var visualOutset: CGFloat = 0
+  var buttonInset: CGFloat = 0
+  var stacked = false
+  private let legacyGlass: UIVisualEffectView?
 
   override init(frame: CGRect) {
+    if #available(iOS 26.0, *) {
+      legacyGlass = nil
+    } else {
+      legacyGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+    }
     super.init(frame: frame)
-    addSubview(glass)
-    glass.contentView.addSubview(button)
+    if let legacyGlass {
+      addSubview(legacyGlass)
+      legacyGlass.layer.cornerCurve = .continuous
+      legacyGlass.clipsToBounds = true
+      legacyGlass.isUserInteractionEnabled = false
+    }
+    addSubview(button)
   }
 
   required init?(coder: NSCoder) { nil }
 
-  func updateGlass(dark: Bool, tint: UIColor, fallback: UIColor, interactive: Bool) {
-    let next = Appearance(dark: dark, tint: tint, fallback: fallback, interactive: interactive,
-                          reduced: UIAccessibility.isReduceTransparencyEnabled)
-    guard next != appearance else { return }
-    appearance = next
-    glass.backgroundColor = .clear
-    glass.contentView.backgroundColor = .clear
-    if next.reduced {
-      glass.effect = nil
-      glass.backgroundColor = fallback
-    } else if #available(iOS 26.0, *) {
-      let effect = UIGlassEffect(style: .regular)
-      effect.tintColor = tint
-      effect.isInteractive = interactive
-      glass.effect = effect
-    } else {
-      glass.effect = UIBlurEffect(style: .systemMaterial)
-      glass.contentView.backgroundColor = tint
-    }
+  func updateLegacyGlass(tint: UIColor, reduced: Bool) {
+    guard let legacyGlass else { return }
+    legacyGlass.isHidden = reduced
+    legacyGlass.contentView.backgroundColor = tint
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    button.hitInset = glassInset
-    glass.frame = bounds.insetBy(dx: glassInset, dy: glassInset)
-    let radius = min(maximumRadius ?? .greatestFiniteMagnitude, glass.bounds.height / 2)
-    if #available(iOS 26.0, *) {
-      glass.cornerConfiguration = .capsule(maximumRadius: maximumRadius.map { Double($0) })
-    } else {
-      glass.layer.cornerRadius = radius
-      glass.layer.cornerCurve = .continuous
-      glass.clipsToBounds = true
-    }
-    button.frame = glass.bounds
+    button.hitInset = buttonInset
+    let inset = visualOutset + buttonInset
+    button.frame = bounds.insetBy(dx: inset, dy: inset)
+    legacyGlass?.frame = button.frame
+    legacyGlass?.layer.cornerRadius = stacked ? 19 : button.bounds.height / 2
   }
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    guard isUserInteractionEnabled, !isHidden, button.isEnabled, bounds.contains(point) else { return nil }
+    let hitBounds = bounds.insetBy(dx: visualOutset, dy: visualOutset)
+    guard isUserInteractionEnabled, !isHidden, button.isEnabled, hitBounds.contains(point) else { return nil }
     return button
   }
 }
@@ -304,6 +276,7 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     kind = input["kind"] as? String ?? "button"
     super.init()
 
+    root.visualOutset = (input["visualOutset"] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 0
     button.addAction(UIAction { [weak self] _ in
       self?.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
@@ -386,21 +359,32 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let title = input["label"] as? String ?? ""
     button.isEnabled = enabled
     button.accessibilityLabel = title
-    button.tintColor = accent
     let dark = root.overrideUserInterfaceStyle == .dark
     let symbol = input["symbol"] as? String
     let stacked = input["stacked"] as? Bool == true
     // Keep the larger Flutter hit target around the 44 pt navigation glass and 40 pt paperclip.
-    root.glassInset = symbol == "paperclip" ? 4 : (!stacked && (symbol != nil || kind != "button") ? 2 : 0)
-    root.maximumRadius = stacked ? 19 : nil
+    root.buttonInset = symbol == "paperclip" ? 4 : (!stacked && (symbol != nil || kind != "button") ? 2 : 0)
+    root.stacked = stacked
     root.setNeedsLayout()
-    root.updateGlass(dark: dark, tint: primary ? accent : meshPanelTint(dark: dark),
-                     fallback: primary ? accent : surface,
-                     interactive: enabled && !readOnly && kind != "chatTitle")
-    button.alpha = enabled ? (button.isHighlighted ? 0.6 : 1) : 0.45
-    var configuration = UIButton.Configuration.plain()
-    configuration.background = .clear()
-    configuration.baseForegroundColor = primary ? meshColor(input["onAccent"], .white) : foreground
+
+    let reduced = UIAccessibility.isReduceTransparencyEnabled
+    var configuration: UIButton.Configuration
+    if #available(iOS 26.0, *), !reduced {
+      configuration = primary ? .prominentGlass() : .glass()
+      if primary {
+        configuration.baseBackgroundColor = accent
+      }
+    } else if reduced {
+      configuration = .filled()
+      configuration.baseBackgroundColor = primary ? accent : surface
+    } else {
+      configuration = .plain()
+      configuration.background = .clear()
+    }
+    root.updateLegacyGlass(tint: primary ? accent : meshPanelTint(dark: dark), reduced: reduced)
+    let labelColor = primary ? meshColor(input["onAccent"], .white) : foreground
+    button.tintColor = labelColor
+    configuration.baseForegroundColor = labelColor
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
       if readOnly {
@@ -429,6 +413,9 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     } else if let symbol = input["symbol"] as? String {
       configuration.image = UIImage(systemName: symbol)
       configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+      if primary && enabled {
+        configuration.imageColorTransformer = UIConfigurationColorTransformer { _ in labelColor }
+      }
       if input["stacked"] as? Bool == true {
         configuration.imagePlacement = .top
         configuration.imagePadding = 4

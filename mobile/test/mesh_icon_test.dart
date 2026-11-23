@@ -68,6 +68,11 @@ void main() {
       'line.3.horizontal.decrease',
     );
     expect(tester.getSize(button), const Size.square(48));
+    final platformButton = find.descendant(
+      of: button,
+      matching: find.byType(UiKitView),
+    );
+    expect(tester.getRect(platformButton), tester.getRect(button).inflate(8));
 
     void expectControls(bool covered) {
       expect(tester.state<IosControlState>(button), same(buttonState));
@@ -80,7 +85,7 @@ void main() {
         tester.widget<IosControl>(editor).properties['coveredByModal'],
         covered,
       );
-      expect(tester.widget<IosControl>(button).capsule, isTrue);
+      expect(tester.widget<IosControl>(button).capsule, isFalse);
       expect(tester.widget<IosControl>(editor).capsule, isTrue);
       expect(find.byType(IconButton), findsNothing);
       expect(find.byType(RawImage), findsNothing);

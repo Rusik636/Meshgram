@@ -1528,7 +1528,6 @@ class _ChatState extends State<MeshChatPage>
               dimension: 48,
               child: IosControl(
                 kind: 'chatAvatar',
-                capsule: true,
                 properties: {
                   ...properties,
                   'label': tr(context, 'Профиль чата', 'Chat profile'),
@@ -2430,7 +2429,7 @@ class _ChatTitle extends StatelessWidget {
       child: properties != null
           ? IosControl(
               kind: 'chatTitle',
-              capsule: true,
+              eagerGestures: true,
               properties: {
                 ...properties,
                 'label': name,

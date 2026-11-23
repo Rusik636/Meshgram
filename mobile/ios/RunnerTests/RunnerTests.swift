@@ -23,19 +23,21 @@ class RunnerTests: XCTestCase {
     for dark in [false, true] {
       for (name, properties) in controls {
         let input = appearance(dark: dark).merging(properties) { _, value in value }
+          .merging(["visualOutset": 8]) { _, value in value }
+        let messenger = TestMessenger()
         let control = MeshControlSurface(
-          frame: CGRect(x: 0, y: 0, width: 160, height: 48),
-          channel: channel(),
+          frame: CGRect(x: 0, y: 0, width: 176, height: 64),
+          channel: channel(messenger),
           input: input
         )
         let root = control.view()
         root.layoutIfNeeded()
-        let panel = try XCTUnwrap(root.subviews.compactMap { $0 as? UIVisualEffectView }.first)
-        let button = try XCTUnwrap(panel.contentView.subviews.compactMap { $0 as? UIButton }.first)
-        XCTAssertEqual(panel.bounds.height, name == "attach" ? 40 : name == "location action" ? 48 : 44)
+        let button = try XCTUnwrap(root.subviews.compactMap { $0 as? UIButton }.first)
+        XCTAssertFalse(root.clipsToBounds)
+        XCTAssertEqual(button.bounds.height, name == "attach" ? 40 : name == "location action" ? 48 : 44)
         button.layoutIfNeeded()
         let initial = try XCTUnwrap(button.configuration)
-        if let title = initial.title {
+        if let title = initial.attributedTitle.map({ String($0.characters) }) ?? initial.title {
           let titleLabel = try XCTUnwrap(button.titleLabel, name)
           XCTAssertEqual(titleLabel.text, title, name)
           XCTAssertGreaterThan(titleLabel.bounds.width, 0, name)
@@ -43,33 +45,31 @@ class RunnerTests: XCTestCase {
         if name == "send" {
           let image = try XCTUnwrap(button.imageView, name)
           XCTAssertGreaterThan(image.bounds.width, 0, name)
-          XCTAssertEqual(image.tintColor, meshColor(input["onAccent"], .white), name)
+          XCTAssertEqual(initial.baseForegroundColor, meshColor(input["onAccent"], .white), name)
         }
         let readOnly = input["readOnly"] as? Bool == true
         XCTAssertEqual(root.isUserInteractionEnabled, !readOnly, name)
         XCTAssertFalse(root.accessibilityElementsHidden, name)
         if !readOnly {
-          let edge = CGPoint(x: 1, y: root.bounds.midY)
+          let edge = CGPoint(x: 9, y: root.bounds.midY)
+          XCTAssertNil(root.hitTest(CGPoint(x: 7, y: edge.y), with: nil))
           XCTAssertTrue(root.hitTest(edge, with: nil) === button)
           XCTAssertTrue(button.point(inside: button.convert(edge, from: root), with: nil))
           button.isHighlighted = true
-          XCTAssertEqual(button.alpha, 0.6, accuracy: 0.001)
-          XCTAssertEqual(panel.alpha, 1)
+          XCTAssertEqual(button.alpha, 1, name)
           button.isHighlighted = false
+          button.sendActions(for: .touchUpInside)
+          XCTAssertEqual(messenger.methods, ["select"], name)
+        } else {
+          XCTAssertNil(root.hitTest(CGPoint(x: root.bounds.midX, y: root.bounds.midY), with: nil), name)
         }
 
         for covered in [true, false] {
           let state = "\(name), dark=\(dark), covered=\(covered)"
           control.update(input.merging(["coveredByModal": covered]) { _, value in value })
           XCTAssertTrue(control.view() === root, state)
-          XCTAssertTrue(panel.contentView.subviews.contains { $0 === button }, state)
+          XCTAssertTrue(root.subviews.contains { $0 === button }, state)
           XCTAssertEqual(button.configuration, initial, state)
-          if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-            let glass = try XCTUnwrap(panel.effect as? UIGlassEffect, state)
-            let expectedTint = name == "send" ? UIColor.systemBlue : meshPanelTint(dark: dark)
-            XCTAssertEqual(glass.tintColor, expectedTint, state)
-            XCTAssertEqual(glass.isInteractive, !readOnly && name != "chat title", state)
-          }
           XCTAssertEqual(root.isUserInteractionEnabled, !covered && !readOnly, state)
           XCTAssertEqual(root.accessibilityElementsHidden, covered, state)
         }
@@ -128,15 +128,25 @@ class RunnerTests: XCTestCase {
     ]
   }
 
-  private func channel() -> FlutterMethodChannel {
-    FlutterMethodChannel(name: "meshgrame/tests/glass", binaryMessenger: TestMessenger())
+  private func channel(_ messenger: TestMessenger = TestMessenger()) -> FlutterMethodChannel {
+    FlutterMethodChannel(name: "meshgrame/tests/glass", binaryMessenger: messenger)
   }
 }
 
 private final class TestMessenger: NSObject, FlutterBinaryMessenger {
-  func send(onChannel channel: String, message: Data?) {}
+  private(set) var methods: [String] = []
+
+  func send(onChannel channel: String, message: Data?) {
+    record(message)
+  }
+
+  private func record(_ message: Data?) {
+    guard let message else { return }
+    methods.append(FlutterStandardMethodCodec.sharedInstance().decodeMethodCall(message).method)
+  }
 
   func send(onChannel channel: String, message: Data?, binaryReply callback: FlutterBinaryReply?) {
+    record(message)
     callback?(nil)
   }
 

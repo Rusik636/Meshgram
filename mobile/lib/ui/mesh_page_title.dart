@@ -49,7 +49,6 @@ class MeshPageTitle extends StatelessWidget {
           height: height,
           child: IosControl(
             kind: 'chatTitle',
-            capsule: true,
             properties: {
               'label': title,
               'titleFontSize': textScaler.scale(16),

@@ -366,7 +366,6 @@ class _NativeGlassButton extends StatelessWidget {
     final style = MeshStyle.of(context);
     return IosControl(
       kind: 'button',
-      capsule: !stacked,
       onSelect: (_) => onTap?.call(),
       properties: {
         'label': label,
