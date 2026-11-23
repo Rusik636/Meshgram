@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
@@ -43,6 +44,18 @@ class MeshNavigation extends StatelessWidget {
           .clamp(60, 84)
           .toDouble();
 
+  static double bottomContentInset(BuildContext context) {
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+    if (Theme.of(context).platform != TargetPlatform.android) {
+      return safeBottom + 5;
+    }
+    return math.max(
+          safeBottom,
+          MediaQuery.systemGestureInsetsOf(context).bottom,
+        ) +
+        14;
+  }
+
   @override
   Widget build(BuildContext context) => MeshTabBar(
     labels: [
@@ -76,19 +89,25 @@ class MeshTabBar extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final List<int> unreadCounts;
 
+  static double bottomOffset(BuildContext context) =>
+      useIosControls ? 0 : MeshNavigation.bottomContentInset(context);
+
+  static double heightOf(BuildContext context) =>
+      MeshNavigation.contentHeight(context) +
+      (useIosControls ? MediaQuery.viewPaddingOf(context).bottom : 0);
+
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final height = MeshNavigation.contentHeight(context);
+    final height = heightOf(context);
     void select(int next) {
       if (next != index) unawaited(playMeshHaptic(MeshHaptic.selection));
       onSelect(next);
     }
 
     if (useIosControls) {
-      final inset = MediaQuery.viewPaddingOf(context).bottom;
       return SizedBox(
-        height: height + inset,
+        height: height,
         child: IosControl(
           kind: 'tabs',
           horizontalDrag: true,

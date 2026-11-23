@@ -412,7 +412,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final bottomInset = _bottomBarOffset(context);
     final nativeNavigation = useIosControls;
     return PopScope(
       canPop: !_searchActive && !_editingChats && !_showHidden,
@@ -450,14 +449,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 Positioned(
                   left: 12,
                   right: 12,
-                  bottom: bottomInset,
+                  bottom: MeshNavigation.bottomContentInset(context),
                   child: _chatActionsBar(),
                 )
               else if (!_searchActive)
                 Positioned(
                   left: nativeNavigation ? 0 : 14,
                   right: nativeNavigation ? 0 : 14,
-                  bottom: nativeNavigation ? 0 : bottomInset,
+                  bottom: MeshTabBar.bottomOffset(context),
                   child: ExcludeSemantics(
                     excluding: keyboard > 0,
                     child: IgnorePointer(
@@ -478,20 +477,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     );
   }
 
-  double _bottomBarOffset(BuildContext context) {
-    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
-    if (Theme.of(context).platform != TargetPlatform.android) {
-      return safeBottom + 5;
-    }
-    return math.max(
-          safeBottom,
-          MediaQuery.systemGestureInsetsOf(context).bottom,
-        ) +
-        14;
-  }
-
   double get _scrollBottom =>
-      MeshNavigation.contentHeight(context) + _bottomBarOffset(context) + 9;
+      MeshNavigation.contentHeight(context) +
+      MeshNavigation.bottomContentInset(context) +
+      9;
 
   Widget _chatScene(MeshStyle style, double keyboard) => LayoutBuilder(
     builder: (context, constraints) {
