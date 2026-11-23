@@ -137,6 +137,10 @@ class _ChatState extends State<MeshChatPage>
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
+  // Keep chat controls on a single Flutter layer under modal barriers. UIKit
+  // platform views otherwise split the barrier into separate overlay regions.
+  bool get _useNativeChatControls => !_menuVisible && !_attachmentOpen;
+
   bool get _canReadHistory => !_searching && _canPreviewLinks;
 
   double get _distanceToLatest {
@@ -344,7 +348,7 @@ class _ChatState extends State<MeshChatPage>
                     'Go to latest message',
                   ),
                   onTap: () => unawaited(_goToLatest()),
-                  preferNative: !_menuVisible,
+                  preferNative: _useNativeChatControls,
                 ),
                 if (unread > 0)
                   Positioned(
@@ -512,20 +516,8 @@ class _ChatState extends State<MeshChatPage>
     ];
     final String? text;
     try {
-      Uint8List? backdrop;
-      if (useIosControls && !MediaQuery.highContrastOf(context)) {
-        try {
-          backdrop = await _glassBackdrop();
-        } on FlutterError {
-          // The chat may be relaid out while the system keyboard is closing.
-        } on Exception {
-          // The sheet can also open with a solid surface.
-        }
-      }
-      if (!mounted || _route?.isCurrent == false) return;
       text = await pickChatAttachment(
         context,
-        backdrop: backdrop,
         contacts: contacts,
         controller: controller,
         initialPosition: controller.cache?.localPosition,
@@ -1366,7 +1358,7 @@ class _ChatState extends State<MeshChatPage>
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         GlassButton(
-          preferNative: !_menuVisible,
+          preferNative: _useNativeChatControls,
           icon: Icons.attach_file_rounded,
           label: tr(context, 'Вложения', 'Attachments'),
           onTap:
@@ -1378,7 +1370,7 @@ class _ChatState extends State<MeshChatPage>
         Expanded(
           child: GlassSurface(
             radius: 23,
-            modal: !_menuVisible,
+            modal: _useNativeChatControls,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1422,7 +1414,7 @@ class _ChatState extends State<MeshChatPage>
                   ),
                 MessageInput(
                   key: _input,
-                  hidePlatformView: _menuVisible,
+                  hidePlatformView: !_useNativeChatControls,
                   controller: _draft,
                   onChanged: (value) {
                     controller.setDraft(peer.id, value);
@@ -1439,7 +1431,7 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         GlassButton(
-          preferNative: !_menuVisible,
+          preferNative: _useNativeChatControls,
           icon: Icons.arrow_upward_rounded,
           primary: send,
           label: tr(context, 'Отправить', 'Send'),
@@ -1453,7 +1445,7 @@ class _ChatState extends State<MeshChatPage>
     final title = peer.channel
         ? tr(context, 'Канал', 'Channel')
         : tr(context, 'Личный чат', 'Direct chat');
-    final native = useIosControls && !_menuVisible;
+    final native = useIosControls && _useNativeChatControls;
     final (avatarTop, avatarBottom) = MeshAvatar.colorsFor(peer.name);
     final avatar = MeshAvatar.initialsFor(peer.name);
     final properties = <String, Object>{
@@ -1469,7 +1461,7 @@ class _ChatState extends State<MeshChatPage>
       child: Row(
         children: [
           GlassButton(
-            preferNative: !_menuVisible,
+            preferNative: _useNativeChatControls,
             icon: Icons.arrow_back_ios_new_rounded,
             label: tr(context, 'Назад', 'Back'),
             onTap: () => Navigator.maybePop(context),
