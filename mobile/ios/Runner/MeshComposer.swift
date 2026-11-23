@@ -37,14 +37,11 @@ private class MeshInputGlass: UIVisualEffectView {
       backgroundColor = surface
     } else if #available(iOS 26.0, *) {
       let material = UIGlassEffect(style: .regular)
-      material.tintColor = surface.withAlphaComponent(0.22)
+      material.tintColor = meshPanelTint(dark: overrideUserInterfaceStyle == .dark)
       effect = material
     } else {
       effect = UIBlurEffect(style: .systemThickMaterial)
     }
-    let light = overrideUserInterfaceStyle == .light
-    layer.borderWidth = light ? 1 : 0
-    layer.borderColor = light ? meshLightGlassOutline.cgColor : nil
   }
 }
 

@@ -5,7 +5,10 @@ import Flutter
 import UIKit
 
 let meshChatSymbol = "bubble.left"
-let meshLightGlassOutline = UIColor.black.withAlphaComponent(0.28)
+// Navigation controls and the search capsule share Telegram's regular panel tint.
+func meshPanelTint(dark: Bool) -> UIColor {
+  UIColor(white: 1, alpha: dark ? 0.025 : 0.10)
+}
 
 final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
   private let messenger: FlutterBinaryMessenger
@@ -20,6 +23,13 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
 
   func create(withFrame frame: CGRect, viewIdentifier id: Int64, arguments args: Any?) -> FlutterPlatformView {
     let input = args as? [String: Any] ?? [:]
+    if input["kind"] as? String == "sheetDim" {
+      let dim = MeshSheetDim(frame: frame)
+      dim.backgroundColor = UIColor.black.withAlphaComponent(CGFloat(input["opacity"] as? Double ?? 0.25))
+      dim.isUserInteractionEnabled = false
+      dim.accessibilityElementsHidden = true
+      return dim
+    }
     let channel = FlutterMethodChannel(name: "meshgrame/controls/\(id)", binaryMessenger: messenger)
     if input["kind"] as? String == "messageGlass" {
       return MeshMessageGlass(frame: frame, input: input)
@@ -38,6 +48,10 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
     }
     return MeshControlSurface(frame: frame, channel: channel, input: input)
   }
+}
+
+private final class MeshSheetDim: UIView, FlutterPlatformView {
+  func view() -> UIView { self }
 }
 
 // UIKit may sample Flutter's overlay when a live backdrop sits beneath its
@@ -100,7 +114,11 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
   init(frame: CGRect, input: [String: Any]) {
     let effect: UIVisualEffect
     if #available(iOS 26.0, *) {
-      effect = UIGlassEffect(style: .regular)
+      let glass = UIGlassEffect(style: .regular)
+      if input["panel"] as? Bool == true {
+        glass.tintColor = meshPanelTint(dark: input["dark"] as? Bool == true)
+      }
+      effect = glass
     } else {
       effect = UIBlurEffect(style: .systemMaterial)
     }
@@ -108,8 +126,13 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
     super.init()
     surface.frame = frame
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
-    surface.layer.cornerRadius = CGFloat(input["radius"] as? Double ?? 22)
-    surface.layer.cornerCurve = .continuous
+    let radius = input["radius"] as? Double ?? 22
+    if #available(iOS 26.0, *) {
+      surface.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
+    } else {
+      surface.layer.cornerRadius = CGFloat(radius)
+      surface.layer.cornerCurve = .continuous
+    }
     surface.clipsToBounds = true
     surface.isUserInteractionEnabled = false
     surface.accessibilityElementsHidden = true
@@ -166,28 +189,104 @@ private final class MeshSymbolIcon: NSObject, FlutterPlatformView {
   deinit { channel.setMethodCallHandler(nil) }
 }
 
+private final class MeshButtonContent: UIButton {
+  var hitInset: CGFloat = 0
+
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    bounds.insetBy(dx: -hitInset, dy: -hitInset).contains(point)
+  }
+
+  override var isHighlighted: Bool {
+    didSet {
+      guard isHighlighted != oldValue else { return }
+      let duration = isHighlighted || UIAccessibility.isReduceMotionEnabled ? 0.0 : 0.2
+      UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+        self.alpha = self.isHighlighted ? 0.6 : (self.isEnabled ? 1 : 0.45)
+      }
+    }
+  }
+}
+
+private final class MeshButtonHost: UIView {
+  let glass = UIVisualEffectView()
+  let button = MeshButtonContent(type: .custom)
+  var glassInset: CGFloat = 0
+  var maximumRadius: CGFloat?
+  private var appearance: Appearance?
+
+  private struct Appearance: Equatable {
+    let dark: Bool
+    let tint: UIColor
+    let fallback: UIColor
+    let interactive: Bool
+    let reduced: Bool
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    addSubview(glass)
+    glass.contentView.addSubview(button)
+    button.automaticallyUpdatesConfiguration = false
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  func updateGlass(dark: Bool, tint: UIColor, fallback: UIColor, interactive: Bool) {
+    let next = Appearance(dark: dark, tint: tint, fallback: fallback, interactive: interactive,
+                          reduced: UIAccessibility.isReduceTransparencyEnabled)
+    guard next != appearance else { return }
+    appearance = next
+    glass.backgroundColor = .clear
+    glass.contentView.backgroundColor = .clear
+    if next.reduced {
+      glass.effect = nil
+      glass.backgroundColor = fallback
+    } else if #available(iOS 26.0, *) {
+      let effect = UIGlassEffect(style: .regular)
+      effect.tintColor = tint
+      effect.isInteractive = interactive
+      glass.effect = effect
+    } else {
+      glass.effect = UIBlurEffect(style: .systemMaterial)
+      glass.contentView.backgroundColor = tint
+    }
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    button.hitInset = glassInset
+    glass.frame = bounds.insetBy(dx: glassInset, dy: glassInset)
+    let radius = min(maximumRadius ?? .greatestFiniteMagnitude, glass.bounds.height / 2)
+    if #available(iOS 26.0, *) {
+      glass.cornerConfiguration = .capsule(maximumRadius: maximumRadius.map { Double($0) })
+    } else {
+      glass.layer.cornerRadius = radius
+      glass.layer.cornerCurve = .continuous
+      glass.clipsToBounds = true
+    }
+    button.frame = glass.bounds
+  }
+
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard isUserInteractionEnabled, !isHidden, button.isEnabled, bounds.contains(point) else { return nil }
+    return button
+  }
+}
+
 final class MeshControlSurface: NSObject, FlutterPlatformView {
-  private let root: UIView
+  private let root: MeshButtonHost
   private let channel: FlutterMethodChannel
   private let kind: String
-  private let button = UIButton(type: .system)
+  private var button: UIButton { root.button }
   private var input: [String: Any] = [:]
   private var observer: NSObjectProtocol?
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
-    root = UIView(frame: frame)
+    root = MeshButtonHost(frame: frame)
     self.channel = channel
     kind = input["kind"] as? String ?? "button"
     super.init()
 
-    root.addSubview(button)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    NSLayoutConstraint.activate([
-      button.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-      button.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      button.topAnchor.constraint(equalTo: root.topAnchor),
-      button.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-    ])
     button.addAction(UIAction { [weak self] _ in
       self?.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
@@ -263,7 +362,6 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let accent = meshColor(input["accent"], .systemBlue)
     let foreground = meshColor(input["foreground"], .label)
     let surface = meshColor(input["surface"], .secondarySystemBackground)
-    let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
     let readOnly = input["readOnly"] as? Bool == true
 
     let primary = input["primary"] as? Bool == true
@@ -272,19 +370,19 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     button.isEnabled = enabled
     button.accessibilityLabel = title
     button.tintColor = accent
-    var configuration: UIButton.Configuration
-    if #available(iOS 26.0, *), !reduceTransparency {
-      configuration = primary ? .prominentGlass() : .glass()
-      if primary {
-        configuration.baseBackgroundColor = accent
-      } else if root.overrideUserInterfaceStyle == .light {
-        configuration.background.strokeWidth = 1
-        configuration.background.strokeColor = meshLightGlassOutline
-      }
-    } else {
-      configuration = .filled()
-      configuration.baseBackgroundColor = primary ? accent : surface
-    }
+    let dark = root.overrideUserInterfaceStyle == .dark
+    let symbol = input["symbol"] as? String
+    let stacked = input["stacked"] as? Bool == true
+    // Keep the larger Flutter hit target around the 44 pt navigation glass and 40 pt paperclip.
+    root.glassInset = symbol == "paperclip" ? 4 : (!stacked && (symbol != nil || kind != "button") ? 2 : 0)
+    root.maximumRadius = stacked ? 19 : nil
+    root.setNeedsLayout()
+    root.updateGlass(dark: dark, tint: primary ? accent : meshPanelTint(dark: dark),
+                     fallback: primary ? accent : surface,
+                     interactive: enabled && !readOnly && kind != "chatTitle")
+    button.alpha = enabled ? (button.isHighlighted ? 0.6 : 1) : 0.45
+    var configuration = UIButton.Configuration.plain()
+    configuration.background = .clear()
     configuration.baseForegroundColor = primary ? meshColor(input["onAccent"], .white) : foreground
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
