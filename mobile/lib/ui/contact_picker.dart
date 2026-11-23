@@ -26,7 +26,7 @@ class AttachmentContacts extends StatefulWidget {
     required this.search,
     required this.expanded,
     required this.onClose,
-    required this.onToggleExpand,
+    required this.onSearchChanged,
     required this.onSelect,
     required this.beginSheetDrag,
     this.bottomObstruction = 0,
@@ -36,7 +36,8 @@ class AttachmentContacts extends StatefulWidget {
   final MeshController? controller;
   final TextEditingController search;
   final bool expanded;
-  final VoidCallback onClose, onToggleExpand;
+  final VoidCallback onClose;
+  final ValueChanged<bool> onSearchChanged;
   final ValueChanged<String> onSelect;
   final Drag? Function() beginSheetDrag;
   final double bottomObstruction;
@@ -51,20 +52,21 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     () => widget.beginSheetDrag(),
   );
   final _focus = FocusNode();
-  var _iosSearch = GlobalKey<IosControlState>();
+  final _iosSearch = GlobalKey<IosControlState>();
   late bool _searching = widget.search.text.isNotEmpty;
   late final _motion = AnimationController(
     vsync: this,
     value: _searching ? 1 : 0,
   );
-  late String _initialQuery = widget.search.text;
-  bool _autofocus = false;
+  double _browseOffset = 0;
   NodeSort _defaultSort = NodeSort.activity;
 
   @override
   void didUpdateWidget(AttachmentContacts oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.expanded != widget.expanded) _dismissKeyboard();
+    if (!_searching && oldWidget.expanded != widget.expanded) {
+      _dismissKeyboard();
+    }
   }
 
   @override
@@ -77,12 +79,9 @@ class _AttachmentContactsState extends State<AttachmentContacts>
 
   void _startSearch() {
     if (_searching) return;
-    setState(() {
-      _searching = true;
-      _initialQuery = widget.search.text;
-      _autofocus = true;
-      _iosSearch = GlobalKey();
-    });
+    _browseOffset = _scroll.hasClients ? _scroll.offset : 0;
+    setState(() => _searching = true);
+    widget.onSearchChanged(true);
     animateMeshSearch(context, _motion, open: true);
   }
 
@@ -97,7 +96,19 @@ class _AttachmentContactsState extends State<AttachmentContacts>
       _searching = false;
       widget.search.clear();
     });
+    widget.onSearchChanged(false);
     animateMeshSearch(context, _motion, open: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _searching || !_scroll.hasClients) return;
+      final position = _scroll.position;
+      _scroll.jumpTo(_browseOffset.clamp(0.0, position.maxScrollExtent));
+    });
+  }
+
+  void _changeQuery(String value) {
+    if (!_searching) return;
+    if (widget.search.text != value) widget.search.text = value;
+    if (_scroll.hasClients && _scroll.offset != 0) _scroll.jumpTo(0);
   }
 
   Future<void> _sortContacts() async {
@@ -143,16 +154,14 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     required List<ShareableNode> contacts,
     required double top,
     required double bottom,
-    ScrollController? scroll,
-    PageStorageKey<String>? key,
   }) {
     final controller = widget.controller;
     final sort = controller?.nodeSort;
     final now = DateTime.now();
     return CustomScrollView(
-      key: key,
-      controller: scroll,
-      physics: scroll == null ? null : const AlwaysScrollableScrollPhysics(),
+      key: const PageStorageKey('attachment-contacts'),
+      controller: _scroll,
+      physics: const AlwaysScrollableScrollPhysics(),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: top)),
@@ -249,58 +258,47 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     const side = 16.0;
     const gap = 6.0;
     const headingTop = 7.0;
-    const edgeFeather = 18.0;
-    const compactRight = side + (meshSearchButtonSize + gap) * 2;
+    const searchBottomGap = 8.0;
     final headingHeight =
         math.max(
           meshSearchButtonSize,
           MediaQuery.textScalerOf(context).scale(18) * 1.2,
         ) +
         16;
+    final width = constraints.maxWidth;
+    final height = constraints.maxHeight;
     final fieldHeight = meshSearchFieldHeight(context);
-    final normalFieldTop = headingHeight + 3;
-    final collapseRange = fieldHeight + 9;
-    final normalHeaderHeight = normalFieldTop + collapseRange;
-    final fieldCompactTop =
-        headingTop + (headingHeight - 16 - meshSearchButtonSize) / 2;
-    final session = _iosSearch;
+    final searchBottom = MediaQuery.paddingOf(context).bottom + searchBottomGap;
+    final compact = Rect.fromLTWH(
+      width - side - meshSearchButtonSize,
+      headingTop + (headingHeight - 16 - meshSearchButtonSize) / 2,
+      meshSearchButtonSize,
+      meshSearchButtonSize,
+    );
+    final active = Rect.fromLTWH(
+      side,
+      math.max(0, height - fieldHeight - searchBottom),
+      math.max(
+        meshSearchButtonSize,
+        width - 2 * side - gap - meshSearchButtonSize,
+      ),
+      fieldHeight,
+    );
     return AnimatedBuilder(
       animation: Listenable.merge([_motion, _scroll]),
       builder: (context, _) {
         final progress = meshSearchProgress(_motion);
-        final scroll = _scroll.hasClients ? _scroll.position : null;
-        final collapse =
-            scroll != null &&
-                scroll.hasContentDimensions &&
-                scroll.maxScrollExtent > 0
-            ? (scroll.pixels / collapseRange).clamp(0.0, 1.0)
-            : 0.0;
-        final field = meshSearchFieldRect(
-          width: constraints.maxWidth,
-          normalTop: normalFieldTop,
-          compactTop: fieldCompactTop,
-          activeTop: headingTop,
-          fieldHeight: fieldHeight,
-          compactRight: compactRight,
-          progress: progress,
-          collapse: collapse,
+        final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+        final topEdge =
+            headingHeight *
+            Curves.easeOut.transform((offset / headingHeight).clamp(0.0, 1.0)) *
+            (1 - progress);
+        final obstruction = math.max(
+          widget.bottomObstruction,
+          (searchBottom + fieldHeight + gap) * progress,
         );
-        final listTop = field.top + fieldHeight + 9;
-        final launchButton = !_searching && collapse == 1 && progress == 0;
-        final scrollFade = Curves.easeOut.transform(
-          (collapse * 3).clamp(0.0, 1.0),
-        );
-        final topEdge = lerpDouble(
-          lerpDouble(
-            edgeFeather,
-            normalHeaderHeight - collapseRange * collapse,
-            scrollFade,
-          )!,
-          edgeFeather,
-          progress,
-        )!;
-        final bottomEdge = (widget.bottomObstruction * .7).clamp(38.0, 92.0);
-        final bottom = math.max(bottomEdge, widget.bottomObstruction);
+        final bottomEdge = (obstruction * .7).clamp(38.0, 92.0);
+        final field = Rect.lerp(compact, active, progress)!;
         return Stack(
           children: [
             Positioned.fill(
@@ -308,142 +306,106 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 key: const ValueKey('attachment-contact-scroll-edges'),
                 top: topEdge,
                 bottom: bottomEdge,
-                height: constraints.maxHeight,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Offstage(
-                      offstage: progress == 1,
-                      child: IgnorePointer(
-                        ignoring: _searching,
-                        child: ExcludeSemantics(
-                          excluding: _searching,
-                          child: Opacity(
-                            opacity: 1 - progress,
-                            child: _list(
-                              context,
-                              key: const PageStorageKey('attachment-contacts'),
-                              scroll: _scroll,
-                              contacts: contacts,
-                              top: normalHeaderHeight,
-                              bottom: bottom,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_searching || progress > 0)
-                      IgnorePointer(
-                        ignoring: !_searching,
-                        child: ExcludeSemantics(
-                          excluding: !_searching,
-                          child: Opacity(
-                            opacity: progress,
-                            child: _list(
-                              context,
-                              contacts: results,
-                              top: math.min(listTop, constraints.maxHeight),
-                              bottom: bottom,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                height: height,
+                child: _list(
+                  context,
+                  contacts: _searching ? results : contacts,
+                  top: headingHeight,
+                  bottom: math.max(obstruction, bottomEdge),
                 ),
               ),
             ),
-            if (progress < 1)
-              Positioned(
-                left: side,
-                right: side,
-                top: lerpDouble(0, -headingHeight, progress),
-                height: headingHeight,
-                child: IgnorePointer(
-                  ignoring: _searching,
-                  child: ExcludeSemantics(
-                    excluding: _searching,
-                    child: Row(
-                      children: [
-                        GlassButton(
-                          icon: Icons.close_rounded,
-                          label: tr(context, 'Закрыть', 'Close'),
-                          onTap: widget.onClose,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Semantics(
-                            header: true,
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: (meshSearchButtonSize + gap) * collapse,
-                        ),
-                        GlassButton(
-                          icon: Icons.sort_rounded,
-                          label: tr(context, 'Сортировка', 'Sort by'),
-                          onTap: contacts.isEmpty
-                              ? null
-                              : () => unawaited(_sortContacts()),
-                        ),
-                        const SizedBox(width: gap),
-                        GlassButton(
-                          icon: widget.expanded
-                              ? Icons.close_fullscreen_rounded
-                              : Icons.open_in_full_rounded,
-                          label: widget.expanded
-                              ? tr(context, 'Свернуть', 'Collapse')
-                              : tr(context, 'На весь экран', 'Expand'),
-                          onTap: widget.onToggleExpand,
-                        ),
-                      ],
+            Positioned(
+              top: 0,
+              left: side + meshSearchButtonSize + 12,
+              right: lerpDouble(
+                side + 2 * meshSearchButtonSize + 2 * gap,
+                side + meshSearchButtonSize + 12,
+                progress,
+              ),
+              height: headingHeight,
+              child: IgnorePointer(
+                child: Align(
+                  alignment: Alignment.lerp(
+                    Alignment.centerLeft,
+                    Alignment.center,
+                    progress,
+                  )!,
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
               ),
+            ),
+            Positioned(
+              left: side,
+              right: side,
+              top: 0,
+              height: headingHeight,
+              child: Row(
+                children: [
+                  GlassButton(
+                    icon: Icons.close_rounded,
+                    label: tr(context, 'Закрыть', 'Close'),
+                    onTap: widget.onClose,
+                  ),
+                  const Spacer(),
+                  if (progress < 1)
+                    IgnorePointer(
+                      ignoring: _searching,
+                      child: ExcludeSemantics(
+                        excluding: _searching,
+                        child: Opacity(
+                          opacity: 1 - progress,
+                          child: GlassButton(
+                            icon: Icons.sort_rounded,
+                            label: tr(context, 'Сортировка', 'Sort by'),
+                            onTap: contacts.isEmpty
+                                ? null
+                                : () => unawaited(_sortContacts()),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: meshSearchButtonSize),
+                  const SizedBox(width: meshSearchButtonSize + gap),
+                ],
+              ),
+            ),
             Positioned.fromRect(
               rect: field,
-              child: launchButton
-                  ? GlassButton(
-                      icon: Icons.search_rounded,
-                      label: placeholder,
-                      onTap: _startSearch,
-                    )
-                  : _searching && field.width >= 128
-                  ? MeshSearchEditor(
-                      placeholder: placeholder,
-                      controller: widget.search,
-                      focusNode: _focus,
-                      iosKey: session,
-                      autofocus: _autofocus,
-                      initialText: _initialQuery,
-                      onChanged: (value) {
-                        if (_searching &&
-                            _iosSearch == session &&
-                            widget.search.text != value) {
-                          widget.search.text = value;
-                        }
-                      },
-                      onDismissKeyboard: _dismissKeyboard,
-                    )
-                  : MeshSearchLauncher(
-                      placeholder: placeholder,
-                      onTap: _startSearch,
-                      collapse: collapse * (1 - progress),
-                    ),
+              child: MeshSearchEditor(
+                key: const ValueKey('attachment-contact-search-control'),
+                placeholder: placeholder,
+                controller: widget.search,
+                focusNode: _focus,
+                iosKey: _iosSearch,
+                initialText: widget.search.text,
+                active: _searching,
+                progress: progress,
+                onActivate: _startSearch,
+                onChanged: _changeQuery,
+                onDismissKeyboard: _dismissKeyboard,
+              ),
             ),
             if (_searching || progress > 0)
               Positioned(
-                top: field.top + (fieldHeight - meshSearchButtonSize) / 2,
-                right: lerpDouble(-meshSearchButtonSize, side, progress),
+                top: field.center.dy - meshSearchButtonSize / 2,
+                left: lerpDouble(
+                  width,
+                  width - side - meshSearchButtonSize,
+                  progress,
+                ),
                 child: GlassButton(
                   icon: Icons.close_rounded,
                   label: tr(context, 'Закрыть поиск', 'Close search'),
@@ -529,11 +491,13 @@ class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
       shaderCallback: (bounds) => LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: const [
-          Colors.transparent,
-          Colors.transparent,
-          Color(0x40ffffff),
-          Color(0xbfffffff),
+        colors: [
+          if (top > 0) ...const [
+            Colors.transparent,
+            Colors.transparent,
+            Color(0x40ffffff),
+            Color(0xbfffffff),
+          ],
           Colors.white,
           Colors.white,
           Color(0xbfffffff),
@@ -541,10 +505,7 @@ class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
           Colors.transparent,
         ],
         stops: [
-          0,
-          .45 * top,
-          .63 * top,
-          .82 * top,
+          if (top > 0) ...[0, .45 * top, .63 * top, .82 * top],
           top,
           1 - bottom,
           1 - .67 * bottom,

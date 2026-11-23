@@ -129,6 +129,9 @@ class MeshSearchEditor extends StatelessWidget {
     required this.onDismissKeyboard,
     this.autofocus = true,
     this.initialText = '',
+    this.onActivate,
+    this.active = true,
+    this.progress = 1,
   });
 
   final String placeholder, initialText;
@@ -138,6 +141,9 @@ class MeshSearchEditor extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onDismissKeyboard;
   final bool autofocus;
+  final VoidCallback? onActivate;
+  final bool active;
+  final double progress;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +155,7 @@ class MeshSearchEditor extends StatelessWidget {
           key: iosKey,
           kind: 'chatSearch',
           onTextChanged: onChanged,
+          onSelect: onActivate == null ? null : (_) => onActivate!(),
           properties: {
             'placeholder': placeholder,
             'initialText': initialText,
@@ -159,46 +166,68 @@ class MeshSearchEditor extends StatelessWidget {
             'secondary': style.secondary.toARGB32(),
             'accent': style.accent.toARGB32(),
             'surface': style.surface.toARGB32(),
+            if (onActivate != null) ...{'cornerSearch': true, 'active': active},
           },
         ),
       );
     }
+    Widget editor() => TextField(
+      controller: controller,
+      focusNode: focusNode,
+      autofocus: autofocus,
+      onChanged: onChanged,
+      onSubmitted: (_) => onDismissKeyboard(),
+      textInputAction: TextInputAction.search,
+      textAlignVertical: TextAlignVertical.center,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: EdgeInsets.zero,
+        prefixIcon: const Icon(Icons.search_rounded),
+        prefixIconConstraints: const BoxConstraints.tightFor(
+          width: meshSearchButtonSize,
+          height: meshSearchButtonSize,
+        ),
+        suffixIconConstraints: const BoxConstraints.tightFor(
+          width: meshSearchButtonSize,
+          height: meshSearchButtonSize,
+        ),
+        hint: Center(heightFactor: 1, child: Text(placeholder)),
+        border: InputBorder.none,
+        suffixIcon: controller.text.trim().isEmpty
+            ? const SizedBox.shrink()
+            : IconButton(
+                tooltip: tr(context, 'Очистить запрос', 'Clear query'),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+                icon: const Icon(Icons.cancel_outlined, size: 19),
+              ),
+      ),
+    );
+    if (onActivate == null) {
+      return GlassSurface(
+        radius: 100,
+        color: style.searchField,
+        child: editor(),
+      );
+    }
     return GlassSurface(
       radius: 100,
-      color: style.searchField,
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        autofocus: autofocus,
-        onChanged: onChanged,
-        onSubmitted: (_) => onDismissKeyboard(),
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-          prefixIcon: const Icon(Icons.search_rounded),
-          prefixIconConstraints: const BoxConstraints.tightFor(
-            width: meshSearchButtonSize,
-            height: meshSearchButtonSize,
-          ),
-          suffixIconConstraints: const BoxConstraints.tightFor(
-            width: meshSearchButtonSize,
-            height: meshSearchButtonSize,
-          ),
-          hint: Center(heightFactor: 1, child: Text(placeholder)),
-          border: InputBorder.none,
-          suffixIcon: controller.text.trim().isEmpty
-              ? const SizedBox.shrink()
-              : IconButton(
-                  tooltip: tr(context, 'Очистить запрос', 'Clear query'),
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  icon: const Icon(Icons.cancel_outlined, size: 19),
-                ),
-        ),
+      color: Color.lerp(style.pill, style.searchField, progress),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 120) {
+            return IgnorePointer(ignoring: !active, child: editor());
+          }
+          return Tooltip(
+            message: placeholder,
+            child: IconButton(
+              onPressed: active ? null : onActivate,
+              icon: Icon(Icons.search_rounded, color: style.text, size: 20),
+            ),
+          );
+        },
       ),
     );
   }
