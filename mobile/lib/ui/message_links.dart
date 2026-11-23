@@ -1,6 +1,9 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
+import 'dart:async';
+import 'dart:collection';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,10 +13,18 @@ import 'emoji_text.dart';
 import 'message_link_metadata.dart';
 import 'style.dart';
 
+const _webProtocol = r'(https?|htps?|ttps?|httpps?)(?::[\\/]*|[\\/]+)';
+const _bareDomain =
+    r'(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]+)(?::[0-9]{1,5})?(?:[/?#][^\s<>"“”«»]*)?(?![a-z0-9_-])';
+final _leadingProtocol = RegExp('(?:$_webProtocol)+', caseSensitive: false);
 final _webLink = RegExp(
-  // Explicit HTTP(S) and bare domains. Exclude URLs inside emails/other schemes.
+  // Exclude URLs inside emails or other schemes. Recover common HTTP typos.
   // ignore: valid_regexps
-  r'(?<![\p{L}\p{N}_@.:/\-])(?:https?://[^\s<>"“”«»]+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]+)(?::[0-9]{1,5})?(?:[/?#][^\s<>"“”«»]*)?(?![a-z0-9_-]))',
+  r'(?<![\p{L}\p{N}_@.:/\\\-])'
+  '(?:'
+  '(?:$_webProtocol)+'
+  r'[^\s<>"“”«»]+|'
+  '(?://)?$_bareDomain)',
   caseSensitive: false,
   unicode: true,
 );
@@ -50,8 +61,12 @@ Iterable<({int start, int end, Uri uri})> _messageLinks(String text) sync* {
   for (final match in _webLink.allMatches(text)) {
     final display = _stripTrailingPunctuation(match[0]!);
     if (display.isEmpty) continue;
-    final candidate = display.contains('://') ? display : 'https://$display';
-    final uri = Uri.tryParse(candidate);
+    final prefix = _leadingProtocol.matchAsPrefix(display);
+    final scheme = prefix?.group(1)?.toLowerCase().endsWith('s') == false
+        ? 'http'
+        : 'https';
+    final start = prefix?.end ?? (display.startsWith('//') ? 2 : 0);
+    final uri = Uri.tryParse('$scheme://${display.substring(start)}');
     if (uri == null ||
         (uri.scheme != 'http' && uri.scheme != 'https') ||
         uri.host.isEmpty ||
@@ -177,39 +192,189 @@ class _MessageLinkifiedTextState extends State<MessageLinkifiedText> {
   }
 }
 
-/// Fetched content is shared with the message after sending and kept in memory.
-final _previewCache = <Uri, Future<MessageLinkMetadata?>>{};
+typedef _LoadLinkMetadata = Future<MessageLinkMetadata?> Function(Uri);
+
+/// Drafts and their sent messages share results. Keep scrolling multiple
+/// messages from opening an unbounded number of connections at once.
+final _previewCache = _MessageLinkPreviewCache();
+
+class _PendingLinkPreview {
+  final result = Completer<MessageLinkMetadata?>();
+  final owners = <Object, bool Function()>{};
+}
+
+class _MessageLinkPreviewCache {
+  final _queue = Queue<Future<void> Function()>();
+  final _pending = <Uri, _PendingLinkPreview>{};
+  final _completed =
+      <Uri, ({Future<MessageLinkMetadata?> preview, DateTime? retryAfter})>{};
+  int _active = 0;
+
+  Future<MessageLinkMetadata?>? lookup(Uri uri) {
+    final cached = _completed.remove(uri);
+    if (cached == null) return null;
+    if (cached.retryAfter?.isBefore(DateTime.now()) == true) return null;
+    _completed[uri] = cached;
+    return cached.preview;
+  }
+
+  Future<MessageLinkMetadata?> request(
+    Uri uri,
+    _LoadLinkMetadata loader, {
+    required Object owner,
+    required bool Function() ownerIsVisible,
+    bool retry = false,
+  }) {
+    if (_pending[uri] case final pending?) {
+      pending.owners[owner] = ownerIsVisible;
+      return pending.result.future;
+    }
+    if (!retry) {
+      if (lookup(uri) case final cached?) return cached;
+    }
+    final pending = _PendingLinkPreview()..owners[owner] = ownerIsVisible;
+    _pending[uri] = pending;
+    _queue.add(() async {
+      final visible = pending.owners.values.any((isVisible) => isVisible());
+      pending.owners.clear();
+      if (!visible) {
+        _pending.remove(uri);
+        pending.result.complete(null);
+        return;
+      }
+      MessageLinkMetadata? metadata;
+      try {
+        metadata = await loader(uri);
+      } on Exception {
+        // An unavailable preview leaves the link itself usable.
+      } finally {
+        _pending.remove(uri);
+        _completed.remove(uri);
+        _completed[uri] = (
+          preview: pending.result.future,
+          retryAfter: metadata == null
+              ? DateTime.now().add(const Duration(minutes: 1))
+              : null,
+        );
+        if (_completed.length > 24) {
+          _completed.remove(_completed.keys.first);
+        }
+        pending.result.complete(metadata);
+      }
+    });
+    _startQueued();
+    return pending.result.future;
+  }
+
+  void _startQueued() {
+    while (_active < 3 && _queue.isNotEmpty) {
+      _active++;
+      unawaited(
+        _queue.removeFirst()().whenComplete(() {
+          _active--;
+          _startQueued();
+        }),
+      );
+    }
+  }
+}
 
 class MessageLinkPreview extends StatefulWidget {
   const MessageLinkPreview({
     super.key,
     required this.uri,
     this.compact = false,
+    this.autoLoad = true,
     this.foreground,
     this.onDismiss,
+    this.loadMetadata = fetchMessageLinkMetadata,
   });
 
   final Uri uri;
   final bool compact;
+  final bool autoLoad;
   final Color? foreground;
   final VoidCallback? onDismiss;
+  final Future<MessageLinkMetadata?> Function(Uri) loadMetadata;
 
   @override
   State<MessageLinkPreview> createState() => _MessageLinkPreviewState();
 }
 
 class _MessageLinkPreviewState extends State<MessageLinkPreview> {
-  Uri get _cacheKey => widget.uri.removeFragment();
+  static const _draftDebounce = Duration(milliseconds: 500);
 
-  void _requestPreview() {
+  Timer? _draftTimer;
+  ModalRoute<dynamic>? _route;
+  Future<MessageLinkMetadata?>? _preview;
+  bool get _canAutoLoad => widget.autoLoad && (_route?.isCurrent ?? true);
+
+  Uri get _cacheKey {
+    final uri = widget.uri.removeFragment();
+    return uri.path.isEmpty ? uri.replace(path: '/') : uri;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    _loadPreview();
+  }
+
+  @override
+  void didUpdateWidget(MessageLinkPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.uri != widget.uri ||
+        oldWidget.compact != widget.compact ||
+        oldWidget.autoLoad != widget.autoLoad) {
+      _loadPreview();
+    }
+  }
+
+  @override
+  void dispose() {
+    _draftTimer?.cancel();
+    super.dispose();
+  }
+
+  void _loadPreview() {
+    _draftTimer?.cancel();
     final key = _cacheKey;
+    _preview = _previewCache.lookup(key);
+    if (_preview != null || !_canAutoLoad || !canFetchMessageLink(key)) {
+      return;
+    }
+    if (widget.compact) {
+      _draftTimer = Timer(_draftDebounce, () {
+        final preview = _request(key);
+        setState(() {
+          _preview = preview;
+        });
+      });
+    } else {
+      _preview = _request(key);
+    }
+  }
+
+  Future<MessageLinkMetadata?> _request(Uri key, {bool retry = false}) =>
+      _previewCache.request(
+        key,
+        widget.loadMetadata,
+        owner: this,
+        ownerIsVisible: () {
+          final lifecycle = WidgetsBinding.instance.lifecycleState;
+          return mounted &&
+              _cacheKey == key &&
+              _canAutoLoad &&
+              (lifecycle == null || lifecycle == AppLifecycleState.resumed);
+        },
+        retry: retry,
+      );
+
+  void _retryPreview() {
+    final preview = _request(_cacheKey, retry: true);
     setState(() {
-      final future = fetchMessageLinkMetadata(key);
-      _previewCache.remove(key);
-      _previewCache[key] = future;
-      if (_previewCache.length > 24) {
-        _previewCache.remove(_previewCache.keys.first);
-      }
+      _preview = preview;
     });
   }
 
@@ -217,7 +382,7 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
   Widget build(BuildContext context) {
     return FutureBuilder<MessageLinkMetadata?>(
       key: ValueKey(_cacheKey),
-      future: _previewCache[_cacheKey],
+      future: _preview,
       builder: (context, snapshot) => _card(context, snapshot),
     );
   }
@@ -334,20 +499,16 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
                 ),
               ),
             )
-          else if (mayFetch && metadata == null)
+          else if (mayFetch && failed && _canAutoLoad)
             IconButton(
-              tooltip: failed
-                  ? tr(context, 'Повторить загрузку с сайта', 'Retry from site')
-                  : tr(
-                      context,
-                      'Загрузить предпросмотр с сайта',
-                      'Load preview from site',
-                    ),
-              onPressed: _requestPreview,
-              color: foreground,
-              icon: Icon(
-                failed ? Icons.refresh_rounded : Icons.cloud_download_outlined,
+              tooltip: tr(
+                context,
+                'Повторить загрузку с сайта',
+                'Retry from site',
               ),
+              onPressed: _retryPreview,
+              color: foreground,
+              icon: const Icon(Icons.refresh_rounded),
             ),
           if (widget.onDismiss case final dismiss?)
             IconButton(
