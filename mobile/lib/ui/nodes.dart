@@ -299,9 +299,11 @@ class _NodeMapPage extends StatelessWidget {
         for (final peer in controller.nodes)
           if (controller.nodeObservation(peer.id)?.position
               case final position?)
-            MeshMapPin(
+            MeshMapPin.node(
               position: position,
-              label: peer.name,
+              id: peer.id,
+              name: peer.name,
+              online: controller.isNodeOnline(peer.id),
               onTap: () => unawaited(openProfile(peer)),
             ),
       ];

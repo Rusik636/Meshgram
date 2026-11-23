@@ -2,7 +2,9 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -14,8 +16,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_name.dart';
 import '../mesh/nodes.dart';
+import 'navigation.dart' show meshMotion;
 import 'page_route.dart';
 import 'style.dart';
+
+part 'mesh_map_node_markers.dart';
 
 const _tiles = String.fromEnvironment(
   'MESHGRAME_MAP_TILES',
@@ -36,11 +41,27 @@ String formatMapCoordinates(NodePosition point, {int digits = 5}) =>
     '${point.latitude.toStringAsFixed(digits)}, ${point.longitude.toStringAsFixed(digits)}';
 
 class MeshMapPin {
-  const MeshMapPin({required this.position, this.label, this.onTap});
+  const MeshMapPin({required this.position, this.label, this.onTap})
+    : _nodeId = null,
+      _avatarName = null,
+      _online = false;
+
+  const MeshMapPin.node({
+    required this.position,
+    required String id,
+    required String name,
+    bool showLabel = true,
+    this._online = false,
+    this.onTap,
+  }) : label = showLabel ? name : null,
+       _nodeId = id,
+       _avatarName = name;
 
   final NodePosition position;
   final String? label;
   final VoidCallback? onTap;
+  final String? _nodeId, _avatarName;
+  final bool _online;
 }
 
 class MeshMap extends StatefulWidget {
@@ -127,6 +148,7 @@ class _MeshMapState extends State<MeshMap> {
     final points = widget.fitPins
         ? widget.pins.map((pin) => meshMapPoint(pin.position)).toSet().toList()
         : const <LatLng>[];
+    final nodePins = widget.pins.where((pin) => pin._nodeId != null).toList();
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -178,15 +200,17 @@ class _MeshMapState extends State<MeshMap> {
             MarkerLayer(
               markers: [
                 for (final pin in widget.pins)
-                  Marker(
-                    point: meshMapPoint(pin.position),
-                    width: pin.label == null ? 40 : 162,
-                    height: pin.label == null ? 39 : 39 + markerLabelHeight,
-                    alignment: Alignment.topCenter,
-                    child: _MapMarker(label: pin.label, onTap: pin.onTap),
-                  ),
+                  if (pin._nodeId == null)
+                    Marker(
+                      point: meshMapPoint(pin.position),
+                      width: pin.label == null ? 40 : 162,
+                      height: pin.label == null ? 39 : 39 + markerLabelHeight,
+                      alignment: Alignment.topCenter,
+                      child: _MapMarker(label: pin.label, onTap: pin.onTap),
+                    ),
               ],
             ),
+            if (nodePins.isNotEmpty) _NodeMarkerLayer(pins: nodePins),
           ],
         ),
         if (widget.showCrosshair)
@@ -329,12 +353,14 @@ class MeshLocationPreview extends StatefulWidget {
     required this.position,
     this.title,
     this.onTap,
+    this.pin,
     this.loadTiles = true,
   });
 
   final NodePosition position;
   final String? title;
   final VoidCallback? onTap;
+  final MeshMapPin? pin;
   final bool loadTiles;
 
   @override
@@ -345,7 +371,12 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
   int _refresh = 0;
 
   Future<void> _openMap() async {
-    await openMeshLocation(context, widget.position, title: widget.title);
+    await openMeshLocation(
+      context,
+      widget.position,
+      title: widget.pin?._avatarName ?? widget.title,
+      pin: widget.pin,
+    );
     if (mounted && !widget.loadTiles) setState(() => _refresh++);
   }
 
@@ -373,7 +404,8 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
                       center: widget.position,
                       zoom: 15,
                       interactive: false,
-                      showCrosshair: true,
+                      showCrosshair: widget.pin == null,
+                      pins: [?widget.pin],
                       loadTiles: widget.loadTiles,
                       showAttribution: false,
                     ),

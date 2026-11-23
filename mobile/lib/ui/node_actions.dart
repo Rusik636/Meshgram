@@ -261,8 +261,12 @@ class _NodeActionsPanelState extends State<NodeActionsPanel> {
                     'Последние координаты',
                     'Last known position',
                   ),
-                  onTap: () => unawaited(
-                    openMeshLocation(context, position, title: peer.name),
+                  pin: MeshMapPin.node(
+                    position: position,
+                    id: peer.id,
+                    name: peer.name,
+                    online: controller.isNodeOnline(peer.id),
+                    showLabel: false,
                   ),
                 ),
               ),
