@@ -5080,6 +5080,12 @@ void main() {
     try {
       final positioned = controller.nodes.first;
       final unmapped = controller.nodes.last;
+      final lastSeen = DateTime(2024, 12, 31, 18);
+      controller.cache!.observations[positioned.id] = NodeObservation(
+        position: controller.nodeObservation(positioned.id)!.position,
+        lastSeen: lastSeen,
+      );
+      controller.cache!.unread.remove(positioned.id);
       controller.cache!.observations.remove(unmapped.id);
 
       await tester.pumpWidget(
@@ -5097,6 +5103,13 @@ void main() {
           ),
         ),
       );
+      final calendar = MaterialLocalizations.of(
+        tester.element(find.byType(MeshNodesPage)),
+      );
+      final stamp = find.text(calendar.formatShortDate(lastSeen));
+      expect(stamp, findsOneWidget);
+      expect(tester.getRect(stamp).right, lessThan(320));
+
       final map = find.byTooltip('Node map');
       expect(map, findsOneWidget);
       final sort = find.byTooltip('Sort by');

@@ -13,6 +13,7 @@ void main() {
   ) async {
     final search = TextEditingController();
     final focus = FocusNode();
+    final searchKey = GlobalKey<IosControlState>();
     addTearDown(search.dispose);
     addTearDown(focus.dispose);
     await tester.pumpWidget(
@@ -32,7 +33,7 @@ void main() {
                     placeholder: 'Search',
                     controller: search,
                     focusNode: focus,
-                    iosKey: GlobalKey<IosControlState>(),
+                    iosKey: searchKey,
                     active: false,
                     onActivate: () {},
                     onChanged: (_) {},

@@ -238,13 +238,23 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
         },
       ),
     );
-    final selection = await showModalBottomSheet<MeshMapPin>(
+    final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
+    final selection = await showMeshBottomSheet<MeshMapPin>(
       context: context,
       useSafeArea: true,
       backgroundColor: style.surface,
       showDragHandle: true,
-      builder: (context) =>
-          MeshSheetScrollContent(dragArea: 8, builder: buildList),
+      builder: (context) {
+        final sheet = MeshSheetScrollContent(dragArea: 8, builder: buildList);
+        return useIosControls
+            ? MeshOpaqueSheetRegion(
+                presentingRoute: presentingRoute,
+                // Material lays the drag handle out above the builder.
+                topExtent: kMinInteractiveDimension,
+                child: sheet,
+              )
+            : sheet;
+      },
     );
     if (context.mounted) selection?.onTap?.call();
   }

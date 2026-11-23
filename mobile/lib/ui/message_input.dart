@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'ios_control.dart';
+import 'sheet_control_clip.dart';
 import 'style.dart';
 
 class MessageInput extends StatefulWidget {
@@ -154,14 +155,16 @@ class MessageInputState extends State<MessageInput> {
     if (_native) {
       return SizedBox(
         height: _height,
-        child: UiKitView(
-          viewType: 'meshgrame/composer',
-          creationParams: {...?_appearance, 'text': widget.controller.text},
-          creationParamsCodec: const StandardMessageCodec(),
-          gestureRecognizers: {
-            Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-          },
-          onPlatformViewCreated: _created,
+        child: MeshSheetControlClip(
+          child: UiKitView(
+            viewType: 'meshgrame/composer',
+            creationParams: {...?_appearance, 'text': widget.controller.text},
+            creationParamsCodec: const StandardMessageCodec(),
+            gestureRecognizers: {
+              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+            },
+            onPlatformViewCreated: _created,
+          ),
         ),
       );
     }

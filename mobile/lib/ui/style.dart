@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
 import 'mesh_icon.dart';
+import 'mesh_sheet_route.dart';
+import 'sheet_control_clip.dart';
 import 'sheet_scroll.dart';
 import 'tokens.dart';
 
@@ -968,40 +970,49 @@ class MeshDialog extends StatelessWidget {
 Future<T?> showMeshSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
-}) => showModalBottomSheet<T>(
-  context: context,
-  isScrollControlled: true,
-  enableDrag: true,
-  showDragHandle: false,
-  backgroundColor: Colors.transparent,
-  builder: (context) {
-    final style = MeshStyle.of(context);
-    return Material(
-      color: style.canvas,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      clipBehavior: Clip.antiAlias,
-      child: MeshSheetScrollContent(
-        dragArea: 44,
-        builder: (context) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 7, top: 5),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: style.secondary,
-                  borderRadius: BorderRadius.circular(4),
+}) {
+  final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
+  return showMeshBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    enableDrag: true,
+    showDragHandle: false,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      final style = MeshStyle.of(context);
+      final sheet = Material(
+        color: style.canvas,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        clipBehavior: Clip.antiAlias,
+        child: MeshSheetScrollContent(
+          dragArea: 44,
+          builder: (context) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 7, top: 5),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: style.secondary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const SizedBox(width: 34, height: 4),
                 ),
-                child: const SizedBox(width: 34, height: 4),
               ),
-            ),
-            Flexible(child: builder(context)),
-          ],
+              Flexible(child: builder(context)),
+            ],
+          ),
         ),
-      ),
-    );
-  },
-);
+      );
+      return useIosControls
+          ? MeshOpaqueSheetRegion(
+              presentingRoute: presentingRoute,
+              child: sheet,
+            )
+          : sheet;
+    },
+  );
+}
 
 /// Lets the primary list hand a downward drag to its containing sheet on iOS.
 class MeshSheetScrollContent extends StatefulWidget {
