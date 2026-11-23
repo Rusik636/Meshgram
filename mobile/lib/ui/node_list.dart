@@ -146,71 +146,79 @@ class MeshNodeRow extends StatelessWidget {
       onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 17, 8),
-        child: Row(
-          children: [
-            if (selected case final checked?)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: Icon(
-                  checked
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: checked ? style.accent : style.secondary,
-                ),
-              ),
-            MeshAvatar(
-              peer.name,
-              size: 52,
-              online: nodeIsOnline(last, now),
-              onTap: onAvatar,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    peer.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: style.text,
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              if (selected case final checked?)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Icon(
+                    checked
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: checked ? style.accent : style.secondary,
                   ),
-                  if (subtitle case final detail?) ...[
-                    const SizedBox(height: 3),
+                ),
+              MeshAvatar(
+                peer.name,
+                size: 52,
+                online: nodeIsOnline(last, now),
+                onTap: onAvatar,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      detail,
+                      peer.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 14, color: style.secondary),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (unread > 0)
-              MeshUnreadBadge(unread)
-            else
-              Text(
-                stamp,
-                semanticsLabel: last == null
-                    ? tr(
-                        context,
-                        'Время обнаружения неизвестно',
-                        'Detection time unavailable',
-                      )
-                    : tr(
-                        context,
-                        'Последняя активность $stamp',
-                        'Last active $stamp',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: style.text,
                       ),
-                style: TextStyle(fontSize: 12, color: style.secondary),
+                    ),
+                    if (subtitle case final detail?) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 14, color: style.secondary),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-          ],
+              const SizedBox(width: 8),
+              if (unread > 0)
+                MeshUnreadBadge(unread)
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * .4,
+                  ),
+                  child: Text(
+                    stamp,
+                    semanticsLabel: last == null
+                        ? tr(
+                            context,
+                            'Время обнаружения неизвестно',
+                            'Detection time unavailable',
+                          )
+                        : tr(
+                            context,
+                            'Последняя активность $stamp',
+                            'Last active $stamp',
+                          ),
+                    textAlign: TextAlign.end,
+                    style: TextStyle(fontSize: 12, color: style.secondary),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
