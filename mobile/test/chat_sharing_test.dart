@@ -74,6 +74,10 @@ void main() {
     );
     expect(find.text(contact.name), findsOneWidget);
     expect(_contactCaption('LR'), findsOneWidget);
+    final nameStyle = tester.widget<Text>(find.text(contact.name)).style!;
+    final shortStyle = tester.widget<Text>(_contactCaption('LR')).style!;
+    expect(shortStyle.color, Colors.black);
+    expect(shortStyle.fontSize, nameStyle.fontSize! - 2);
     expect(find.text('!00003039'), findsOneWidget);
     expect(find.text(contact.id), findsNothing);
     expect(find.text(attachment.text), findsNothing);

@@ -2180,9 +2180,30 @@ class _ContactCard extends StatelessWidget {
   final String? shortName;
   final VoidCallback? onOpenProfile, onWrite;
 
+  Widget _shortName(String name, double fontSize, MeshStyle style) {
+    final text = Text(
+      name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: Colors.black, fontSize: fontSize),
+    );
+    if (!style.dark) return text;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const MeshStyle(false).field,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: text,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final nameSize = Theme.of(context).textTheme.bodyMedium?.fontSize ?? 16;
     return Material(
       color: style.text.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(13),
@@ -2208,19 +2229,12 @@ class _ContactCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: style.text,
+                            fontSize: nameSize,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         if (shortName case final short? when short.isNotEmpty)
-                          Text(
-                            short,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: style.secondary,
-                              fontSize: 12,
-                            ),
-                          ),
+                          _shortName(short, nameSize - 2, style),
                         Text(
                           id,
                           maxLines: 1,
