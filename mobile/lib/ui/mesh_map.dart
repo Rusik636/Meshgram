@@ -78,12 +78,14 @@ class MeshMap extends StatefulWidget {
     this.loadTiles = true,
     this.fitPins = false,
     this.showAttribution = true,
+    this.attributionAlignment = Alignment.bottomCenter,
   });
 
   final NodePosition? center;
   final double? zoom;
   final MapController? controller;
   final bool interactive, showCrosshair, loadTiles, fitPins, showAttribution;
+  final AlignmentGeometry attributionAlignment;
   final List<MeshMapPin> pins;
   final ValueChanged<NodePosition>? onCenterChanged, onMapTap;
 
@@ -197,6 +199,11 @@ class _MeshMapState extends State<MeshMap> {
                     : const TileDisplay.fadeIn(),
               ),
             ),
+            if (widget.showAttribution)
+              Align(
+                alignment: widget.attributionAlignment,
+                child: const MeshMapAttribution(),
+              ),
             MarkerLayer(
               markers: [
                 for (final pin in widget.pins)
@@ -221,11 +228,6 @@ class _MeshMapState extends State<MeshMap> {
                 child: const _MapMarker(),
               ),
             ),
-          ),
-        if (widget.showAttribution)
-          const Align(
-            alignment: Alignment.bottomCenter,
-            child: MeshMapAttribution(),
           ),
       ],
     );
@@ -416,26 +418,17 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
           children: [
             SizedBox(
               height: 112,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  IgnorePointer(
-                    child: MeshMap(
-                      key: ValueKey((widget.position, _refresh)),
-                      center: widget.position,
-                      zoom: 15,
-                      interactive: false,
-                      showCrosshair: widget.pin == null,
-                      pins: [?widget.pin],
-                      loadTiles: widget.loadTiles,
-                      showAttribution: false,
-                    ),
-                  ),
-                  const Align(
-                    alignment: Alignment.bottomRight,
-                    child: MeshMapAttribution(),
-                  ),
-                ],
+              child: IgnorePointer(
+                child: MeshMap(
+                  key: ValueKey((widget.position, _refresh)),
+                  center: widget.position,
+                  zoom: 15,
+                  interactive: false,
+                  showCrosshair: widget.pin == null,
+                  pins: [?widget.pin],
+                  loadTiles: widget.loadTiles,
+                  attributionAlignment: Alignment.bottomRight,
+                ),
               ),
             ),
             Padding(
@@ -518,6 +511,10 @@ class _LocationMapPage extends StatelessWidget {
     final style = MeshStyle.of(context);
     final safe = MediaQuery.paddingOf(context);
     final coordinates = formatMapCoordinates(position, digits: 6);
+    final attributionHeight = MeshMapAttribution.heightFor(
+      context,
+      MediaQuery.sizeOf(context).width,
+    );
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -526,7 +523,7 @@ class _LocationMapPage extends StatelessWidget {
             center: position,
             zoom: 15,
             pins: [pin ?? MeshMapPin(position: position)],
-            showAttribution: false,
+            attributionAlignment: AlignmentDirectional.bottomEnd,
           ),
           Positioned(
             top: safe.top,
@@ -543,59 +540,48 @@ class _LocationMapPage extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: 12,
-            right: 12,
-            bottom: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(left: safe.left, right: safe.right),
-                  child: GlassSurface(
-                    radius: 20,
-                    child: Tooltip(
-                      message: tr(
-                        context,
-                        'Скопировать координаты',
-                        'Copy coordinates',
-                      ),
-                      child: InkWell(
-                        onTap: () => unawaited(_copy(context, coordinates)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: SizedBox(
-                            height: 44,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.copy_rounded,
-                                  size: 17,
-                                  color: style.accent,
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    coordinates,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: style.text),
-                                  ),
-                                ),
-                              ],
+            left: safe.left + 12,
+            right: safe.right + 12,
+            bottom: safe.bottom + attributionHeight + 6,
+            child: Center(
+              child: GlassSurface(
+                radius: 20,
+                child: Tooltip(
+                  message: tr(
+                    context,
+                    'Скопировать координаты',
+                    'Copy coordinates',
+                  ),
+                  child: InkWell(
+                    onTap: () => unawaited(_copy(context, coordinates)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: SizedBox(
+                        height: 44,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 17,
+                              color: style.accent,
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                coordinates,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: style.text),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
-                SizedBox(height: safe.bottom + 6),
-                const Align(
-                  alignment: AlignmentDirectional.bottomEnd,
-                  child: MeshMapAttribution(),
-                ),
-              ],
+              ),
             ),
           ),
         ],
