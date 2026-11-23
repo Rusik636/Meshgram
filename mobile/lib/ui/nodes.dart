@@ -308,56 +308,53 @@ class _NodeMapPage extends StatelessWidget {
             ),
       ];
       return Scaffold(
-        body: Padding(
-          padding: EdgeInsets.only(bottom: safe.bottom),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: MeshMap(
-                  key: ValueKey((controller.active, pins.isEmpty)),
-                  center: pins.isEmpty ? controller.cache?.localPosition : null,
-                  pins: pins,
-                  fitPins: true,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: MeshMap(
+                key: ValueKey((controller.active, pins.isEmpty)),
+                center: pins.isEmpty ? controller.cache?.localPosition : null,
+                pins: pins,
+                fitPins: true,
+              ),
+            ),
+            Positioned(
+              left: safe.left,
+              right: safe.right,
+              top: safe.top,
+              child: PageHeading(
+                tr(context, 'Карта узлов', 'Node map'),
+                titleBackground: style.surface,
+                leading: GlassButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  label: tr(context, 'Назад', 'Back'),
+                  onTap: () => Navigator.pop(context),
                 ),
               ),
+            ),
+            if (pins.isEmpty)
               Positioned(
-                left: safe.left,
-                right: safe.right,
-                top: safe.top,
-                child: PageHeading(
-                  tr(context, 'Карта узлов', 'Node map'),
-                  titleBackground: style.surface,
-                  leading: GlassButton(
-                    icon: Icons.arrow_back_ios_new_rounded,
-                    label: tr(context, 'Назад', 'Back'),
-                    onTap: () => Navigator.pop(context),
-                  ),
-                ),
-              ),
-              if (pins.isEmpty)
-                Positioned(
-                  left: safe.left + 16,
-                  right: safe.right + 16,
-                  bottom: 29,
-                  child: GlassSurface(
-                    radius: 15,
-                    color: style.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        tr(
-                          context,
-                          'Пока нет узлов с известными координатами',
-                          'No nodes with known coordinates yet',
-                        ),
-                        style: TextStyle(color: style.secondary),
-                        textAlign: TextAlign.center,
+                left: safe.left + 16,
+                right: safe.right + 16,
+                bottom: safe.bottom + 29,
+                child: GlassSurface(
+                  radius: 15,
+                  color: style.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      tr(
+                        context,
+                        'Пока нет узлов с известными координатами',
+                        'No nodes with known coordinates yet',
                       ),
+                      style: TextStyle(color: style.secondary),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       );
     },

@@ -17,8 +17,10 @@ void main() {
     await _open(tester, (context) => openMeshLocation(context, _position));
 
     expect(tester.getRect(find.byType(MeshMap)), Offset.zero & _size);
-    expect(find.byTooltip('Copy coordinates'), findsOneWidget);
-    expect(find.byType(MeshMapAttribution), findsOneWidget);
+    final copy = find.byTooltip('Copy coordinates');
+    final attribution = find.byType(MeshMapAttribution);
+    expect(tester.getRect(attribution).bottom, _size.height);
+    expect(tester.getRect(copy).bottom, lessThan(_size.height - 34));
     expect(tester.takeException(), isNull);
   });
 
@@ -40,11 +42,8 @@ void main() {
     final tabs = find.byType(MeshTabBar);
     expect(tester.getRect(map).contains(tester.getCenter(action)), isTrue);
     expect(tester.getRect(map).contains(tester.getCenter(tabs)), isTrue);
-    expect(
-      tester.getTopLeft(attribution).dy,
-      greaterThanOrEqualTo(tester.getBottomLeft(tabs).dy),
-    );
-    expect(tester.getBottomLeft(attribution).dy, _size.height - 34);
+    expect(tester.getRect(tabs).bottom, lessThanOrEqualTo(_size.height - 34));
+    expect(tester.getRect(attribution).bottom, _size.height);
 
     await tester.tap(find.byTooltip('Expand'));
     await tester.pumpAndSettle();
@@ -55,7 +54,8 @@ void main() {
       isTrue,
     );
     expect(expanded.contains(tester.getCenter(action)), isTrue);
-    expect(tester.getBottomLeft(attribution).dy, _size.height - 34);
+    expect(tester.getRect(attribution).bottom, expanded.bottom);
+    expect(tester.getRect(action).bottom, lessThan(_size.height - 34));
     expect(tabs, findsNothing);
     expect(tester.takeException(), isNull);
   });

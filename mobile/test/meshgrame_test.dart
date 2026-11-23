@@ -5054,8 +5054,9 @@ void main() {
   testWidgets('node map opens the profile of a located node', (tester) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+    tester.view.viewPadding = tester.view.padding;
+    addTearDown(tester.view.reset);
     final controller = MeshController(
       store: MeshStore(await SharedPreferences.getInstance()),
       transport: _TestTransport(),
@@ -5093,6 +5094,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Node map'), findsOneWidget);
       expect(find.byType(MeshMap), findsOneWidget);
+      expect(tester.getRect(find.byType(MeshMapAttribution)).bottom, 640);
       expect(find.text(unmapped.name), findsNothing);
 
       await tester.tap(find.text(positioned.name));
@@ -5186,7 +5188,7 @@ void main() {
     }
   });
 
-  testWidgets('map attribution stays centered at the bottom safe edge', (
+  testWidgets('map attribution stays centered at the physical bottom edge', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -5226,7 +5228,7 @@ void main() {
     );
     final bounds = tester.getRect(creditButton);
     expect(bounds.center.dx, 195);
-    expect(bounds.bottom, 810);
+    expect(bounds.bottom, 844);
     final color = tester
         .element(credit)
         .findAncestorWidgetOfExactType<Material>()!
@@ -5235,7 +5237,7 @@ void main() {
     expect(color.r, color.g);
     expect(color.g, color.b);
     final set = find.text('Set');
-    expect(tester.getBottomLeft(set).dy, lessThan(bounds.top));
+    expect(tester.getBottomLeft(set).dy, lessThan(810));
     await tester.tap(set);
     await tester.pumpAndSettle();
     expect(selected, initial);

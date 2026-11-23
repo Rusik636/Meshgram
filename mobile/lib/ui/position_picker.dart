@@ -61,38 +61,43 @@ class _PositionPickerState extends State<_PositionPicker> {
             ),
           ),
           Positioned(
-            left: safe.left + 16,
-            right: safe.right + 16,
-            bottom: safe.bottom,
+            left: 16,
+            right: 16,
+            bottom: 0,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Center(
-                  child: GlassSurface(
-                    radius: 16,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
-                      ),
-                      child: ValueListenableBuilder(
-                        valueListenable: _center,
-                        builder: (context, position, _) => Text(
-                          formatMapCoordinates(position, digits: 6),
-                          style: TextStyle(color: style.text, fontSize: 13),
+                Padding(
+                  padding: EdgeInsets.only(left: safe.left, right: safe.right),
+                  child: Column(
+                    children: [
+                      GlassSurface(
+                        radius: 16,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          child: ValueListenableBuilder(
+                            valueListenable: _center,
+                            builder: (context, position, _) => Text(
+                              formatMapCoordinates(position, digits: 6),
+                              style: TextStyle(color: style.text, fontSize: 13),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 9),
+                      GlassActionButton(
+                        primary: true,
+                        label: tr(context, 'Установить', 'Set'),
+                        onTap: () => Navigator.pop(context, _center.value),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 9),
-                GlassActionButton(
-                  primary: true,
-                  label: tr(context, 'Установить', 'Set'),
-                  onTap: () => Navigator.pop(context, _center.value),
-                ),
-                const SizedBox(height: 8),
+                SizedBox(height: safe.bottom + 8),
                 const Center(child: MeshMapAttribution()),
               ],
             ),

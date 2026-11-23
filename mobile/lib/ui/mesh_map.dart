@@ -522,51 +522,54 @@ class _LocationMapPage extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: safe.left + 12,
-            right: safe.right + 12,
-            bottom: safe.bottom,
+            left: 12,
+            right: 12,
+            bottom: 0,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                GlassSurface(
-                  radius: 20,
-                  child: Tooltip(
-                    message: tr(
-                      context,
-                      'Скопировать координаты',
-                      'Copy coordinates',
-                    ),
-                    child: InkWell(
-                      onTap: () => unawaited(_copy(context, coordinates)),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        child: SizedBox(
-                          height: 44,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.copy_rounded,
-                                size: 17,
-                                color: style.accent,
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  coordinates,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: style.text),
+                Padding(
+                  padding: EdgeInsets.only(left: safe.left, right: safe.right),
+                  child: GlassSurface(
+                    radius: 20,
+                    child: Tooltip(
+                      message: tr(
+                        context,
+                        'Скопировать координаты',
+                        'Copy coordinates',
+                      ),
+                      child: InkWell(
+                        onTap: () => unawaited(_copy(context, coordinates)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: SizedBox(
+                            height: 44,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.copy_rounded,
+                                  size: 17,
+                                  color: style.accent,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    coordinates,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: style.text),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: safe.bottom + 6),
                 const Align(
                   alignment: AlignmentDirectional.bottomEnd,
                   child: MeshMapAttribution(),

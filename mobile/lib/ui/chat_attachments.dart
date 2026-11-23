@@ -237,10 +237,16 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
           _locationMap(),
           Column(
             children: [
-              Expanded(child: child),
-              const SafeArea(
-                top: false,
-                minimum: EdgeInsets.symmetric(horizontal: 8),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.paddingOf(context).bottom,
+                  ),
+                  child: child,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Align(
                   alignment: AlignmentDirectional.bottomEnd,
                   child: MeshMapAttribution(),
