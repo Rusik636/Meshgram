@@ -35,7 +35,7 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
       return MeshMessageGlass(frame: frame, input: input)
     }
     if input["kind"] as? String == "modalGlass" {
-      return MeshModalGlass(frame: frame, input: input)
+      return MeshModalGlass(frame: frame, channel: channel, input: input)
     }
     if input["kind"] as? String == "tabs" {
       return MeshTabs(frame, channel, input)
@@ -110,8 +110,9 @@ private final class MeshMessageGlass: UIView, FlutterPlatformView {
 
 private final class MeshModalGlass: NSObject, FlutterPlatformView {
   private let surface: UIVisualEffectView
+  private let channel: FlutterMethodChannel
 
-  init(frame: CGRect, input: [String: Any]) {
+  init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     let effect: UIVisualEffect
     if #available(iOS 26.0, *) {
       let glass = UIGlassEffect(style: .regular)
@@ -123,19 +124,34 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
       effect = UIBlurEffect(style: .systemMaterial)
     }
     surface = UIVisualEffectView(effect: effect)
+    self.channel = channel
     super.init()
     surface.frame = frame
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
-    let radius = input["radius"] as? Double ?? 22
+    updateRadius(input)
+    surface.clipsToBounds = true
+    surface.isUserInteractionEnabled = false
+    surface.accessibilityElementsHidden = true
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "update", let values = call.arguments as? [String: Any] else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self?.updateRadius(values)
+      result(nil)
+    }
+  }
+
+  deinit { channel.setMethodCallHandler(nil) }
+
+  private func updateRadius(_ values: [String: Any]) {
+    let radius = values["radius"] as? Double ?? 22
     if #available(iOS 26.0, *) {
       surface.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
     } else {
       surface.layer.cornerRadius = CGFloat(radius)
       surface.layer.cornerCurve = .continuous
     }
-    surface.clipsToBounds = true
-    surface.isUserInteractionEnabled = false
-    surface.accessibilityElementsHidden = true
   }
 
   func view() -> UIView { surface }
