@@ -18,6 +18,7 @@ import 'location_search.dart';
 import 'mesh_page_title.dart';
 import 'navigation.dart';
 import 'position_picker.dart';
+import 'sheet_control_clip.dart';
 import 'style.dart';
 
 export 'contact_picker.dart' show ShareableNode;
@@ -28,33 +29,39 @@ Future<String?> pickChatAttachment(
   MeshController? controller,
   NodePosition? initialPosition,
   List<AttachmentLocationNode> locationNodes = const [],
-}) => showModalBottomSheet<String>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  enableDrag: false,
-  backgroundColor: Colors.transparent,
-  sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-      ? AnimationStyle.noAnimation
-      : null,
-  builder: (context) => _AttachmentSheet(
-    contacts: contacts,
-    controller: controller,
-    initialPosition: initialPosition,
-    locationNodes: locationNodes,
-  ),
-);
+}) {
+  final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    enableDrag: false,
+    backgroundColor: Colors.transparent,
+    sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
+        ? AnimationStyle.noAnimation
+        : null,
+    builder: (context) => _AttachmentSheet(
+      presentingRoute: presentingRoute,
+      contacts: contacts,
+      controller: controller,
+      initialPosition: initialPosition,
+      locationNodes: locationNodes,
+    ),
+  );
+}
 
 enum _AttachmentTab { location, contact }
 
 class _AttachmentSheet extends StatefulWidget {
   const _AttachmentSheet({
+    required this.presentingRoute,
     required this.contacts,
     required this.controller,
     required this.locationNodes,
     this.initialPosition,
   });
 
+  final ModalRoute<dynamic>? presentingRoute;
   final List<ShareableNode> contacts;
   final MeshController? controller;
   final List<AttachmentLocationNode> locationNodes;
@@ -553,7 +560,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
       ],
     );
     final switching = _tabs.shown != _tabs.selected;
-    return Material(
+    final sheet = Material(
       color: MeshStyle.of(context).surface,
       borderRadius: BorderRadius.circular(_expanded && showingMap ? 0 : 26),
       clipBehavior: Clip.antiAlias,
@@ -594,6 +601,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
         ],
       ),
     );
+    return useIosControls
+        ? MeshOpaqueSheetRegion(
+            presentingRoute: widget.presentingRoute,
+            motion: _inset,
+            child: sheet,
+          )
+        : sheet;
   }
 
   @override
