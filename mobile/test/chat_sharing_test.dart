@@ -39,9 +39,9 @@ void main() {
     const draft = 'Meet at the bridge';
     await tester.enterText(find.byType(TextField), draft);
     MessageInput composer() => tester.widget(find.byType(MessageInput));
-    expect(composer().hidePlatformView, isFalse);
+    expect(composer().coveredByModal, isFalse);
     await _openAttachment(tester, 'Contact');
-    expect(composer().hidePlatformView, isTrue);
+    expect(composer().coveredByModal, isTrue);
     expect(find.byType(MessageMenuBackdrop), findsNothing);
     expect(find.byType(MessageMenuSurface), findsNothing);
     final contactSearch = find.byType(MeshSearchEditor);
@@ -49,16 +49,16 @@ void main() {
     await tester.tap(find.byTooltip('Sort by'));
     await tester.pumpAndSettle();
     expect(find.byType(SheetBody), findsOneWidget);
-    expect(composer().hidePlatformView, isTrue);
+    expect(composer().coveredByModal, isTrue);
     expect(tester.element(contactSearch), same(searchElement));
     await tester.tap(find.text('Name'));
     await tester.pumpAndSettle();
-    expect(composer().hidePlatformView, isTrue);
+    expect(composer().coveredByModal, isTrue);
     expect(tester.element(contactSearch), same(searchElement));
     expect(controller.nodeSort, NodeSort.name);
     await tester.tap(find.text(contact.name));
     await tester.pumpAndSettle();
-    expect(composer().hidePlatformView, isFalse);
+    expect(composer().coveredByModal, isFalse);
 
     final sent = controller.messages(chat.id).where((item) => item.outgoing);
     final attachment = sent.single;

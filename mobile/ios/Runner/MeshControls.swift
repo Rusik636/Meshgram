@@ -5,6 +5,7 @@ import Flutter
 import UIKit
 
 let meshChatSymbol = "bubble.left"
+let meshLightGlassOutline = UIColor.black.withAlphaComponent(0.28)
 
 final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
   private let messenger: FlutterBinaryMessenger
@@ -165,7 +166,7 @@ private final class MeshSymbolIcon: NSObject, FlutterPlatformView {
   deinit { channel.setMethodCallHandler(nil) }
 }
 
-private final class MeshControlSurface: NSObject, FlutterPlatformView {
+final class MeshControlSurface: NSObject, FlutterPlatformView {
   private let root: UIView
   private let channel: FlutterMethodChannel
   private let kind: String
@@ -212,9 +213,13 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
 
   func view() -> UIView { root }
 
-  private func update(_ values: [String: Any]) {
-    guard !(input as NSDictionary).isEqual(to: values) else { return }
-    input = values
+  func update(_ values: [String: Any]) {
+    var appearance = values
+    let covered = appearance.removeValue(forKey: "coveredByModal") as? Bool == true
+    root.isUserInteractionEnabled = !covered && values["readOnly"] as? Bool != true
+    root.accessibilityElementsHidden = covered
+    guard !(input as NSDictionary).isEqual(to: appearance) else { return }
+    input = appearance
     refreshAppearance()
   }
 
@@ -259,10 +264,7 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     let foreground = meshColor(input["foreground"], .label)
     let surface = meshColor(input["surface"], .secondarySystemBackground)
     let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
-    let coveredByModal = input["coveredByModal"] as? Bool == true
     let readOnly = input["readOnly"] as? Bool == true
-    root.isUserInteractionEnabled = !coveredByModal && !readOnly
-    root.accessibilityElementsHidden = coveredByModal
 
     let primary = input["primary"] as? Bool == true
     let enabled = input["enabled"] as? Bool == true
@@ -271,11 +273,14 @@ private final class MeshControlSurface: NSObject, FlutterPlatformView {
     button.accessibilityLabel = title
     button.tintColor = accent
     var configuration: UIButton.Configuration
-    // A Flutter modal already composites a scrim over the capsule. Keep the
-    // UIKit control and its symbol, and suspend live backdrop refraction.
-    if #available(iOS 26.0, *), !reduceTransparency, !coveredByModal {
+    if #available(iOS 26.0, *), !reduceTransparency {
       configuration = primary ? .prominentGlass() : .glass()
-      if primary { configuration.baseBackgroundColor = accent }
+      if primary {
+        configuration.baseBackgroundColor = accent
+      } else if root.overrideUserInterfaceStyle == .light {
+        configuration.background.strokeWidth = 1
+        configuration.background.strokeColor = meshLightGlassOutline
+      }
     } else {
       configuration = .filled()
       configuration.baseBackgroundColor = primary ? accent : surface

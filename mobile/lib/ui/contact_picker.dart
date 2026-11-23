@@ -12,6 +12,7 @@ import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import 'ios_control.dart';
+import 'mesh_scroll_edge.dart';
 import 'node_list.dart';
 import 'search_field.dart';
 import 'sheet_scroll.dart';
@@ -271,6 +272,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     final height = constraints.maxHeight;
     final fieldHeight = meshSearchFieldHeight(context);
     final searchBottom = MediaQuery.paddingOf(context).bottom + searchBottomGap;
+    final useBlurredHeading = Theme.of(context).platform == TargetPlatform.iOS;
     final compact = Rect.fromLTWH(
       width - side - meshSearchButtonSize,
       headingTop + (headingHeight - 16 - meshSearchButtonSize) / 2,
@@ -306,7 +308,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
             Positioned.fill(
               child: _ContactScrollEdges(
                 key: const ValueKey('attachment-contact-scroll-edges'),
-                top: topEdge,
+                top: useBlurredHeading ? 0 : topEdge,
                 bottom: bottomEdge,
                 height: height,
                 child: _list(
@@ -317,6 +319,14 @@ class _AttachmentContactsState extends State<AttachmentContacts>
                 ),
               ),
             ),
+            if (useBlurredHeading)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: headingHeight,
+                child: const MeshScrollEdge(top: true),
+              ),
             Positioned(
               top: 0,
               left: side + meshSearchButtonSize + 12,
