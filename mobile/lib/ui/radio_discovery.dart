@@ -8,6 +8,7 @@ import 'package:flutter/material.dart' hide Radio;
 
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
+import 'mesh_icon.dart';
 import 'radio_settings.dart';
 import 'style.dart';
 import 'page_route.dart';
@@ -101,6 +102,7 @@ class _RadioDiscoveryState extends State<RadioDiscoveryPage> {
                 DropdownButtonFormField<String>(
                   initialValue: network,
                   isExpanded: true,
+                  icon: const MeshIcon(Icons.arrow_drop_down),
                   items: [
                     for (final id in protocols.keys)
                       DropdownMenuItem(
@@ -666,6 +668,7 @@ class _RadioSetupState extends State<_RadioSetupPage> {
         key: ValueKey(field.id),
         initialValue: field.choices.containsKey(value) ? value : null,
         isExpanded: true,
+        icon: const MeshIcon(Icons.arrow_drop_down),
         decoration: decoration,
         validator: validate,
         items: [

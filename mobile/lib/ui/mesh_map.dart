@@ -16,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app_name.dart';
 import '../mesh/nodes.dart';
+import 'mesh_icon.dart';
 import 'navigation.dart' show meshMotion;
 import 'page_route.dart';
 import 'style.dart';
@@ -310,7 +311,7 @@ class _MapMarker extends StatelessWidget {
                 ),
               ),
             ),
-          Icon(
+          MeshIcon(
             Icons.place_rounded,
             size: 38,
             color: style.accent,
@@ -435,7 +436,11 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
               child: Row(
                 children: [
-                  Icon(Icons.near_me_outlined, color: style.accent, size: 17),
+                  MeshIcon(
+                    Icons.near_me_outlined,
+                    color: style.accent,
+                    size: 17,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -463,7 +468,7 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
                       ],
                     ),
                   ),
-                  Icon(
+                  MeshIcon(
                     Icons.chevron_right_rounded,
                     color: style.secondary,
                     size: 16,
@@ -561,7 +566,7 @@ class _LocationMapPage extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            MeshIcon(
                               Icons.copy_rounded,
                               size: 17,
                               color: style.accent,

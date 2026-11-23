@@ -20,6 +20,7 @@ import 'chat_setup.dart';
 import 'emoji_text.dart';
 import 'radio_discovery.dart';
 import 'ios_control.dart';
+import 'mesh_icon.dart';
 import 'navigation.dart';
 import 'nodes.dart';
 import 'notification_settings.dart';
@@ -896,7 +897,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                               color: style.surface,
                               child: TextButton.icon(
                                 onPressed: _openSettings,
-                                icon: const Icon(Icons.cell_tower_rounded),
+                                icon: const MeshIcon(Icons.cell_tower_rounded),
                                 label: Text(
                                   tr(
                                     context,
@@ -1126,7 +1127,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             if (editing) ...[
               Semantics(
                 checked: selected,
-                child: Icon(
+                child: MeshIcon(
                   selected
                       ? Icons.check_circle_rounded
                       : Icons.radio_button_unchecked_rounded,
@@ -1168,7 +1169,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       if (muted)
                         Padding(
                           padding: const EdgeInsets.only(left: 4),
-                          child: Icon(
+                          child: MeshIcon(
                             Icons.notifications_off_outlined,
                             size: 14,
                             color: style.secondary,
@@ -1195,7 +1196,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 enabled: !_removingChats,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(10, 12, 2, 12),
-                  child: Icon(
+                  child: MeshIcon(
                     Icons.drag_handle_rounded,
                     color: style.secondary,
                     size: 24,

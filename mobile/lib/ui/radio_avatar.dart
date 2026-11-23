@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import 'mesh_icon.dart';
 import 'profile_page.dart';
 import 'profile_wallpaper.dart';
 import 'style.dart';
@@ -95,7 +96,7 @@ class _RadioProfilePageState extends State<RadioProfilePage> {
       future: _catalog,
       builder: (context, snapshot) {
         final board = snapshot.data?.find(widget.boardModel, widget.boardName);
-        final fallback = Icon(
+        final fallback = MeshIcon(
           Icons.memory_rounded,
           size: 46,
           color: style.text,

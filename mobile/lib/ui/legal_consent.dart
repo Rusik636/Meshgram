@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../app_name.dart';
 import 'about.dart';
+import 'mesh_icon.dart';
 import 'page_route.dart';
 import 'style.dart';
 
@@ -73,7 +74,7 @@ class _LegalConsentPageState extends State<LegalConsentPage> {
       children: [
         ListTile(
           title: Text(title),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: const MeshIcon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
             meshPageRoute<void>(
               context,
