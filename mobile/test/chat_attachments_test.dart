@@ -377,6 +377,61 @@ void main() {
     },
   );
 
+  testWidgets(
+    'iOS contact sheet uses the hidden grip and takes over at the list edge',
+    (tester) async {
+      await _openPicker(
+        tester,
+        (_) {},
+        platform: TargetPlatform.iOS,
+        contacts: [
+          for (var index = 0; index < 30; index++)
+            (
+              peer: (
+                id: 'node:$index',
+                name: 'Contact $index',
+                channel: false,
+                writable: true,
+              ),
+              link: 'meshgram://contact/$index',
+            ),
+        ],
+      );
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
+      final grip = find.byKey(const ValueKey('attachment-grip'));
+      final compact = tester.getRect(grip);
+      expect(compact.height, 48);
+      await tester.flingFrom(
+        compact.topCenter + const Offset(0, 36),
+        const Offset(0, -104),
+        600,
+      );
+      await tester.pumpAndSettle();
+      final expandedTop = tester.getTopLeft(grip).dy;
+      expect(expandedTop, lessThan(compact.top));
+
+      final list = find.byType(CustomScrollView);
+      final scroll = tester.widget<CustomScrollView>(list).controller!;
+      scroll.jumpTo(90);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(tester.getCenter(list));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      expect(tester.getTopLeft(grip).dy, closeTo(expandedTop, .1));
+      final remaining = scroll.offset;
+      expect(remaining, greaterThan(0));
+      await gesture.moveBy(Offset(0, remaining + 40));
+      await tester.pump();
+      expect(scroll.offset, 0);
+      expect(tester.getTopLeft(grip).dy, closeTo(expandedTop + 40, .1));
+      await gesture.moveBy(const Offset(0, 80));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(grip).dy, closeTo(compact.top, .1));
+    },
+  );
+
   testWidgets('searches known nodes or coordinates without sending them', (
     tester,
   ) async {

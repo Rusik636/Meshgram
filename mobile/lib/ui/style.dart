@@ -4,10 +4,12 @@
 import 'dart:ui';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
 import 'mesh_icon.dart';
+import 'sheet_scroll.dart';
 import 'tokens.dart';
 
 String tr(BuildContext context, String ru, String en) =>
@@ -977,25 +979,158 @@ Future<T?> showMeshSheet<T>({
       color: style.canvas,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 7, top: 5),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: style.secondary,
-                borderRadius: BorderRadius.circular(4),
+      child: MeshSheetScrollContent(
+        dragArea: 44,
+        builder: (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7, top: 5),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: style.secondary,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const SizedBox(width: 34, height: 4),
               ),
-              child: const SizedBox(width: 34, height: 4),
             ),
-          ),
-          Flexible(child: builder(context)),
-        ],
+            Flexible(child: builder(context)),
+          ],
+        ),
       ),
     );
   },
 );
+
+/// Lets the primary list hand a downward drag to its containing sheet on iOS.
+class MeshSheetScrollContent extends StatefulWidget {
+  const MeshSheetScrollContent({
+    super.key,
+    required this.builder,
+    required this.dragArea,
+  });
+
+  final WidgetBuilder builder;
+  final double dragArea;
+
+  @override
+  State<MeshSheetScrollContent> createState() => _MeshSheetScrollContentState();
+}
+
+class _MeshSheetScrollContentState extends State<MeshSheetScrollContent> {
+  MeshSheetScrollController? _scroll;
+  Drag? _gripDrag;
+
+  Drag? _beginDrag([DragStartDetails? details]) {
+    BottomSheet? sheet;
+    RenderObject? renderBox;
+    context.visitAncestorElements((element) {
+      final ancestor = element.widget;
+      if (ancestor is! BottomSheet) return true;
+      sheet = ancestor;
+      renderBox = element.findRenderObject();
+      return false;
+    });
+    final bottomSheet = sheet;
+    final animation = sheet?.animationController;
+    final box = renderBox;
+    if (bottomSheet == null ||
+        animation == null ||
+        animation.status == AnimationStatus.reverse ||
+        box is! RenderBox ||
+        !box.hasSize ||
+        box.size.height <= 0) {
+      return null;
+    }
+
+    // The route's drag callbacks keep its own animation in sync with touch.
+    bottomSheet.onDragStart?.call(details ?? DragStartDetails());
+    return _MeshSheetSurfaceDrag(bottomSheet, animation, box.size.height);
+  }
+
+  @override
+  void dispose() {
+    _scroll?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (Theme.of(context).platform != TargetPlatform.iOS) {
+      return widget.builder(context);
+    }
+    return Stack(
+      children: [
+        PrimaryScrollController(
+          controller: _scroll ??= MeshSheetScrollController(_beginDrag),
+          child: Builder(builder: widget.builder),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: widget.dragArea,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            excludeFromSemantics: true,
+            onVerticalDragStart: (details) => _gripDrag = _beginDrag(details),
+            onVerticalDragUpdate: (details) => _gripDrag?.update(details),
+            onVerticalDragEnd: (details) {
+              _gripDrag?.end(details);
+              _gripDrag = null;
+            },
+            onVerticalDragCancel: () {
+              _gripDrag?.cancel();
+              _gripDrag = null;
+            },
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MeshSheetSurfaceDrag extends Drag {
+  _MeshSheetSurfaceDrag(this._sheet, this._animation, this._height);
+
+  final BottomSheet _sheet;
+  final AnimationController _animation;
+  final double _height;
+
+  @override
+  void update(DragUpdateDetails details) {
+    if (_animation.status != AnimationStatus.reverse) {
+      _animation.value -= details.delta.dy / _height;
+    }
+  }
+
+  @override
+  void end(DragEndDetails details) {
+    if (_animation.status == AnimationStatus.reverse) return;
+
+    // Match the same fling and distance thresholds used by BottomSheet itself.
+    final velocity = details.velocity.pixelsPerSecond.dy;
+    final didFling = velocity > 700;
+    final isClosing = didFling || _animation.value < .5;
+    if (isClosing) {
+      if (_animation.value > 0) {
+        _animation.fling(velocity: didFling ? -velocity / _height : -1);
+      }
+    } else {
+      _animation.forward();
+    }
+    _sheet.onDragEnd?.call(details, isClosing: isClosing);
+    if (isClosing) _sheet.onClosing();
+  }
+
+  @override
+  void cancel() {
+    if (_animation.status == AnimationStatus.reverse) return;
+    _animation.forward();
+    _sheet.onDragEnd?.call(DragEndDetails(), isClosing: false);
+  }
+}
 
 class SheetBody extends StatelessWidget {
   const SheetBody({super.key, required this.title, required this.children});

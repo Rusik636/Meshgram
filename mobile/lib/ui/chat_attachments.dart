@@ -15,6 +15,7 @@ import '../mesh/nodes.dart';
 import 'contact_picker.dart';
 import 'ios_control.dart';
 import 'location_search.dart';
+import 'mesh_page_title.dart';
 import 'navigation.dart';
 import 'position_picker.dart';
 import 'style.dart';
@@ -66,6 +67,7 @@ class _AttachmentSheet extends StatefulWidget {
 class _AttachmentSheetState extends State<_AttachmentSheet>
     with TickerProviderStateMixin {
   static const _gripHeight = 18.0;
+  static const _gripTargetHeight = 48.0;
   static const _attributionMargin = 8.0;
   static const _spring = SpringDescription(
     mass: 5,
@@ -369,27 +371,107 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     );
   }
 
+  Widget _locationHeading(String location) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        const buttonSize = 48.0;
+        const actionGap = 6.0;
+        const trailingWidth = 2 * buttonSize + actionGap;
+        const idealTitleWidth = 150.0;
+        final preferNative = ModalRoute.isCurrentOf(context) != false;
+        // Balance the two trailing buttons while giving the title more
+        // room on narrow phones.
+        final leadingGap = useIosControls
+            ? (constraints.maxWidth -
+                      buttonSize -
+                      trailingWidth -
+                      idealTitleWidth)
+                  .clamp(12.0, trailingWidth - buttonSize)
+            : 12.0;
+        return Row(
+          children: [
+            GlassButton(
+              icon: Icons.close_rounded,
+              label: tr(context, 'Закрыть', 'Close'),
+              onTap: _closeSheet,
+              preferNative: preferNative,
+            ),
+            SizedBox(width: leadingGap),
+            Expanded(
+              child: MeshPageTitle(
+                location,
+                preferNative: preferNative,
+                fallback: Text(
+                  location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            GlassButton(
+              icon: Icons.search_rounded,
+              label: tr(context, 'Искать геопозицию', 'Search locations'),
+              onTap: () => unawaited(_searchLocation()),
+              preferNative: preferNative,
+            ),
+            const SizedBox(width: actionGap),
+            GlassButton(
+              icon: _expanded
+                  ? Icons.close_fullscreen_rounded
+                  : Icons.open_in_full_rounded,
+              label: _expanded
+                  ? tr(context, 'Свернуть', 'Collapse')
+                  : tr(context, 'На весь экран', 'Expand'),
+              onTap: () => _snapTo(!_expanded),
+              preferNative: preferNative,
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
   Widget _header(String location, double travel) {
     final style = MeshStyle.of(context);
+    final showingMap = _tab == _AttachmentTab.location;
+    final extendGrip =
+        !showingMap && Theme.of(context).platform == TargetPlatform.iOS;
+    final canDrag = travel > 0 && _expandedBeforeContactSearch == null;
     return GestureDetector(
       key: const ValueKey('attachment-grip'),
-      behavior: HitTestBehavior.opaque,
+      // The invisible extension overlaps the Contacts header. Let its
+      // controls receive taps while recognizing vertical drags here.
+      behavior: extendGrip
+          ? HitTestBehavior.translucent
+          : HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onVerticalDragStart: travel > 0
+      onVerticalDragStart: canDrag
           ? (_) => _gripDrag = _startSheetDrag(travel)
           : null,
-      onVerticalDragUpdate: (details) => _gripDrag?.update(details),
-      onVerticalDragEnd: (details) {
-        final drag = _gripDrag;
-        _gripDrag = null;
-        drag?.end(details);
-      },
-      onVerticalDragCancel: () {
-        final drag = _gripDrag;
-        _gripDrag = null;
-        drag?.cancel();
-      },
+      onVerticalDragUpdate: canDrag
+          ? (details) => _gripDrag?.update(details)
+          : null,
+      onVerticalDragEnd: canDrag
+          ? (details) {
+              final drag = _gripDrag;
+              _gripDrag = null;
+              drag?.end(details);
+            }
+          : null,
+      onVerticalDragCancel: canDrag
+          ? () {
+              final drag = _gripDrag;
+              _gripDrag = null;
+              drag?.cancel();
+            }
+          : null,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
             height: _gripHeight,
@@ -405,46 +487,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               ),
             ),
           ),
-          if (_tab == _AttachmentTab.location)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                children: [
-                  GlassButton(
-                    icon: Icons.close_rounded,
-                    label: tr(context, 'Закрыть', 'Close'),
-                    onTap: _closeSheet,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      location,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  GlassButton(
-                    icon: Icons.search_rounded,
-                    label: tr(context, 'Искать геопозицию', 'Search locations'),
-                    onTap: () => unawaited(_searchLocation()),
-                  ),
-                  const SizedBox(width: 6),
-                  GlassButton(
-                    icon: _expanded
-                        ? Icons.close_fullscreen_rounded
-                        : Icons.open_in_full_rounded,
-                    label: _expanded
-                        ? tr(context, 'Свернуть', 'Collapse')
-                        : tr(context, 'На весь экран', 'Expand'),
-                    onTap: () => _snapTo(!_expanded),
-                  ),
-                ],
-              ),
-            ),
+          if (showingMap)
+            _locationHeading(location)
+          else if (extendGrip)
+            const SizedBox(height: _gripTargetHeight - _gripHeight),
         ],
       ),
     );
