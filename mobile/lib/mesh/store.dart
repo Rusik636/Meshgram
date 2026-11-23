@@ -21,6 +21,8 @@ class ChatCache {
   DateTime? routeTraceCooldownUntil;
   final replies = <String, String>{};
   final unread = <String, int>{};
+  final _unreadIds = <String, Set<String>>{};
+  final markedUnread = <String>{};
   final drafts = <String, String>{};
   final muted = <String>{};
   final unmuted = <String>{};
@@ -69,6 +71,9 @@ class ChatCache {
     'routeTraceCooldownUntil': ?routeTraceCooldownUntil?.millisecondsSinceEpoch,
     'replies': replies,
     'unread': unread,
+    if (markedUnread.isNotEmpty) 'markedUnread': markedUnread.toList(),
+    if (_unreadIds.isNotEmpty)
+      'unreadIds': _unreadIds.map((chat, ids) => MapEntry(chat, ids.toList())),
     'drafts': drafts,
     'muted': muted.toList(),
     if (unmuted.isNotEmpty) 'unmuted': unmuted.toList(),
@@ -177,6 +182,17 @@ class ChatCache {
       (json['replies'] as Map? ?? const {}).cast<String, String>(),
     );
     cache.unread.addAll((json['unread'] as Map).cast<String, int>());
+    for (final entry in (json['unreadIds'] as Map? ?? const {}).entries) {
+      if (entry.key case final String chat
+          when cache.unread.containsKey(chat)) {
+        cache._unreadIds[chat] = (entry.value as List)
+            .whereType<String>()
+            .toSet();
+      }
+    }
+    cache.markedUnread.addAll(
+      (json['markedUnread'] as List? ?? const []).whereType<String>(),
+    );
     cache.drafts.addAll((json['drafts'] as Map).cast<String, String>());
     cache.muted.addAll((json['muted'] as List).cast<String>());
     cache.unmuted.addAll((json['unmuted'] as List? ?? const []).cast<String>());
@@ -197,7 +213,86 @@ class ChatCache {
 
   ChatCache();
 
+  List<MeshMessage> history(String chat) =>
+      messages.where((item) => item.chat == chat).toList()
+        ..sort(compareChatMessages);
+
+  Set<String> unreadIds(String chat) {
+    final count = unread[chat] ?? 0;
+    if (count <= 0) return const {};
+    if (_unreadIds[chat] case final saved?) return saved;
+    // Before unread IDs were persisted, the unread count represented a tail
+    // of incoming messages. Outgoing messages must not consume that count.
+    return _unreadIds[chat] = history(chat).reversed
+        .where((message) => !message.outgoing)
+        .take(count)
+        .map((message) => message.id)
+        .toSet();
+  }
+
+  void addUnread(MeshMessage message) {
+    _unreadIds[message.chat] = {...unreadIds(message.chat), message.id};
+    unread.update(message.chat, (count) => count + 1, ifAbsent: () => 1);
+  }
+
+  void markRead(String chat) {
+    unread.remove(chat);
+    _unreadIds.remove(chat);
+    markedUnread.remove(chat);
+  }
+
+  bool markReadThrough(String chat, String messageId) {
+    if (!unread.containsKey(chat)) return false;
+    final messages = history(chat);
+    final end = messages.indexWhere((message) => message.id == messageId);
+    if (end < 0) return false;
+    final ids = unreadIds(chat);
+    final remaining = messages
+        .skip(end + 1)
+        .where((message) => ids.contains(message.id))
+        .map((message) => message.id)
+        .toSet();
+    if (remaining.length == unread[chat] ||
+        (remaining.isNotEmpty && remaining.length == ids.length)) {
+      return false;
+    }
+    if (remaining.isEmpty) {
+      markRead(chat);
+    } else {
+      unread[chat] = remaining.length;
+      _unreadIds[chat] = remaining;
+    }
+    return true;
+  }
+
+  void trimHistory(int retained) {
+    final drop = messages.length - retained;
+    if (drop <= 0) return;
+    final dropped = messages.take(drop);
+    final affected = dropped.map((message) => message.chat).toSet();
+    final droppedIds = dropped.map((message) => message.id).toSet();
+    for (final chat in affected.where(unread.containsKey)) {
+      final ids = unreadIds(chat);
+      ids.removeAll(droppedIds);
+      if (ids.isEmpty) {
+        unread.remove(chat);
+        _unreadIds.remove(chat);
+      } else {
+        unread[chat] = ids.length;
+      }
+    }
+    messages.removeRange(0, drop);
+  }
+
   void mergeHistory(ChatCache other) {
+    final currentIds = messages.map((message) => message.id).toSet();
+    final pending = <String, Set<String>>{
+      for (final chat in {...unread.keys, ...other.unread.keys})
+        chat: {
+          ...unreadIds(chat),
+          ...other.unreadIds(chat).where((id) => !currentIds.contains(id)),
+        },
+    };
     for (final peer in other.peers.values) {
       peers.putIfAbsent(peer.id, () => peer);
     }
@@ -229,7 +324,7 @@ class ChatCache {
     messages
       ..clear()
       ..addAll(byId.values)
-      ..sort((a, b) => a.time.compareTo(b.time));
+      ..sort(compareChatMessages);
     final reactionsSeen = {
       for (final item in reactions)
         (item.chat, item.target, item.actor, item.emojiKey),
@@ -258,12 +353,14 @@ class ChatCache {
         (routeTraceCooldownUntil?.isBefore(cooldown) ?? true)) {
       routeTraceCooldownUntil = cooldown;
     }
-    for (final entry in other.unread.entries) {
-      unread.update(
-        entry.key,
-        (count) => count >= entry.value ? count : entry.value,
-        ifAbsent: () => entry.value,
-      );
+    for (final entry in pending.entries) {
+      final ids = entry.value;
+      if (ids.isEmpty) {
+        markRead(entry.key);
+      } else {
+        _unreadIds[entry.key] = ids;
+        unread[entry.key] = ids.length;
+      }
     }
     for (final entry in other.drafts.entries) {
       drafts.putIfAbsent(entry.key, () => entry.value);
@@ -271,6 +368,7 @@ class ChatCache {
     for (final entry in other.replies.entries) {
       replies.putIfAbsent(entry.key, () => entry.value);
     }
+    markedUnread.addAll(other.markedUnread);
     muted.addAll(other.muted);
     unmuted.addAll(other.unmuted);
     hiddenChats.addAll(other.hiddenChats);
@@ -306,6 +404,11 @@ class ChatCache {
     observations[id] = next;
     return true;
   }
+}
+
+int compareChatMessages(MeshMessage first, MeshMessage second) {
+  final byTime = first.time.compareTo(second.time);
+  return byTime != 0 ? byTime : first.id.compareTo(second.id);
 }
 
 class MeshStore {

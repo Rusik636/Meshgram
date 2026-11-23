@@ -52,13 +52,13 @@ class MeshChatPage extends StatefulWidget {
 }
 
 class _ChatState extends State<MeshChatPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final _draft = EmojiEditingController(
     text: widget.controller.draft(widget.peer.id),
   );
   final _search = TextEditingController();
   final _input = GlobalKey<MessageInputState>();
-  final _scroll = ScrollController();
+  final _scroll = ScrollController(keepScrollOffset: false);
   final _history = ListController();
   AssetBundle? _emojiBundle;
   late Future<EmojiCatalog> _emojiCatalog;
@@ -85,6 +85,246 @@ class _ChatState extends State<MeshChatPage>
   double _headerHeight = 59;
   double _footerHeight = 76;
   bool _measurementPending = false;
+  final _latestButtonVisible = ValueNotifier(false);
+  late final String? _radio;
+  VoidCallback? _untrackViewport;
+  ModalRoute<dynamic>? _route;
+  List<MeshMessage> _listedMessages = const [];
+  final _incomingRows = <String, GlobalKey>{};
+  String? _unreadBoundary;
+  ({String id, double position})? _historyAnchor;
+  bool _listedSearch = false;
+  bool _historyScheduled = false;
+  bool _atInitialPosition = false;
+  bool _goingToLatest = false;
+  AppLifecycleState? _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycle = WidgetsBinding.instance.lifecycleState;
+    _scroll.addListener(_scheduleHistoryUpdate);
+    _history.addListener(_scheduleHistoryUpdate);
+    final active = widget.controller.active;
+    _radio = active == null ? null : radioKey(active);
+    if (_radio case final profile?) {
+      _untrackViewport = widget.controller.trackChatViewport(
+        profile,
+        widget.peer.id,
+        () => _canReadHistory && _atInitialPosition && _distanceToLatest < 2,
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycle = state;
+    if (state == AppLifecycleState.resumed) _scheduleHistoryUpdate();
+  }
+
+  bool get _canReadHistory =>
+      mounted &&
+      !_searching &&
+      !_menuVisible &&
+      (_route?.isCurrent ?? true) &&
+      (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
+
+  double get _distanceToLatest {
+    if (!_scroll.hasClients) return 0;
+    final position = _scroll.position;
+    return position.pixels - position.minScrollExtent;
+  }
+
+  void _configureHistory(List<MeshMessage> messages, Set<String> unreadIds) {
+    final old = _listedMessages;
+    final range = _history.isAttached ? _history.visibleRange : null;
+    if (!_searching &&
+        !_listedSearch &&
+        !_goingToLatest &&
+        _distanceToLatest > 2 &&
+        old.isNotEmpty &&
+        messages.isNotEmpty &&
+        (old.length != messages.length ||
+            old.first.id != messages.first.id ||
+            old.last.id != messages.last.id) &&
+        range != null) {
+      final index = (range.$1 + range.$2) ~/ 2;
+      if (index < old.length && _history.numberOfItems == old.length) {
+        _historyAnchor = (
+          id: old[old.length - 1 - index].id,
+          position: _history.offsetForIndex(index) - _scroll.offset,
+        );
+      }
+    }
+    _listedMessages = messages;
+    _listedSearch = _searching;
+    if (_incomingRows.length > messages.length + 40) {
+      final ids = messages.map((item) => item.id).toSet();
+      _incomingRows.removeWhere((id, _) => !ids.contains(id));
+    }
+    if (!_searching &&
+        (_unreadBoundary == null ||
+            !messages.any((item) => item.id == _unreadBoundary)) &&
+        (!_atInitialPosition || _distanceToLatest > 2)) {
+      _unreadBoundary = messages
+          .where((item) => unreadIds.contains(item.id))
+          .firstOrNull
+          ?.id;
+    }
+    _scheduleHistoryUpdate();
+  }
+
+  void _scheduleHistoryUpdate() {
+    if (_historyScheduled) return;
+    _historyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _historyScheduled = false;
+      if (mounted) _updateHistoryPosition();
+    });
+  }
+
+  void _updateHistoryPosition() {
+    final radio = _radio;
+    if (radio == null || _searching) return;
+    if (!_history.isAttached ||
+        !_scroll.hasClients ||
+        _listedMessages.isEmpty) {
+      _latestButtonVisible.value = false;
+      if (_canReadHistory) {
+        widget.controller.clearUnreadFlag(radio, widget.peer.id);
+      }
+      return;
+    }
+    final position = _scroll.position;
+    if (!position.hasContentDimensions) return;
+    if (_historyAnchor case final anchor?) {
+      _historyAnchor = null;
+      final message = _listedMessages.indexWhere(
+        (item) => item.id == anchor.id,
+      );
+      if (message >= 0) {
+        final index = _listedMessages.length - message - 1;
+        final offset = (_history.offsetForIndex(index) - anchor.position).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+        if ((offset - position.pixels).abs() > .5) {
+          _scroll.jumpTo(offset);
+          _scheduleHistoryUpdate();
+          return;
+        }
+      }
+    }
+    final top = MediaQuery.paddingOf(context).top + _headerHeight + 8;
+    final bottom = _composerBottom(context) + _footerHeight + 8;
+    if (!_atInitialPosition) {
+      _atInitialPosition = true;
+      final message = _listedMessages.indexWhere(
+        (item) => item.id == _unreadBoundary,
+      );
+      if (message >= 0) {
+        final before = position.pixels;
+        _history.jumpToItem(
+          index: _listedMessages.length - message - 1,
+          scrollController: _scroll,
+          // The trailing edge of the reversed viewport is next to the title.
+          alignment: 1,
+          obstruction: ChildObstructionExtent(leading: bottom, trailing: top),
+        );
+        if ((position.pixels - before).abs() > .5) {
+          _scheduleHistoryUpdate();
+          return;
+        }
+      }
+    }
+    if (_canReadHistory) {
+      widget.controller.clearUnreadFlag(radio, widget.peer.id);
+    }
+    final unread = widget.controller.cache?.unread[widget.peer.id] ?? 0;
+    _latestButtonVisible.value =
+        _distanceToLatest > 128 || (_distanceToLatest > 2 && unread > 0);
+    if (!_canReadHistory || unread == 0) return;
+    final range = _history.visibleRange;
+    if (range == null) return;
+    final box = _menuBackground.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final visibleBottom = box.size.height - bottom;
+    // Rows are arranged newest-first. Measure the bubble itself so that a
+    // date label or unread divider alone cannot advance the read position.
+    for (
+      var index = range.$1;
+      index <= range.$2 && index < _listedMessages.length;
+      index++
+    ) {
+      final item = _listedMessages[_listedMessages.length - index - 1];
+      final row = _incomingRows[item.id]?.currentContext?.findRenderObject();
+      if (row is! RenderBox || !row.attached || !row.hasSize) continue;
+      final y = row.localToGlobal(Offset.zero, ancestor: box).dy;
+      final overlap =
+          math.min(y + row.size.height, visibleBottom) - math.max(y, top);
+      if (overlap >= math.min(24, row.size.height * .5)) {
+        widget.controller.readChatThrough(radio, widget.peer.id, item.id);
+        break;
+      }
+    }
+  }
+
+  Future<void> _goToLatest() async {
+    if (!_scroll.hasClients || _goingToLatest) return;
+    final position = _scroll.position;
+    final bottom = position.minScrollExtent;
+    final duration = meshMotion(context);
+    _quoteScroll?.cancel();
+    if (duration == Duration.zero) {
+      _scroll.jumpTo(bottom);
+      return;
+    }
+    _goingToLatest = true;
+    try {
+      if (position.pixels - bottom > position.viewportDimension * 2) {
+        _scroll.jumpTo(bottom + position.viewportDimension * .6);
+      }
+      await _scroll.animateTo(
+        bottom,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+    } finally {
+      _goingToLatest = false;
+      if (mounted) _scheduleHistoryUpdate();
+    }
+  }
+
+  Widget _latestButton(int unread) => ValueListenableBuilder(
+    valueListenable: _latestButtonVisible,
+    builder: (context, visible, _) => AnimatedSwitcher(
+      duration: meshMotion(context),
+      child: !visible
+          ? const SizedBox.shrink()
+          : Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                GlassButton(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  label: tr(
+                    context,
+                    'К последнему сообщению',
+                    'Go to latest message',
+                  ),
+                  onTap: () => unawaited(_goToLatest()),
+                  preferNative: !_menuVisible,
+                ),
+                if (unread > 0)
+                  Positioned(
+                    top: -11,
+                    child: IgnorePointer(child: MeshUnreadBadge(unread)),
+                  ),
+              ],
+            ),
+    ),
+  );
 
   void _measureOverlays() {
     if (_measurementPending) return;
@@ -114,6 +354,8 @@ class _ChatState extends State<MeshChatPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    _scheduleHistoryUpdate();
     final bundle = DefaultAssetBundle.of(context);
     if (_emojiBundle == bundle) return;
     _emojiBundle = bundle;
@@ -122,6 +364,11 @@ class _ChatState extends State<MeshChatPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _untrackViewport?.call();
+    _scroll.removeListener(_scheduleHistoryUpdate);
+    _history.removeListener(_scheduleHistoryUpdate);
+    _latestButtonVisible.dispose();
     _quoteScroll?.cancel();
     _history.dispose();
     _scroll.dispose();
@@ -540,8 +787,16 @@ class _ChatState extends State<MeshChatPage>
       final top = padding.top;
       final bottom = _searching ? padding.bottom : _composerBottom(context);
       final historyBottom = bottom + (_searching ? 0 : _footerHeight) + 8;
-      final authorGroups = peer.channel ? _authorGroups(messages) : null;
       _measureOverlays();
+      final unread = controller.cache?.unread[peer.id] ?? 0;
+      _configureHistory(
+        messages,
+        controller.cache?.unreadIds(peer.id) ?? const {},
+      );
+      final unreadBoundary = _searching ? null : _unreadBoundary;
+      final authorGroups = peer.channel
+          ? _authorGroups(messages, unreadBoundary)
+          : null;
 
       return Scaffold(
         body: RepaintBoundary(
@@ -623,6 +878,7 @@ class _ChatState extends State<MeshChatPage>
                             final i = messages.length - index - 1;
                             final item = messages[i];
                             final previous = i == 0 ? null : messages[i - 1];
+                            final startsUnread = item.id == unreadBoundary;
                             final next = i == messages.length - 1
                                 ? null
                                 : messages[i + 1];
@@ -713,8 +969,11 @@ class _ChatState extends State<MeshChatPage>
                                     : IgnorePointer(child: attachment),
                                 link: link,
                                 channel: peer.channel,
-                                joinsPrevious: _joins(previous, item),
-                                joinsNext: _joins(item, next),
+                                joinsPrevious:
+                                    !startsUnread && _joins(previous, item),
+                                joinsNext:
+                                    next?.id != unreadBoundary &&
+                                    _joins(item, next),
                                 quoted: quote,
                                 onQuote: onMenu == null || quote == null
                                     ? null
@@ -758,7 +1017,21 @@ class _ChatState extends State<MeshChatPage>
                                       item.time,
                                     ))
                                   _day(item.time, style),
+                                if (startsUnread)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 8,
+                                      bottom: 5,
+                                    ),
+                                    child: _unreadDivider(style),
+                                  ),
                                 _ReplySwipe(
+                                  key: item.outgoing
+                                      ? null
+                                      : _incomingRows.putIfAbsent(
+                                          item.id,
+                                          GlobalKey.new,
+                                        ),
                                   onReply:
                                       controller.canUseMessageActions(
                                         peer,
@@ -858,6 +1131,12 @@ class _ChatState extends State<MeshChatPage>
                     ),
                   ),
                 ),
+                if (!_searching && messages.isNotEmpty)
+                  PositionedDirectional(
+                    bottom: historyBottom + 7,
+                    end: padding.right + 14,
+                    child: _latestButton(unread),
+                  ),
                 if (!_searching)
                   Positioned(
                     bottom: bottom,
@@ -1153,6 +1432,25 @@ class _ChatState extends State<MeshChatPage>
     );
   }
 
+  Widget _unreadDivider(MeshStyle style) => Container(
+    key: const ValueKey('unread-divider'),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+    decoration: BoxDecoration(
+      color: style.accent.withValues(alpha: .14),
+      borderRadius: BorderRadius.circular(9),
+    ),
+    child: Text(
+      tr(context, 'Непрочитанные сообщения', 'Unread messages'),
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        color: style.accent,
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+      ),
+    ),
+  );
+
   Widget _day(DateTime date, MeshStyle style) => Padding(
     padding: const EdgeInsets.only(top: 7, bottom: 7),
     child: GlassSurface(
@@ -1187,14 +1485,19 @@ class _ChatState extends State<MeshChatPage>
           ? 'message:${message.id}'
           : 'name:${message.author}');
 
-  List<ChannelAuthorGroup> _authorGroups(List<MeshMessage> messages) {
+  List<ChannelAuthorGroup> _authorGroups(
+    List<MeshMessage> messages,
+    String? unreadBoundary,
+  ) {
     final groups = <ChannelAuthorGroup>[];
     final last = messages.length - 1;
     for (var end = last; end >= 0; end--) {
       final message = messages[end];
       if (message.outgoing) continue;
       var start = end;
-      while (start > 0 && _joins(messages[start - 1], messages[start])) {
+      while (start > 0 &&
+          messages[start].id != unreadBoundary &&
+          _joins(messages[start - 1], messages[start])) {
         start--;
       }
       groups.add((newest: last - end, oldest: last - start, message: message));
@@ -2009,7 +2312,7 @@ class _ChatTitle extends StatelessWidget {
 }
 
 class _ReplySwipe extends StatefulWidget {
-  const _ReplySwipe({this.onReply, required this.child});
+  const _ReplySwipe({super.key, this.onReply, required this.child});
   final VoidCallback? onReply;
   final Widget child;
 
@@ -2212,25 +2515,13 @@ Future<void> showMeshChat(
   MeshController controller,
   Peer peer, {
   bool search = false,
-}) async {
-  final previous = controller.openedChat;
-  controller.readChat(peer.id);
-  await Navigator.of(context).push<void>(
-    meshPageRoute(
-      context,
-      builder: (_) => MeshChatPage(
-        controller: controller,
-        peer: peer,
-        initialSearch: search,
-      ),
-    ),
-  );
-  if (previous == null) {
-    controller.leaveChat();
-  } else {
-    controller.readChat(previous);
-  }
-}
+}) => Navigator.of(context).push<void>(
+  meshPageRoute(
+    context,
+    builder: (_) =>
+        MeshChatPage(controller: controller, peer: peer, initialSearch: search),
+  ),
+);
 
 class MeshChatProfile extends StatelessWidget {
   const MeshChatProfile({

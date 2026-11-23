@@ -95,7 +95,9 @@ class MeshController extends ChangeNotifier {
   List<DiscoveredRadio> discovered = [];
   int _scanGeneration = 0;
   LinkState get linkState => _selected?.state ?? LinkState.offline;
-  String? error, openedChat;
+  String? error;
+  final _chatViewports =
+      <Object, ({String radio, String chat, bool Function() atLatest})>{};
   BluetoothProblem? bluetoothProblem;
   bool scanning = false, _closed = false;
   late String profileName = store.name;
@@ -438,9 +440,7 @@ class MeshController extends ChangeNotifier {
     _nodeTimer = Timer(next.difference(now), refreshNodePresence);
   }
 
-  List<MeshMessage> messages(String peer) =>
-      (cache?.messages.where((message) => message.chat == peer).toList() ?? [])
-        ..sort((a, b) => a.time.compareTo(b.time));
+  List<MeshMessage> messages(String peer) => cache?.history(peer) ?? [];
 
   List<Peer> get conversations => _conversations(hidden: false);
   List<Peer> get hiddenConversations => _conversations(hidden: true);
@@ -490,7 +490,34 @@ class MeshController extends ChangeNotifier {
     if (radio == null) return;
     final current = _cacheFor(radio);
     for (final id in ids) {
-      current.unread.remove(id);
+      current.markRead(id);
+    }
+    _save(radio);
+    _changed();
+  }
+
+  bool isChatUnread(String id) {
+    final current = cache;
+    return (current?.unread[id] ?? 0) > 0 ||
+        (current?.markedUnread.contains(id) ?? false);
+  }
+
+  void markChatsUnread(Iterable<String> ids) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    current.markedUnread.addAll(ids.where(current.peers.containsKey));
+    _save(radio);
+    _changed();
+  }
+
+  void clearUnreadFlag(String profile, String id) {
+    final radio = active;
+    if (radio == null ||
+        radioKey(radio) != profile ||
+        isChatForeground?.call() == false ||
+        !_cacheFor(radio).markedUnread.remove(id)) {
+      return;
     }
     _save(radio);
     _changed();
@@ -546,7 +573,7 @@ class MeshController extends ChangeNotifier {
     });
     current.reactions.removeWhere((item) => item.chat == id);
     current.replies.remove(id);
-    current.unread.remove(id);
+    current.markRead(id);
   }
 
   bool canRemovePeer(Peer peer) {
@@ -813,7 +840,6 @@ class MeshController extends ChangeNotifier {
     if (!identical(connection, _selected)) {
       _draftTimer?.cancel();
       if (active case final previous?) _save(previous);
-      openedChat = null;
       _selected = connection;
       error = null;
       bluetoothProblem = null;
@@ -1446,7 +1472,6 @@ class MeshController extends ChangeNotifier {
     _radioRoutes.remove(key);
     if (identical(current, _selected)) {
       _draftTimer?.cancel();
-      openedChat = null;
       if (radios.firstOrNull case final next?) {
         _selected = _connection(next);
       } else {
@@ -1684,16 +1709,8 @@ class MeshController extends ChangeNotifier {
             )) {
           _scheduleNodeRefresh();
         }
+        if (!message.outgoing) current.addUnread(message);
         current.messages.add(message);
-        if (!identical(connection ?? _connectionFor(radio), _selected) ||
-            openedChat != message.chat ||
-            isChatForeground?.call() == false) {
-          current.unread.update(
-            message.chat,
-            (count) => count + 1,
-            ifAbsent: () => 1,
-          );
-        }
         if (!buffered &&
             !message.outgoing &&
             !current.muted.contains(message.chat)) {
@@ -1794,22 +1811,42 @@ class MeshController extends ChangeNotifier {
     unawaited(store.save(_profileKey(radio), data));
   }
 
-  void _limitHistory(ChatCache data) {
-    if (data.messages.length > 1000) {
-      data.messages.removeRange(0, data.messages.length - 1000);
-    }
+  void _limitHistory(ChatCache data) => data.trimHistory(1000);
+
+  VoidCallback trackChatViewport(
+    String radio,
+    String chat,
+    bool Function() atLatest,
+  ) {
+    final key = Object();
+    _chatViewports[key] = (radio: radio, chat: chat, atLatest: atLatest);
+    return () => _chatViewports.remove(key);
   }
 
-  void readChat(String id) {
-    openedChat = id;
-    if (active case final radio?) {
-      _cacheFor(radio).unread.remove(id);
-      _save(radio);
+  bool viewingLatest(Radio radio, String chat) {
+    final selected = active;
+    if (selected == null ||
+        radioKey(selected) != radioKey(radio) ||
+        isChatForeground?.call() == false) {
+      return false;
     }
+    return _chatViewports.values.any(
+      (view) =>
+          view.radio == radioKey(radio) && view.chat == chat && view.atLatest(),
+    );
+  }
+
+  void readChatThrough(String profile, String chat, String messageId) {
+    final radio = active;
+    if (radio == null ||
+        profile != radioKey(radio) ||
+        isChatForeground?.call() == false ||
+        !_cacheFor(radio).markReadThrough(chat, messageId)) {
+      return;
+    }
+    _save(radio);
     _changed();
   }
-
-  void leaveChat() => openedChat = null;
 
   String draft(String id) => cache?.drafts[id] ?? '';
   void setDraft(String id, String text) {
@@ -2305,6 +2342,7 @@ class MeshController extends ChangeNotifier {
   @override
   void dispose() {
     _closed = true;
+    _chatViewports.clear();
     ++_scanGeneration;
     _draftTimer?.cancel();
     _nodeTimer?.cancel();
