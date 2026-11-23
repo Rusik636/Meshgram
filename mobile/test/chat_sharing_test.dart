@@ -14,6 +14,7 @@ import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/message_input.dart';
 import 'package:meshgrame/ui/message_links.dart';
+import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -43,13 +44,18 @@ void main() {
     expect(composer().hidePlatformView, isTrue);
     expect(find.byType(MessageMenuBackdrop), findsNothing);
     expect(find.byType(MessageMenuSurface), findsNothing);
+    MeshSearchEditor contactSearch() =>
+        tester.widget(find.byType(MeshSearchEditor));
+    expect(contactSearch().preferNative, isTrue);
     await tester.tap(find.byTooltip('Sort by'));
     await tester.pumpAndSettle();
     expect(find.byType(SheetBody), findsOneWidget);
     expect(composer().hidePlatformView, isTrue);
+    expect(contactSearch().preferNative, isFalse);
     await tester.tap(find.text('Name'));
     await tester.pumpAndSettle();
     expect(composer().hidePlatformView, isTrue);
+    expect(contactSearch().preferNative, isTrue);
     expect(controller.nodeSort, NodeSort.name);
     await tester.tap(find.text(contact.name));
     await tester.pumpAndSettle();
