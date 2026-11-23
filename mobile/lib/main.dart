@@ -19,15 +19,20 @@ import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
 import 'ui/home.dart';
 import 'ui/legal_consent.dart';
+import 'ui/mesh_icon.dart';
 import 'ui/style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final symbolsReady = prepareMeshIosSymbols();
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
   final preferences = await SharedPreferences.getInstance();
   final revision = await legalRevision(rootBundle);
+  // Have the same glyphs available before either native buttons or the
+  // Flutter controls behind a modal can appear.
+  await symbolsReady;
   if (preferences.getString(legalConsentKey) != revision) {
     runApp(
       MaterialApp(

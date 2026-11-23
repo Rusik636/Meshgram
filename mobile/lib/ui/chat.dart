@@ -1448,7 +1448,8 @@ class _ChatState extends State<MeshChatPage>
     final title = peer.channel
         ? tr(context, 'Канал', 'Channel')
         : tr(context, 'Личный чат', 'Direct chat');
-    final native = useIosControls && _useNativeChatControls;
+    final ios = useIosControls;
+    final native = ios && _useNativeChatControls;
     final (avatarTop, avatarBottom) = MeshAvatar.colorsFor(peer.name);
     final avatar = MeshAvatar.initialsFor(peer.name);
     final properties = <String, Object>{
@@ -1516,8 +1517,9 @@ class _ChatState extends State<MeshChatPage>
               onPressed: () => unawaited(_profile(peer)),
               icon: MeshAvatar(
                 peer.name,
-                size: 43,
+                size: ios ? 35 : 43,
                 channel: peer.channel,
+                monogram: ios && peer.channel ? '#' : null,
                 online: widget.controller.isNodeOnline(peer.id),
               ),
             ),

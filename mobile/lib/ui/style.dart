@@ -235,43 +235,17 @@ class GlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    if (preferNative && useIosControls) {
-      final symbol = switch (icon) {
-        Icons.arrow_back_ios_new_rounded => 'chevron.left',
-        Icons.arrow_upward_rounded => 'arrow.up',
-        Icons.keyboard_arrow_down_rounded => 'chevron.down',
-        Icons.edit_note_rounded => 'square.and.pencil',
-        Icons.edit_outlined => 'pencil',
-        Icons.close_rounded => 'xmark',
-        Icons.open_in_full_rounded => 'arrow.up.left.and.arrow.down.right',
-        Icons.close_fullscreen_rounded => 'arrow.down.right.and.arrow.up.left',
-        Icons.my_location_rounded => 'location.viewfinder',
-        Icons.sort_rounded => 'line.3.horizontal.decrease',
-        Icons.map_outlined => 'map',
-        Icons.attach_file_rounded => 'paperclip',
-        Icons.qr_code_2_rounded => 'qrcode',
-        Icons.qr_code_scanner_rounded => 'qrcode.viewfinder',
-        Icons.ios_share_rounded => 'square.and.arrow.up',
-        Icons.download_rounded => 'arrow.down.to.line',
-        Icons.share_outlined => 'square.and.arrow.up',
-        Icons.search_rounded => 'magnifyingglass',
-        Icons.refresh_rounded => 'arrow.clockwise',
-        Icons.check_rounded => 'checkmark',
-        Icons.copy_rounded => 'document.on.document',
-        Icons.add_rounded => 'plus',
-        _ => null,
-      };
-      if (symbol != null) {
-        return SizedBox.square(
-          dimension: 48,
-          child: _NativeGlassButton(
-            symbol: symbol,
-            label: label,
-            onTap: onTap,
-            primary: primary,
-          ),
-        );
-      }
+    final symbol = useIosControls ? meshGlassButtonSymbol(icon) : null;
+    if (preferNative && symbol != null) {
+      return SizedBox.square(
+        dimension: 48,
+        child: _NativeGlassButton(
+          symbol: symbol,
+          label: label,
+          onTap: onTap,
+          primary: primary,
+        ),
+      );
     }
     return Tooltip(
       message: label,
@@ -280,7 +254,11 @@ class GlassButton extends StatelessWidget {
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
           padding: EdgeInsets.zero,
-          icon: MeshIcon(icon, size: 20),
+          icon: MeshIcon(
+            icon,
+            size: symbol == null ? 20 : 24,
+            systemSymbol: symbol,
+          ),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,
@@ -411,11 +389,13 @@ class MeshAvatar extends StatelessWidget {
     this.size = 48,
     this.channel = false,
     this.online = false,
+    this.monogram,
     this.onTap,
   });
   final String name;
   final double size;
   final bool channel, online;
+  final String? monogram;
   final VoidCallback? onTap;
 
   static (Color, Color) colorsFor(String name) {
@@ -443,7 +423,7 @@ class MeshAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (top, bottom) = colorsFor(name);
-    final initials = initialsFor(name);
+    final initials = monogram ?? initialsFor(name);
     final avatar = MeshAvatarPresence(
       size: size,
       online: online && !channel,
@@ -460,7 +440,7 @@ class MeshAvatar extends StatelessWidget {
               colors: [top, bottom],
             ),
           ),
-          child: channel
+          child: channel && monogram == null
               ? MeshIcon(
                   Icons.tag_rounded,
                   color: Colors.white,
