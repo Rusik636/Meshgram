@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'dart:ui'
     show FragmentProgram, FragmentShader, ImageFilter, ImageByteFormat;
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -87,6 +88,7 @@ class _ChatState extends State<MeshChatPage>
   double _footerHeight = 76;
   bool _measurementPending = false;
   final _latestButtonVisible = ValueNotifier(false);
+  final _visibleLinkMessages = ValueNotifier<Set<String>>(const {});
   late final String? _radio;
   VoidCallback? _untrackViewport;
   ModalRoute<dynamic>? _route;
@@ -120,17 +122,20 @@ class _ChatState extends State<MeshChatPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final couldPreview = _canPreviewLinks;
     _lifecycle = state;
+    if (couldPreview != _canPreviewLinks) setState(() {});
     if (state == AppLifecycleState.resumed) _scheduleHistoryUpdate();
   }
 
-  bool get _canReadHistory =>
+  bool get _canPreviewLinks =>
       mounted &&
-      !_searching &&
       !_menuVisible &&
       !_attachmentOpen &&
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
+
+  bool get _canReadHistory => !_searching && _canPreviewLinks;
 
   double get _distanceToLatest {
     if (!_scroll.hasClients) return 0;
@@ -182,8 +187,29 @@ class _ChatState extends State<MeshChatPage>
     _historyScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _historyScheduled = false;
-      if (mounted) _updateHistoryPosition();
+      if (!mounted) return;
+      _updateHistoryPosition();
+      if (!_historyScheduled) _updateLinkPreviewVisibility();
     });
+  }
+
+  void _updateLinkPreviewVisibility() {
+    final range = _canPreviewLinks && _history.isAttached
+        ? _history.visibleRange
+        : null;
+    final visible = <String>{};
+    if (range != null) {
+      for (
+        var index = range.$1;
+        index <= range.$2 && index < _listedMessages.length;
+        index++
+      ) {
+        visible.add(_listedMessages[_listedMessages.length - index - 1].id);
+      }
+    }
+    if (!setEquals(_visibleLinkMessages.value, visible)) {
+      _visibleLinkMessages.value = visible;
+    }
   }
 
   void _updateHistoryPosition() {
@@ -371,6 +397,7 @@ class _ChatState extends State<MeshChatPage>
     _scroll.removeListener(_scheduleHistoryUpdate);
     _history.removeListener(_scheduleHistoryUpdate);
     _latestButtonVisible.dispose();
+    _visibleLinkMessages.dispose();
     _quoteScroll?.cancel();
     _history.dispose();
     _scroll.dispose();
@@ -974,12 +1001,26 @@ class _ChatState extends State<MeshChatPage>
                                   loadTiles: false,
                                 );
                               }
-                              return link == null || item.suppressLinkPreview
-                                  ? null
-                                  : MessageLinkPreview(
-                                      uri: link,
-                                      foreground: style.text,
-                                    );
+                              if (link == null || item.suppressLinkPreview) {
+                                return null;
+                              }
+                              if (!interactive) {
+                                return MessageLinkPreview(
+                                  uri: link,
+                                  foreground: style.text,
+                                  autoLoad: false,
+                                );
+                              }
+                              return ValueListenableBuilder(
+                                valueListenable: _visibleLinkMessages,
+                                builder: (_, visible, _) => MessageLinkPreview(
+                                  uri: link,
+                                  foreground: style.text,
+                                  autoLoad:
+                                      _canPreviewLinks &&
+                                      visible.contains(item.id),
+                                ),
+                              );
                             }
 
                             _Bubble bubble([ValueChanged<Rect>? onMenu]) {
@@ -1344,6 +1385,7 @@ class _ChatState extends State<MeshChatPage>
                     child: MessageLinkPreview(
                       uri: previewLink,
                       compact: true,
+                      autoLoad: _canPreviewLinks,
                       onDismiss: () =>
                           setState(() => _dismissedDraftLink = previewLink),
                     ),

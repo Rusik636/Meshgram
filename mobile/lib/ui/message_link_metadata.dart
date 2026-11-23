@@ -39,8 +39,9 @@ bool canFetchMessageLink(Uri uri) =>
     return String.fromCharCodes(characters);
   }
 
+  final tags = head?.querySelectorAll('meta') ?? const [];
   String? meta(String key) {
-    for (final tag in head?.querySelectorAll('meta') ?? const []) {
+    for (final tag in tags) {
       if (tag.attributes['property']?.toLowerCase() == key ||
           tag.attributes['name']?.toLowerCase() == key) {
         final value = tag.attributes['content'];
@@ -50,13 +51,26 @@ bool canFetchMessageLink(Uri uri) =>
     return null;
   }
 
-  final image = meta('og:image:secure_url') ?? meta('og:image');
+  final image =
+      meta('og:image:secure_url') ?? meta('og:image') ?? meta('twitter:image');
   final reference = image == null ? null : Uri.tryParse(image);
   final resolved = reference == null ? null : page.resolveUri(reference);
   return (
-    title: clean(meta('og:title') ?? head?.querySelector('title')?.text, 160),
-    description: clean(meta('og:description') ?? meta('description'), 360),
-    image: resolved != null && _sameOrigin(page, resolved) ? resolved : null,
+    title: clean(
+      meta('og:title') ??
+          meta('twitter:title') ??
+          head?.querySelector('title')?.text,
+      160,
+    ),
+    description: clean(
+      meta('og:description') ??
+          meta('twitter:description') ??
+          meta('description'),
+      360,
+    ),
+    image: resolved != null && _mayRequestPreviewImage(page, resolved)
+        ? resolved
+        : null,
   );
 }
 
@@ -64,6 +78,13 @@ const _timeout = Duration(seconds: 6);
 
 bool _sameOrigin(Uri a, Uri b) =>
     a.scheme == b.scheme && a.host == b.host && a.port == b.port;
+
+// RuStore hosts its Open Graph images on a dedicated first-party CDN.
+bool _mayRequestPreviewImage(Uri page, Uri image) =>
+    canFetchMessageLink(image) &&
+    (_sameOrigin(page, image) ||
+        ((page.host == 'www.rustore.ru' || page.host == 'rustore.ru') &&
+            image.host == 'static.rustore.ru'));
 
 bool _publicAddress(InternetAddress address) {
   final bytes = address.rawAddress;
@@ -114,6 +135,7 @@ Future<_Download?> _download(
   required String accept,
   required Set<String> contentTypes,
   required int limit,
+  bool readPrefix = false,
   Uri? origin,
 }) async {
   for (var redirects = 0; redirects <= 3; redirects++) {
@@ -141,13 +163,18 @@ Future<_Download?> _download(
     final type = response.headers.contentType;
     if (response.statusCode != HttpStatus.ok ||
         !contentTypes.contains(type?.mimeType) ||
-        response.contentLength > limit) {
+        (!readPrefix && response.contentLength > limit)) {
       await response.listen(null).cancel();
       return null;
     }
     final bytes = BytesBuilder();
     await for (final chunk in response.timeout(_timeout)) {
-      if (bytes.length + chunk.length > limit) return null;
+      final remaining = limit - bytes.length;
+      if (chunk.length > remaining && !readPrefix) return null;
+      if (readPrefix && chunk.length >= remaining) {
+        bytes.add(chunk.sublist(0, remaining));
+        break;
+      }
       bytes.add(chunk);
     }
     return (uri: uri, body: bytes.takeBytes(), encoding: type?.charset);
@@ -182,7 +209,8 @@ Future<MessageLinkMetadata?> _fetchPreview(HttpClient client, Uri uri) async {
     accept: htmlTypes.join(', '),
     contentTypes: htmlTypes,
     limit: 384 * 1024,
-  );
+    readPrefix: true,
+  ).timeout(const Duration(seconds: 8));
   if (download == null) return null;
   final metadata = parseMessageLinkMetadata(
     download.body,
@@ -190,7 +218,10 @@ Future<MessageLinkMetadata?> _fetchPreview(HttpClient client, Uri uri) async {
     encoding: download.encoding,
   );
   final image = switch (metadata.image) {
-    final url? => await _previewImage(client, url, download.uri),
+    final url? => await _previewImage(
+      client,
+      url,
+    ).timeout(const Duration(seconds: 3), onTimeout: () => null),
     null => null,
   };
   if (metadata.title == null && metadata.description == null && image == null) {
@@ -203,7 +234,7 @@ Future<MessageLinkMetadata?> _fetchPreview(HttpClient client, Uri uri) async {
   );
 }
 
-Future<Uint8List?> _previewImage(HttpClient client, Uri uri, Uri origin) async {
+Future<Uint8List?> _previewImage(HttpClient client, Uri uri) async {
   try {
     const imageTypes = {'image/jpeg', 'image/png', 'image/webp'};
     final download = await _download(
@@ -212,14 +243,18 @@ Future<Uint8List?> _previewImage(HttpClient client, Uri uri, Uri origin) async {
       accept: imageTypes.join(', '),
       contentTypes: imageTypes,
       limit: 512 * 1024,
-      origin: origin,
+      origin: uri,
     );
     if (download == null) return null;
     final buffer = await ui.ImmutableBuffer.fromUint8List(download.body);
     try {
       final descriptor = await ui.ImageDescriptor.encoded(buffer);
       try {
-        if (descriptor.width > 2048 || descriptor.height > 2048) return null;
+        // Wide preview banners can exceed 2048 px on one side.
+        final width = descriptor.width, height = descriptor.height;
+        if (width > 4096 || height > 4096 || width * height > 2048 * 2048) {
+          return null;
+        }
         return download.body;
       } finally {
         descriptor.dispose();
