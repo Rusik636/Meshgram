@@ -3,7 +3,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show FragmentProgram, FragmentShader, ImageFilter, lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +29,7 @@ class AttachmentContacts extends StatefulWidget {
     required this.onToggleExpand,
     required this.onSelect,
     required this.beginSheetDrag,
+    this.bottomObstruction = 0,
   });
 
   final List<ShareableNode> contacts;
@@ -38,6 +39,7 @@ class AttachmentContacts extends StatefulWidget {
   final VoidCallback onClose, onToggleExpand;
   final ValueChanged<String> onSelect;
   final Drag? Function() beginSheetDrag;
+  final double bottomObstruction;
 
   @override
   State<AttachmentContacts> createState() => _AttachmentContactsState();
@@ -140,6 +142,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     BuildContext context, {
     required List<ShareableNode> contacts,
     required double top,
+    required double bottom,
     ScrollController? scroll,
     PageStorageKey<String>? key,
   }) {
@@ -158,7 +161,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
             hasScrollBody: false,
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
                 child: Text(
                   widget.contacts.isEmpty
                       ? tr(context, 'Пока нет узлов', 'No nodes yet')
@@ -169,7 +172,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
               ),
             ),
           )
-        else
+        else ...[
           SliverList.separated(
             itemCount: contacts.length,
             separatorBuilder: nodeRowSeparator,
@@ -203,6 +206,8 @@ class _AttachmentContactsState extends State<AttachmentContacts>
               );
             },
           ),
+          SliverToBoxAdapter(child: SizedBox(height: bottom)),
+        ],
       ],
     );
   }
@@ -239,7 +244,6 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     List<ShareableNode> contacts,
     List<ShareableNode> results,
   ) {
-    final style = MeshStyle.of(context);
     final title = tr(context, 'Контакты', 'Contacts');
     final placeholder = tr(context, 'Поиск узлов', 'Search nodes');
     const side = 16.0;
@@ -282,74 +286,64 @@ class _AttachmentContactsState extends State<AttachmentContacts>
         );
         final listTop = field.top + fieldHeight + 9;
         final launchButton = !_searching && collapse == 1 && progress == 0;
-        final headerOpacity = collapse * (1 - progress);
+        final topEdge = lerpDouble(
+          normalHeaderHeight - collapseRange * collapse,
+          listTop,
+          progress,
+        )!;
+        final bottomEdge = (widget.bottomObstruction * .7).clamp(38.0, 92.0);
+        final bottom = math.max(bottomEdge, widget.bottomObstruction);
         return Stack(
           children: [
             Positioned.fill(
-              child: Offstage(
-                offstage: progress == 1,
-                child: IgnorePointer(
-                  ignoring: _searching,
-                  child: ExcludeSemantics(
-                    excluding: _searching,
-                    child: Opacity(
-                      opacity: 1 - progress,
-                      child: _list(
-                        context,
-                        key: const PageStorageKey('attachment-contacts'),
-                        scroll: _scroll,
-                        contacts: contacts,
-                        top: normalHeaderHeight,
+              child: _ContactScrollEdges(
+                key: const ValueKey('attachment-contact-scroll-edges'),
+                top: topEdge,
+                bottom: bottomEdge,
+                height: constraints.maxHeight,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Offstage(
+                      offstage: progress == 1,
+                      child: IgnorePointer(
+                        ignoring: _searching,
+                        child: ExcludeSemantics(
+                          excluding: _searching,
+                          child: Opacity(
+                            opacity: 1 - progress,
+                            child: _list(
+                              context,
+                              key: const PageStorageKey('attachment-contacts'),
+                              scroll: _scroll,
+                              contacts: contacts,
+                              top: normalHeaderHeight,
+                              bottom: bottom,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    if (_searching || progress > 0)
+                      IgnorePointer(
+                        ignoring: !_searching,
+                        child: ExcludeSemantics(
+                          excluding: !_searching,
+                          child: Opacity(
+                            opacity: progress,
+                            child: _list(
+                              context,
+                              contacts: results,
+                              top: math.min(listTop, constraints.maxHeight),
+                              bottom: bottom,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
-            if (_searching || progress > 0)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: math.min(listTop, constraints.maxHeight),
-                bottom: 0,
-                child: IgnorePointer(
-                  ignoring: !_searching,
-                  child: ExcludeSemantics(
-                    excluding: !_searching,
-                    child: Opacity(
-                      opacity: progress,
-                      child: _list(context, contacts: results, top: 0),
-                    ),
-                  ),
-                ),
-              ),
-            if (headerOpacity > 0)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: lerpDouble(
-                  normalHeaderHeight - collapseRange * collapse,
-                  listTop,
-                  progress,
-                ),
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          style.surface.withValues(alpha: headerOpacity),
-                          style.surface.withValues(alpha: headerOpacity),
-                          style.surface.withValues(alpha: 0),
-                        ],
-                        stops: const [0, .91, 1],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             if (progress < 1)
               Positioned(
                 left: side,
@@ -451,6 +445,104 @@ class _AttachmentContactsState extends State<AttachmentContacts>
           ],
         );
       },
+    );
+  }
+}
+
+class _ContactScrollEdges extends StatefulWidget {
+  const _ContactScrollEdges({
+    super.key,
+    required this.top,
+    required this.bottom,
+    required this.height,
+    required this.child,
+  });
+
+  final double top, bottom, height;
+  final Widget child;
+
+  @override
+  State<_ContactScrollEdges> createState() => _ContactScrollEdgesState();
+}
+
+class _ContactScrollEdgesState extends State<_ContactScrollEdges> {
+  static Future<FragmentProgram>? _program;
+  final _content = GlobalKey();
+  FragmentProgram? _loadedProgram;
+  FragmentShader? _shader;
+  (double, double)? _extents;
+
+  @override
+  void initState() {
+    super.initState();
+    if (ImageFilter.isShaderFilterSupported) unawaited(_loadShader());
+  }
+
+  Future<void> _loadShader() async {
+    try {
+      final program = await (_program ??= FragmentProgram.fromAsset(
+        'shaders/contact_scroll_edges.frag',
+      ));
+      if (mounted) setState(() => _loadedProgram = program);
+    } catch (_) {
+      // A transparent alpha ramp is also available without a shader filter.
+    }
+  }
+
+  @override
+  void dispose() {
+    _shader?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = KeyedSubtree(key: _content, child: widget.child);
+    if (widget.height <= 0) return child;
+    final extent = math.max(widget.height, widget.top + widget.bottom);
+    final top = widget.top / extent;
+    final bottom = widget.bottom / extent;
+    final program = _loadedProgram;
+    if (program != null && !MediaQuery.highContrastOf(context)) {
+      if (_extents != (top, bottom)) {
+        _shader?.dispose();
+        _shader = program.fragmentShader()
+          ..setFloat(2, top)
+          ..setFloat(3, bottom);
+        _extents = (top, bottom);
+      }
+      return ImageFiltered(
+        imageFilter: ImageFilter.shader(_shader!),
+        child: child,
+      );
+    }
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [
+          Colors.transparent,
+          Color(0x40ffffff),
+          Color(0xbfffffff),
+          Colors.white,
+          Colors.white,
+          Color(0xbfffffff),
+          Color(0x40ffffff),
+          Colors.transparent,
+        ],
+        stops: [
+          0,
+          .33 * top,
+          .67 * top,
+          top,
+          1 - bottom,
+          1 - .67 * bottom,
+          1 - .33 * bottom,
+          1,
+        ],
+      ).createShader(bounds),
+      child: child,
     );
   }
 }
