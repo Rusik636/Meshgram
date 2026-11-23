@@ -6,7 +6,6 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
-import 'mesh_icon.dart';
 import 'navigation.dart';
 import 'style.dart';
 
@@ -133,7 +132,6 @@ class MeshSearchEditor extends StatelessWidget {
     this.onActivate,
     this.active = true,
     this.progress = 1,
-    this.preferNative = true,
   });
 
   final String placeholder, initialText;
@@ -142,7 +140,7 @@ class MeshSearchEditor extends StatelessWidget {
   final GlobalKey<IosControlState> iosKey;
   final ValueChanged<String> onChanged;
   final VoidCallback onDismissKeyboard;
-  final bool autofocus, preferNative;
+  final bool autofocus;
   final VoidCallback? onActivate;
   final bool active;
   final double progress;
@@ -150,19 +148,21 @@ class MeshSearchEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final ios = useIosControls;
-    if (preferNative && ios) {
+    if (useIosControls) {
+      final covered = ModalRoute.isCurrentOf(context) == false;
       return SizedBox(
         height: meshSearchFieldHeight(context),
         child: IosControl(
           key: iosKey,
           kind: 'chatSearch',
+          capsule: true,
           onTextChanged: onChanged,
           onSelect: onActivate == null ? null : (_) => onActivate!(),
           properties: {
             'placeholder': placeholder,
             'initialText': initialText,
-            'autofocus': autofocus,
+            'autofocus': autofocus && !covered,
+            'coveredByModal': covered,
             'titleSize': MediaQuery.textScalerOf(context).scale(17),
             'dark': style.dark,
             'foreground': style.text.toARGB32(),
@@ -185,15 +185,7 @@ class MeshSearchEditor extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.zero,
-        prefixIcon: ios
-            ? const Center(
-                child: MeshIosButtonGlyph(
-                  Icons.search_rounded,
-                  symbol: 'magnifyingglass',
-                  size: 17 / .75,
-                ),
-              )
-            : const Icon(Icons.search_rounded),
+        prefixIcon: const Icon(Icons.search_rounded),
         prefixIconConstraints: const BoxConstraints.tightFor(
           width: meshSearchButtonSize,
           height: meshSearchButtonSize,
@@ -235,14 +227,7 @@ class MeshSearchEditor extends StatelessWidget {
             message: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
-              color: style.text,
-              icon: ios
-                  ? const MeshIosButtonGlyph(
-                      Icons.search_rounded,
-                      symbol: 'magnifyingglass',
-                      size: 19 / .75,
-                    )
-                  : const Icon(Icons.search_rounded, size: 20),
+              icon: Icon(Icons.search_rounded, color: style.text, size: 20),
             ),
           );
         },

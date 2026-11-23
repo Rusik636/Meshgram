@@ -2758,31 +2758,46 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    MeshRowIcon badge(Radio radio) => tester.widget<MeshRowIcon>(
-      find.descendant(
-        of: find.byKey(ValueKey(radioKey(radio))),
-        matching: find.byType(MeshRowIcon),
-      ),
+    Finder badge(Radio radio) => find.descendant(
+      of: find.byKey(ValueKey(radioKey(radio))),
+      matching: find.byType(MeshRowIcon),
     );
+    void expectGradient(Radio radio, Color tint) {
+      final tile = tester.widget<Container>(
+        find.descendant(of: badge(radio), matching: find.byType(Container)),
+      );
+      expect(
+        (tile.decoration as BoxDecoration).gradient,
+        LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color.lerp(tint, Colors.white, .20)!, tint],
+        ),
+      );
+    }
+
     const lime = Color(0xffd5e88b);
     const green = Color(0xffa9e0b4);
     const gray = Color(0xff6a7280);
 
-    expect(badge(wifi).icon, Icons.wifi_rounded);
-    expect(badge(wifi).tint, lime);
-    expect(badge(bluetooth).icon, Icons.bluetooth_rounded);
-    expect(badge(bluetooth).tint, green);
-    expect(badge(offline).tint, gray);
+    expect(tester.widget<MeshRowIcon>(badge(wifi)).icon, Icons.wifi_rounded);
+    expect(
+      tester.widget<MeshRowIcon>(badge(bluetooth)).icon,
+      Icons.bluetooth_rounded,
+    );
+    expectGradient(wifi, lime);
+    expectGradient(bluetooth, green);
+    expectGradient(offline, gray);
 
     await controller.connect(bluetooth);
     await tester.pumpAndSettle();
-    expect(badge(bluetooth).tint, lime);
-    expect(badge(wifi).tint, green);
+    expectGradient(bluetooth, lime);
+    expectGradient(wifi, green);
 
     await controller.disconnectRadio(bluetooth);
     await tester.pumpAndSettle();
-    expect(badge(bluetooth).tint, gray);
-    expect(badge(wifi).tint, green);
+    expectGradient(bluetooth, gray);
+    expectGradient(wifi, green);
 
     await tester.pumpWidget(const SizedBox());
     controller.dispose();

@@ -44,18 +44,17 @@ void main() {
     expect(composer().hidePlatformView, isTrue);
     expect(find.byType(MessageMenuBackdrop), findsNothing);
     expect(find.byType(MessageMenuSurface), findsNothing);
-    MeshSearchEditor contactSearch() =>
-        tester.widget(find.byType(MeshSearchEditor));
-    expect(contactSearch().preferNative, isTrue);
+    final contactSearch = find.byType(MeshSearchEditor);
+    final searchElement = tester.element(contactSearch);
     await tester.tap(find.byTooltip('Sort by'));
     await tester.pumpAndSettle();
     expect(find.byType(SheetBody), findsOneWidget);
     expect(composer().hidePlatformView, isTrue);
-    expect(contactSearch().preferNative, isFalse);
+    expect(tester.element(contactSearch), same(searchElement));
     await tester.tap(find.text('Name'));
     await tester.pumpAndSettle();
     expect(composer().hidePlatformView, isTrue);
-    expect(contactSearch().preferNative, isTrue);
+    expect(tester.element(contactSearch), same(searchElement));
     expect(controller.nodeSort, NodeSort.name);
     await tester.tap(find.text(contact.name));
     await tester.pumpAndSettle();

@@ -1,87 +1,96 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
-import 'dart:convert';
-
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meshgrame/ui/mesh_icon.dart';
+import 'package:meshgrame/ui/ios_control.dart';
+import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 
 void main() {
-  testWidgets(
-    'covered iOS glass buttons use preloaded glyphs at their native scale',
-    (tester) async {
-      const channel = MethodChannel('meshgrame/symbols');
-      final messenger = tester.binding.defaultBinaryMessenger;
-      final search = meshGlassButtonSymbol(Icons.search_rounded)!;
-      var requests = 0;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        requests++;
-        expect(call.method, 'render');
-        expect(call.arguments, containsAll([search, 'map', 'paperclip']));
-        expect(call.arguments, isNot(contains('moon')));
-        return {
-          search: base64Decode(
-            'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8'
-            '////fwYGBgYmEAHCAD34BABm6tHAAAAAAElFTkSuQmCC',
-          ),
-        };
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      await tester.runAsync(() async {
-        await prepareMeshIosSymbols();
-        await prepareMeshIosSymbols();
-      });
-      expect(requests, 1);
-
-      const buttonKey = ValueKey('covered search');
-      const rowIconKey = ValueKey('settings tile');
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Column(
+  testWidgets('iOS retains the native button and search when a sheet opens', (
+    tester,
+  ) async {
+    final search = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(search.dispose);
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Column(
               children: [
                 GlassButton(
-                  key: buttonKey,
-                  icon: Icons.search_rounded,
-                  label: 'Search',
+                  icon: Icons.sort_rounded,
+                  label: 'Sort',
                   onTap: () {},
-                  preferNative: false,
                 ),
-                MeshIosButtonGlyph(
-                  Icons.sort_rounded,
-                  symbol: meshGlassButtonSymbol(Icons.sort_rounded)!,
+                SizedBox.square(
+                  dimension: 48,
+                  child: MeshSearchEditor(
+                    placeholder: 'Search',
+                    controller: search,
+                    focusNode: focus,
+                    iosKey: GlobalKey<IosControlState>(),
+                    active: false,
+                    onActivate: () {},
+                    onChanged: (_) {},
+                    onDismissKeyboard: () {},
+                  ),
                 ),
-                const MeshRowIcon(
-                  key: rowIconKey,
-                  icon: Icons.dark_mode_outlined,
-                  tint: Colors.blue,
+                TextButton(
+                  onPressed: () => showMeshSheet<void>(
+                    context: context,
+                    builder: (context) => TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close sheet'),
+                    ),
+                  ),
+                  child: const Text('Open sheet'),
                 ),
               ],
             ),
           ),
         ),
-      );
-      final glyph = find.byType(RawImage);
-      final button = find.byKey(buttonKey);
-      expect(tester.getSize(glyph), const Size.square(31));
-      expect(tester.getSize(button), const Size.square(48));
-      expect(tester.getCenter(glyph), tester.getCenter(button));
-      expect(find.byType(UiKitView), findsNothing);
-      expect(find.byIcon(Icons.search_rounded), findsNothing);
+      ),
+    );
+    Finder native(String kind) => find.byWidgetPredicate(
+      (widget) => widget is IosControl && widget.kind == kind,
+    );
+    final button = native('button');
+    final editor = native('chatSearch');
+    final buttonState = tester.state<IosControlState>(button);
+    final searchState = tester.state<IosControlState>(editor);
+    expect(
+      tester.widget<IosControl>(button).properties['symbol'],
+      'line.3.horizontal.decrease',
+    );
+    expect(tester.getSize(button), const Size.square(48));
+
+    void expectControls(bool covered) {
+      expect(tester.state<IosControlState>(button), same(buttonState));
+      expect(tester.state<IosControlState>(editor), same(searchState));
       expect(
-        find.byIcon(CupertinoIcons.line_horizontal_3_decrease),
-        findsOneWidget,
+        tester.widget<IosControl>(button).properties['coveredByModal'],
+        covered,
       );
-      final rowIcon = find.descendant(
-        of: find.byKey(rowIconKey),
-        matching: find.byIcon(Icons.dark_mode_outlined),
+      expect(
+        tester.widget<IosControl>(editor).properties['coveredByModal'],
+        covered,
       );
-      expect(tester.widget<Icon>(rowIcon).size, 17);
-    },
-    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
-  );
+      expect(tester.widget<IosControl>(button).capsule, isTrue);
+      expect(tester.widget<IosControl>(editor).capsule, isTrue);
+      expect(find.byType(IconButton), findsNothing);
+      expect(find.byType(RawImage), findsNothing);
+    }
+
+    expectControls(false);
+    await tester.tap(find.text('Open sheet'));
+    await tester.pumpAndSettle();
+    expectControls(true);
+    await tester.tap(find.text('Close sheet'));
+    await tester.pumpAndSettle();
+    expectControls(false);
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 }

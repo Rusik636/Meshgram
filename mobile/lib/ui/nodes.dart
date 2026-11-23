@@ -214,7 +214,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     (meshtasticNodeAddress(peer.id)?.contains(query) ?? false));
           }).toList();
     final canSearch = !editing && nodes.isNotEmpty;
-    final heading = _heading(context, nodes, editing, canSearch || _searching);
     final browse = _nodeList(
       context,
       scroll: _scroll,
@@ -234,6 +233,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
         final collapse = (offset / collapseRange).clamp(0.0, 1.0);
         final active = _searching || progress > 0;
         final compact = !active && collapse == 1;
+        final searchAtHeading = collapse * (1 - progress);
         final field = meshSearchFieldRect(
           width: width,
           normalTop: normalTop,
@@ -302,7 +302,12 @@ class _MeshNodesPageState extends State<MeshNodesPage>
               left: _headingInset,
               right: _headingInset,
               height: headingHeight,
-              child: heading,
+              child: _heading(
+                context,
+                nodes,
+                editing,
+                canSearch || active ? _headingSlot * searchAtHeading : 0,
+              ),
             ),
             if (canSearch || active)
               Positioned.fromRect(
@@ -313,7 +318,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         icon: Icons.search_rounded,
                         label: placeholder,
                         onTap: _openSearch,
-                        preferNative: preferNative,
                       )
                     : _searching && field.width >= 120
                     ? MeshSearchEditor(
@@ -325,11 +329,10 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                         onChanged: _changeQuery,
                         onDismissKeyboard: _dismissSearchKeyboard,
                         autofocus: preferNative,
-                        preferNative: preferNative,
                       )
                     : MeshSearchLauncher(
                         placeholder: placeholder,
-                        collapse: collapse * (1 - progress),
+                        collapse: searchAtHeading,
                         onTap: active ? null : _openSearch,
                       ),
               ),
@@ -341,7 +344,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   icon: Icons.close_rounded,
                   label: tr(context, 'Закрыть поиск', 'Close search'),
                   onTap: _searching ? _closeSearch : null,
-                  preferNative: preferNative,
                 ),
               ),
           ],
@@ -354,15 +356,13 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     BuildContext context,
     List<Peer> nodes,
     bool editing,
-    bool reserveSearchSlot,
+    double searchSlotWidth,
   ) {
-    final preferNative = ModalRoute.isCurrentOf(context) != false;
     return Row(
       children: [
         GlassButton(
           icon: Icons.arrow_back_ios_new_rounded,
           label: tr(context, 'Назад', 'Back'),
-          preferNative: preferNative,
           onTap: () {
             if (_searching) {
               _closeSearch();
@@ -411,11 +411,10 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   ),
           )
         else ...[
-          if (reserveSearchSlot) const SizedBox(width: _headingSlot),
+          SizedBox(width: searchSlotWidth),
           GlassButton(
             icon: Icons.map_outlined,
             label: tr(context, 'Карта узлов', 'Node map'),
-            preferNative: preferNative,
             onTap: () {
               if (_searching) _dismissSearchKeyboard();
               unawaited(_openMap(context));
@@ -425,7 +424,6 @@ class _MeshNodesPageState extends State<MeshNodesPage>
           GlassButton(
             icon: Icons.sort_rounded,
             label: tr(context, 'Сортировка', 'Sort by'),
-            preferNative: preferNative,
             onTap: controller.active == null
                 ? null
                 : () => unawaited(_pickSort(context)),

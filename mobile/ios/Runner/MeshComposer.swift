@@ -30,9 +30,9 @@ private class MeshInputGlass: UIVisualEffectView {
     }
   }
 
-  func applyMaterial(surface: UIColor) {
+  func applyMaterial(surface: UIColor, opaque: Bool = false) {
     backgroundColor = .clear
-    if UIAccessibility.isReduceTransparencyEnabled {
+    if opaque || UIAccessibility.isReduceTransparencyEnabled {
       effect = nil
       backgroundColor = surface
     } else if #available(iOS 26.0, *) {
@@ -194,6 +194,7 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
   private var surface: UIColor = .secondarySystemBackground
   private var pendingFocus = true
   private var cornerActive = false
+  private var coveredByModal = false
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     self.channel = channel
@@ -302,11 +303,16 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
   }
 
   @objc private func updateGlass() {
-    glass.applyMaterial(surface: surface)
+    glass.applyMaterial(surface: surface, opaque: coveredByModal)
   }
 
   private func update(_ input: [String: Any]) {
     let dark = input["dark"] as? Bool == true
+    let wasCovered = coveredByModal
+    coveredByModal = input["coveredByModal"] as? Bool == true
+    glass.isUserInteractionEnabled = !coveredByModal
+    glass.accessibilityElementsHidden = coveredByModal
+    if coveredByModal { dismissKeyboard() }
     glass.overrideUserInterfaceStyle = dark ? .dark : .light
     field.keyboardAppearance = dark ? .dark : .light
     let titleSize = (input["titleSize"] as? NSNumber)?.doubleValue ?? 17
@@ -339,7 +345,7 @@ final class MeshSearchField: NSObject, FlutterPlatformView, UITextFieldDelegate 
       layoutCornerSearch()
     }
     let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
-    if nextSurface != surface || glass.effect == nil {
+    if nextSurface != surface || wasCovered != coveredByModal || glass.effect == nil {
       surface = nextSurface
       updateGlass()
     }

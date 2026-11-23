@@ -227,18 +227,18 @@ class GlassButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.primary = false,
-    this.preferNative = true,
+    this.coveredByModal = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  final bool primary, preferNative;
+  final bool primary, coveredByModal;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final symbol = useIosControls ? meshGlassButtonSymbol(icon) : null;
-    if (preferNative && symbol != null) {
+    if (symbol != null) {
       return SizedBox.square(
         dimension: 48,
         child: _NativeGlassButton(
@@ -246,6 +246,7 @@ class GlassButton extends StatelessWidget {
           label: label,
           onTap: onTap,
           primary: primary,
+          coveredByModal: coveredByModal,
         ),
       );
     }
@@ -256,9 +257,7 @@ class GlassButton extends StatelessWidget {
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
           padding: EdgeInsets.zero,
-          icon: symbol == null
-              ? Icon(icon, size: 20)
-              : MeshIosButtonGlyph(icon, symbol: symbol),
+          icon: Icon(icon, size: 20),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,
@@ -351,19 +350,21 @@ class _NativeGlassButton extends StatelessWidget {
     required this.onTap,
     required this.primary,
     this.stacked = false,
+    this.coveredByModal = false,
   });
 
   final String? symbol;
   final String label;
   final VoidCallback? onTap;
   final bool primary;
-  final bool stacked;
+  final bool stacked, coveredByModal;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     return IosControl(
       kind: 'button',
+      capsule: !stacked,
       onSelect: (_) => onTap?.call(),
       properties: {
         'label': label,
@@ -377,6 +378,8 @@ class _NativeGlassButton extends StatelessWidget {
             .toARGB32(),
         'symbol': ?symbol,
         'stacked': stacked,
+        'coveredByModal':
+            coveredByModal || ModalRoute.isCurrentOf(context) == false,
       },
     );
   }
@@ -389,13 +392,11 @@ class MeshAvatar extends StatelessWidget {
     this.size = 48,
     this.channel = false,
     this.online = false,
-    this.monogram,
     this.onTap,
   });
   final String name;
   final double size;
   final bool channel, online;
-  final String? monogram;
   final VoidCallback? onTap;
 
   static (Color, Color) colorsFor(String name) {
@@ -423,7 +424,7 @@ class MeshAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (top, bottom) = colorsFor(name);
-    final initials = monogram ?? initialsFor(name);
+    final initials = initialsFor(name);
     final avatar = MeshAvatarPresence(
       size: size,
       online: online && !channel,
@@ -440,7 +441,7 @@ class MeshAvatar extends StatelessWidget {
               colors: [top, bottom],
             ),
           ),
-          child: channel && monogram == null
+          child: channel
               ? Icon(Icons.tag_rounded, color: Colors.white, size: size * .45)
               : Text(
                   initials.isEmpty ? 'M' : initials,
