@@ -5744,6 +5744,10 @@ void main() {
     );
     expect(tester.getSize(mask), viewport);
     expect(tester.getCenter(find.text('Contact QR code')).dx, 195);
+    final paste = find.widgetWithText(GlassActionButton, 'Paste a link');
+    final captionWidth = tester.getSize(find.text('Paste a link')).width;
+    expect(tester.getSize(paste).width, captionWidth.ceilToDouble() + 28);
+    expect(tester.getCenter(paste).dx, 195);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
   });

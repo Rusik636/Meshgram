@@ -151,6 +151,7 @@ class _MeshQrScannerState extends State<MeshQrScannerPage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: GlassActionButton(
               label: tr(context, 'Вставить ссылку', 'Paste a link'),
+              fitContent: true,
               onTap: () => unawaited(_manual()),
             ),
           ),

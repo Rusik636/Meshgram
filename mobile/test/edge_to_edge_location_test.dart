@@ -37,10 +37,15 @@ void main() {
     );
 
     final map = find.byType(MeshMap);
-    final action = find.text('Send location');
+    final action = find.ancestor(
+      of: find.text('Send'),
+      matching: find.byType(FilledButton),
+    );
     final attribution = find.byType(MeshMapAttribution);
     final tabs = find.byType(MeshTabBar);
     expect(tester.getRect(map).contains(tester.getCenter(action)), isTrue);
+    expect(tester.getSize(action).width, inInclusiveRange(48, 120));
+    expect(tester.getCenter(action).dx, _size.width / 2);
     expect(tester.getRect(map).contains(tester.getCenter(tabs)), isTrue);
     expect(tester.getRect(tabs).bottom, lessThanOrEqualTo(_size.height - 34));
     expect(tester.getRect(attribution).bottom, _size.height);

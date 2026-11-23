@@ -314,7 +314,7 @@ void main() {
 
       final map = find.byType(MeshMap);
       final compact = tester.getSize(map).height;
-      final action = find.text('Send location');
+      final action = find.text('Send');
       expect(action, findsOneWidget);
       expect(find.byType(MeshTabBar), findsOneWidget);
 
@@ -631,7 +631,7 @@ void main() {
     await tester.tap(_locationTab);
     await tester.pumpAndSettle();
     expect(find.text('56.300000, 51.750000'), findsOneWidget);
-    await tester.tap(find.text('Send location'));
+    await tester.tap(find.text('Send'));
     await tester.pumpAndSettle();
     expect(result, 'geo:56.300000,51.750000');
     expect(tester.takeException(), isNull);

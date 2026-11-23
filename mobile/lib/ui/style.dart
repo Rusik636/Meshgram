@@ -282,6 +282,7 @@ class GlassActionButton extends StatelessWidget {
     this.width = double.infinity,
     this.height,
     this.wrapLabel = false,
+    this.fitContent = false,
   });
   final String label;
   final VoidCallback? onTap;
@@ -290,18 +291,41 @@ class GlassActionButton extends StatelessWidget {
   final double width;
   final double? height;
   final bool wrapLabel;
+  final bool fitContent;
+
+  double _contentWidth(BuildContext context, TextScaler textScaler) {
+    final measure = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          fontSize: useIosControls ? 17 : 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    final result = (measure.width.ceilToDouble() + 28).clamp(
+      48.0,
+      double.infinity,
+    );
+    measure.dispose();
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
+    final buttonWidth = fitContent ? _contentWidth(context, textScaler) : width;
     final defaultHeight = wrapLabel
         ? (textScaler.scale(17) * 2.4 + 8).clamp(48.0, double.infinity)
         : (48 + (textScaler.scale(16) - 16)).clamp(48.0, 80.0);
     if (!useIosControls) {
       return SizedBox(
         height: height ?? defaultHeight,
-        width: width,
+        width: buttonWidth,
         child: FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: primary ? style.accent : style.pill,
@@ -334,7 +358,7 @@ class GlassActionButton extends StatelessWidget {
     }
     return SizedBox(
       height: height ?? defaultHeight,
-      width: width,
+      width: buttonWidth,
       child: _NativeGlassButton(
         label: label,
         primary: primary,

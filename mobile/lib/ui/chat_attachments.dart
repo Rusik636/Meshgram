@@ -396,14 +396,17 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                   ),
                 ),
                 const SizedBox(height: 7),
-                GlassActionButton(
-                  primary: !useIosControls,
-                  onTap: point == null
-                      ? null
-                      : () => _closeSheet(
-                          'geo:${formatChatPosition(point, separator: ',')}',
-                        ),
-                  label: tr(context, 'Отправить геопозицию', 'Send location'),
+                Center(
+                  child: GlassActionButton(
+                    primary: !useIosControls,
+                    fitContent: true,
+                    onTap: point == null
+                        ? null
+                        : () => _closeSheet(
+                            'geo:${formatChatPosition(point, separator: ',')}',
+                          ),
+                    label: tr(context, 'Отправить', 'Send'),
+                  ),
                 ),
               ],
             ),

@@ -239,7 +239,7 @@ void main() {
     final point = controller.cache!.localPosition!;
     await tester.enterText(find.byType(TextField), 'Keep this pending');
     await _openAttachment(tester, 'Location');
-    await tester.tap(find.text('Send location'));
+    await tester.tap(find.text('Send'));
     await tester.pumpAndSettle();
 
     final sent = controller.messages(chat.id).where((item) => item.outgoing);
