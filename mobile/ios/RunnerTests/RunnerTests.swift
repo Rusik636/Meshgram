@@ -14,9 +14,10 @@ class RunnerTests: XCTestCase {
       ("back", ["symbol": "chevron.left", "label": "Back"]),
       ("attach", ["symbol": "paperclip", "label": "Attachments"]),
       ("send", ["symbol": "arrow.up", "label": "Send", "primary": true]),
-      ("chat title", ["kind": "chatTitle", "label": "River", "subtitle": "Channel"]),
+      ("chat title", ["kind": "chatTitle", "label": "Public", "subtitle": "Канал"]),
       ("chat avatar", ["kind": "chatAvatar", "label": "Chat profile", "initials": "R"]),
-      ("map title", ["kind": "chatTitle", "label": "Node map", "readOnly": true]),
+      ("map title", ["kind": "chatTitle", "label": "Геопозиция", "readOnly": true]),
+      ("location action", ["label": "Геопозиция"]),
     ]
 
     for dark in [false, true] {
@@ -31,8 +32,19 @@ class RunnerTests: XCTestCase {
         root.layoutIfNeeded()
         let panel = try XCTUnwrap(root.subviews.compactMap { $0 as? UIVisualEffectView }.first)
         let button = try XCTUnwrap(panel.contentView.subviews.compactMap { $0 as? UIButton }.first)
-        XCTAssertEqual(panel.bounds.height, name == "attach" ? 40 : 44)
+        XCTAssertEqual(panel.bounds.height, name == "attach" ? 40 : name == "location action" ? 48 : 44)
+        button.layoutIfNeeded()
         let initial = try XCTUnwrap(button.configuration)
+        if let title = initial.title {
+          let titleLabel = try XCTUnwrap(button.titleLabel, name)
+          XCTAssertEqual(titleLabel.text, title, name)
+          XCTAssertGreaterThan(titleLabel.bounds.width, 0, name)
+        }
+        if name == "send" {
+          let image = try XCTUnwrap(button.imageView, name)
+          XCTAssertGreaterThan(image.bounds.width, 0, name)
+          XCTAssertEqual(image.tintColor, meshColor(input["onAccent"], .white), name)
+        }
         let readOnly = input["readOnly"] as? Bool == true
         XCTAssertEqual(root.isUserInteractionEnabled, !readOnly, name)
         XCTAssertFalse(root.accessibilityElementsHidden, name)
@@ -112,6 +124,7 @@ class RunnerTests: XCTestCase {
       "enabled": true,
       "surface": UInt32(dark ? 0xff343c4d : 0xffeef1f8),
       "foreground": UInt32(dark ? 0xfff0f3fa : 0xff202a3c),
+      "onAccent": UInt32(dark ? 0xff10254b : 0xffffffff),
     ]
   }
 
