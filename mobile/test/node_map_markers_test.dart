@@ -127,6 +127,57 @@ void main() {
     expect(group, findsOneWidget);
     expect(tester.getCenter(group).dx, closeTo(firstX, 5));
   });
+
+  testWidgets('merges and splits the silhouettes before revealing the faces', (
+    tester,
+  ) async {
+    final map = MapController();
+    addTearDown(map.dispose);
+    const pins = [
+      MeshMapPin.node(
+        position: (latitude: 0, longitude: 0),
+        id: 'west',
+        name: 'West relay',
+      ),
+      MeshMapPin.node(
+        position: (latitude: 0, longitude: 8),
+        id: 'east',
+        name: 'East relay',
+      ),
+    ];
+    await tester.pumpWidget(_map(map, pins, longitude: 4));
+    await tester.pumpAndSettle();
+
+    final body = find.descendant(
+      of: find.byKey(const ValueKey((true, 'west'))),
+      matching: find.byType(SizedBox),
+    );
+    final filters = find.byType(ImageFiltered);
+    expect(filters, findsNWidgets(2));
+    expect(tester.getSize(body).width, 52);
+
+    expect(map.move(const LatLng(0, 4), 3), isTrue);
+    await tester.pump();
+    final before = tester.getCenter(body).dx;
+    final count = find.text('2');
+    final face = find.ancestor(of: count, matching: find.byType(Opacity)).first;
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(tester.getCenter(body).dx, greaterThan(before));
+    expect(tester.getSize(body).width, inExclusiveRange(52, 58.2));
+    expect(tester.widget<Opacity>(face).opacity, 0);
+    expect(find.descendant(of: filters, matching: count), findsNothing);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Opacity>(face).opacity, 1);
+
+    final mergedDiameter = tester.getSize(body).width;
+    expect(map.move(const LatLng(0, 4), 4), isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+    expect(tester.getSize(body).width, inExclusiveRange(52, mergedDiameter));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(body).width, 52);
+    expect(count, findsNothing);
+  });
 }
 
 Widget _map(
