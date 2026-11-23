@@ -8,6 +8,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'sheet_control_clip.dart';
+
 bool get useIosControls =>
     !kIsWeb &&
     defaultTargetPlatform == TargetPlatform.iOS &&
@@ -94,8 +96,10 @@ class IosControlState extends State<IosControl> {
         unawaited(_send('update', widget.properties));
       },
     );
-    return widget.capsule
-        ? ClipRRect(borderRadius: BorderRadius.circular(999), child: view)
-        : view;
+    return MeshSheetControlClip(
+      child: widget.capsule
+          ? ClipRRect(borderRadius: BorderRadius.circular(999), child: view)
+          : view,
+    );
   }
 }
