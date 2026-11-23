@@ -254,11 +254,9 @@ class GlassButton extends StatelessWidget {
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
           padding: EdgeInsets.zero,
-          icon: MeshIcon(
-            icon,
-            size: symbol == null ? 20 : 24,
-            systemSymbol: symbol,
-          ),
+          icon: symbol == null
+              ? Icon(icon, size: 20)
+              : MeshIosButtonGlyph(icon, symbol: symbol),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,
@@ -441,11 +439,7 @@ class MeshAvatar extends StatelessWidget {
             ),
           ),
           child: channel && monogram == null
-              ? MeshIcon(
-                  Icons.tag_rounded,
-                  color: Colors.white,
-                  size: size * .45,
-                )
+              ? Icon(Icons.tag_rounded, color: Colors.white, size: size * .45)
               : Text(
                   initials.isEmpty ? 'M' : initials,
                   style: TextStyle(
@@ -603,7 +597,7 @@ class MeshRowIcon extends StatelessWidget {
         colors: [Color.lerp(tint, Colors.white, .20)!, tint],
       ),
     ),
-    child: MeshIcon(icon, size: 17, color: glyphColor),
+    child: Icon(icon, size: 17, color: glyphColor),
   );
 }
 
@@ -659,7 +653,7 @@ class MeshRow extends StatelessWidget {
         trailing:
             trailing ??
             (selected
-                ? MeshIcon(Icons.check_rounded, size: 21, color: style.accent)
+                ? Icon(Icons.check_rounded, size: 21, color: style.accent)
                 : onTap == null || !showChevron
                 ? null
                 : Row(
@@ -673,7 +667,7 @@ class MeshRow extends StatelessWidget {
                             fontSize: 13,
                           ),
                         ),
-                      MeshIcon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         color: style.secondary,
                         size: 19,

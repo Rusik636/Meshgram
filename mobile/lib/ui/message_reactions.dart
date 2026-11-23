@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../mesh/network.dart';
 import 'emoji_text.dart';
-import 'mesh_icon.dart';
 import 'style.dart';
 
 typedef ReactionAuthor = ({String? name, bool hasKey, Peer? peer});
@@ -46,7 +45,7 @@ class ReactionAvatar extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(color: style.pill, shape: BoxShape.circle),
-        child: MeshIcon(
+        child: Icon(
           Icons.priority_high_rounded,
           size: size * .68,
           color: style.secondary,

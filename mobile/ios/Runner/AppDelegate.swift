@@ -67,13 +67,15 @@ private enum MeshSymbols {
   }
 
   private static func render(_ names: Set<String>) -> [String: FlutterStandardTypedData] {
-    let canvas = CGSize(width: 24, height: 24)
+    // Match the visual extent of the symbol inside a standard 48-point
+    // glass button when Flutter is compositing a sheet over the button.
+    let canvas = CGSize(width: 31, height: 31)
     let format = UIGraphicsImageRendererFormat()
     format.opaque = false
     format.scale = 3
     format.preferredRange = .standard
     let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
-    let configuration = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+    let configuration = UIImage.SymbolConfiguration(pointSize: 23.25, weight: .medium)
     var masks: [String: FlutterStandardTypedData] = [:]
     for name in names {
       guard let symbol = UIImage(systemName: name, withConfiguration: configuration),

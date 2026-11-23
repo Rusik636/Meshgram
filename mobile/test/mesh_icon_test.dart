@@ -8,71 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/mesh_icon.dart';
+import 'package:meshgrame/ui/style.dart';
 
 void main() {
-  testWidgets('resolves platform glyphs and preserves icon layout', (
-    tester,
-  ) async {
-    const key = ValueKey('search');
-    const size = 18.0;
-    const color = Colors.red;
-    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
-      final apple = platform == TargetPlatform.iOS;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(platform: platform),
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Column(
-                children: [
-                  const MeshIcon(
-                    Icons.search_rounded,
-                    key: key,
-                    color: color,
-                    size: size,
-                    semanticLabel: 'Search',
-                  ),
-                  Icon(meshPlatformIcon(context, Icons.copy_rounded)),
-                  const MeshIcon(Icons.access_alarm),
-                  const MeshIcon(CupertinoIcons.person_crop_circle),
-                  const MeshIcon(null),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final search = find.descendant(
-        of: find.byKey(key),
-        matching: find.byType(Icon),
-      );
-      final icon = tester.widget<Icon>(search);
-      expect(icon.icon, apple ? CupertinoIcons.search : Icons.search_rounded);
-      expect(icon.semanticLabel, 'Search');
-      expect(icon.color, color);
-      expect(tester.getSize(search), const Size.square(size));
-      expect(
-        find.byIcon(apple ? CupertinoIcons.doc_on_doc : Icons.copy_rounded),
-        findsOneWidget,
-      );
-      expect(
-        find.byIcon(
-          apple ? CupertinoIcons.question_circle : Icons.access_alarm,
-        ),
-        findsOneWidget,
-      );
-      expect(find.byIcon(CupertinoIcons.person_crop_circle), findsOneWidget);
-      expect(
-        tester.widgetList<Icon>(find.byType(Icon)).where((i) => i.icon == null),
-        hasLength(1),
-      );
-    }
-  });
-
   testWidgets(
-    'preloads and reuses exact iOS symbols without embedding a platform view',
+    'covered iOS glass buttons use preloaded glyphs at their native scale',
     (tester) async {
       const channel = MethodChannel('meshgrame/symbols');
       final messenger = tester.binding.defaultBinaryMessenger;
@@ -81,7 +21,8 @@ void main() {
       messenger.setMockMethodCallHandler(channel, (call) async {
         requests++;
         expect(call.method, 'render');
-        expect(call.arguments, containsAll([search, 'doc.on.doc', 'wifi']));
+        expect(call.arguments, containsAll([search, 'map', 'paperclip']));
+        expect(call.arguments, isNot(contains('moon')));
         return {
           search: base64Decode(
             'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8'
@@ -96,38 +37,50 @@ void main() {
       });
       expect(requests, 1);
 
-      const explicit = ValueKey('explicit system glyph');
-      const automatic = ValueKey('automatic system glyph');
+      const buttonKey = ValueKey('covered search');
+      const rowIconKey = ValueKey('settings tile');
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: Column(
               children: [
-                MeshIcon(
-                  Icons.search_rounded,
-                  key: explicit,
-                  size: 24,
-                  systemSymbol: search,
+                GlassButton(
+                  key: buttonKey,
+                  icon: Icons.search_rounded,
+                  label: 'Search',
+                  onTap: () {},
+                  preferNative: false,
                 ),
-                const MeshIcon(Icons.search_rounded, key: automatic, size: 18),
-                const MeshIcon(Icons.sort_rounded),
+                MeshIosButtonGlyph(
+                  Icons.sort_rounded,
+                  symbol: meshGlassButtonSymbol(Icons.sort_rounded)!,
+                ),
+                const MeshRowIcon(
+                  key: rowIconKey,
+                  icon: Icons.dark_mode_outlined,
+                  tint: Colors.blue,
+                ),
               ],
             ),
           ),
         ),
       );
-      Finder painted(Key key) => find.descendant(
-        of: find.byKey(key),
-        matching: find.byType(CustomPaint),
-      );
-      expect(tester.getSize(painted(explicit)), const Size.square(24));
-      expect(tester.getSize(painted(automatic)), const Size.square(18));
+      final glyph = find.byType(RawImage);
+      final button = find.byKey(buttonKey);
+      expect(tester.getSize(glyph), const Size.square(31));
+      expect(tester.getSize(button), const Size.square(48));
+      expect(tester.getCenter(glyph), tester.getCenter(button));
       expect(find.byType(UiKitView), findsNothing);
-      expect(find.byIcon(CupertinoIcons.search), findsNothing);
+      expect(find.byIcon(Icons.search_rounded), findsNothing);
       expect(
         find.byIcon(CupertinoIcons.line_horizontal_3_decrease),
         findsOneWidget,
       );
+      final rowIcon = find.descendant(
+        of: find.byKey(rowIconKey),
+        matching: find.byIcon(Icons.dark_mode_outlined),
+      );
+      expect(tester.widget<Icon>(rowIcon).size, 17);
     },
     variant: const TargetPlatformVariant({TargetPlatform.iOS}),
   );

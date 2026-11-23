@@ -19,7 +19,6 @@ import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import 'channel_avatars.dart';
 import 'chat_attachments.dart';
-import 'mesh_icon.dart';
 import 'style.dart';
 import 'page_route.dart';
 import 'ios_control.dart';
@@ -1191,9 +1190,7 @@ class _ChatState extends State<MeshChatPage>
                                 onTapOutside: (_) => _dismissKeyboard(),
                                 onChanged: (_) => setState(() {}),
                                 decoration: InputDecoration(
-                                  prefixIcon: const MeshIcon(
-                                    Icons.search_rounded,
-                                  ),
+                                  prefixIcon: const Icon(Icons.search_rounded),
                                   hintText: tr(
                                     context,
                                     'Поиск в чате',
@@ -1210,7 +1207,7 @@ class _ChatState extends State<MeshChatPage>
                                       _search.clear();
                                       _searching = false;
                                     }),
-                                    icon: const MeshIcon(Icons.close_rounded),
+                                    icon: const Icon(Icons.close_rounded),
                                   ),
                                 ),
                               ),
@@ -1396,7 +1393,7 @@ class _ChatState extends State<MeshChatPage>
                           ),
                           onPressed: () =>
                               controller.setReplyDraft(peer.id, null),
-                          icon: const MeshIcon(Icons.close_rounded, size: 18),
+                          icon: const Icon(Icons.close_rounded, size: 18),
                         ),
                       ],
                     ),
@@ -2314,7 +2311,7 @@ class _MessageStamp extends StatelessWidget {
                         ),
                       ),
                     )
-                  : MeshIcon(
+                  : Icon(
                       item.delivery == Delivery.acknowledged
                           ? Icons.done_all_rounded
                           : Icons.error_outline_rounded,
@@ -2452,7 +2449,7 @@ class _ReplySwipeState extends State<_ReplySwipe> {
             padding: const EdgeInsets.only(right: 10),
             child: Opacity(
               opacity: (_offset / 43).clamp(0.0, 1.0),
-              child: MeshIcon(
+              child: Icon(
                 Icons.reply_rounded,
                 color: MeshStyle.of(context).accent,
               ),
@@ -2945,7 +2942,7 @@ class MeshChatProfile extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                MeshIcon(icon, color: style.text, size: 20),
+                Icon(icon, color: style.text, size: 20),
                 const SizedBox(height: 4),
                 Flexible(
                   child: Text(
@@ -3097,7 +3094,7 @@ class _AdminAccessState extends State<_AdminAccessDialog> {
                     ? tr(context, 'Скрыть пароль', 'Hide password')
                     : tr(context, 'Показать пароль', 'Show password'),
                 onPressed: () => setState(() => _visible = !_visible),
-                icon: MeshIcon(
+                icon: Icon(
                   _visible
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,

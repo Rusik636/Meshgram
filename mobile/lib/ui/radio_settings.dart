@@ -12,7 +12,6 @@ import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import '../mesh/radio_settings_index.dart';
-import 'mesh_icon.dart';
 import 'position_picker.dart';
 import 'style.dart';
 import 'signal.dart';
@@ -602,12 +601,12 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
       decoration: InputDecoration(
         hintText: tr(context, 'Поиск настроек', 'Search settings'),
-        prefixIcon: const MeshIcon(Icons.search_rounded, size: 21),
+        prefixIcon: const Icon(Icons.search_rounded, size: 21),
         suffixIcon: _query.isEmpty
             ? null
             : IconButton(
                 onPressed: () => setState(_search.clear),
-                icon: const MeshIcon(Icons.close_rounded, size: 18),
+                icon: const Icon(Icons.close_rounded, size: 18),
                 tooltip: tr(context, 'Очистить поиск', 'Clear search'),
               ),
         filled: true,
@@ -1690,7 +1689,7 @@ class _DeviceInfoRow extends StatelessWidget {
                   'Скопировать публичный ключ',
                   'Copy public key',
                 ),
-                icon: MeshIcon(Icons.content_copy_rounded, color: style.accent),
+                icon: Icon(Icons.content_copy_rounded, color: style.accent),
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: key));
                   if (context.mounted) {

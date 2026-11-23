@@ -11,7 +11,6 @@ import 'emoji_picker.dart';
 import 'emoji_text.dart';
 import 'message_reactions.dart';
 import 'ios_control.dart';
-import 'mesh_icon.dart';
 import 'navigation.dart';
 import 'style.dart';
 
@@ -253,7 +252,7 @@ class _MessageMenuState extends State<_MessageMenu> {
     children: [
       ListTile(
         leading: IconButton(
-          icon: MeshIcon(Icons.arrow_back_rounded, color: style.text, size: 21),
+          icon: Icon(Icons.arrow_back_rounded, color: style.text, size: 21),
           tooltip: tr(
             context,
             'Назад к меню сообщения',
@@ -287,7 +286,7 @@ class _MessageMenuState extends State<_MessageMenu> {
     Widget? trailing,
   }) => ListTile(
     dense: true,
-    leading: MeshIcon(icon, size: 20, color: MeshStyle.of(context).text),
+    leading: Icon(icon, size: 20, color: MeshStyle.of(context).text),
     title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
     trailing: trailing,
     onTap: onTap,
@@ -389,7 +388,7 @@ class _ReactionListState extends State<_ReactionList> {
                       style: emojiGlyphStyle(const TextStyle(fontSize: 20)),
                     ),
                     if (peer != null)
-                      MeshIcon(
+                      Icon(
                         Icons.chevron_right_rounded,
                         color: style.secondary,
                         size: 18,
@@ -514,7 +513,7 @@ class _QuickReactions extends StatelessWidget {
               child: IconButton(
                 tooltip: tr(context, 'Все эмодзи', 'All emoji'),
                 onPressed: onExpand,
-                icon: const MeshIcon(Icons.keyboard_arrow_down_rounded),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),
             ),
           ],

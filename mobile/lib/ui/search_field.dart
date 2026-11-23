@@ -6,7 +6,6 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
-import 'mesh_icon.dart';
 import 'navigation.dart';
 import 'style.dart';
 
@@ -101,7 +100,7 @@ class MeshSearchLauncher extends StatelessWidget {
           color: style.secondary.withValues(alpha: 1 - collapse),
         ),
         hintMaxLines: 1,
-        prefixIcon: MeshIcon(
+        prefixIcon: Icon(
           Icons.search_rounded,
           color: style.secondary,
           size: 22,
@@ -184,7 +183,7 @@ class MeshSearchEditor extends StatelessWidget {
       decoration: InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.zero,
-        prefixIcon: const MeshIcon(Icons.search_rounded),
+        prefixIcon: const Icon(Icons.search_rounded),
         prefixIconConstraints: const BoxConstraints.tightFor(
           width: meshSearchButtonSize,
           height: meshSearchButtonSize,
@@ -203,7 +202,7 @@ class MeshSearchEditor extends StatelessWidget {
                   controller.clear();
                   onChanged('');
                 },
-                icon: const MeshIcon(Icons.cancel_outlined, size: 19),
+                icon: const Icon(Icons.cancel_outlined, size: 19),
               ),
       ),
     );
@@ -226,7 +225,7 @@ class MeshSearchEditor extends StatelessWidget {
             message: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
-              icon: MeshIcon(Icons.search_rounded, color: style.text, size: 20),
+              icon: Icon(Icons.search_rounded, color: style.text, size: 20),
             ),
           );
         },
