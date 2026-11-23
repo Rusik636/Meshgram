@@ -67,7 +67,6 @@ class MeshTabBar extends StatelessWidget {
     required this.index,
     required this.onSelect,
     this.unreadCounts = const [],
-    this.includeBottomInset = true,
   }) : assert(labels.length == icons.length),
        assert(labels.length == symbols.length);
 
@@ -76,7 +75,6 @@ class MeshTabBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelect;
   final List<int> unreadCounts;
-  final bool includeBottomInset;
 
   @override
   Widget build(BuildContext context) {
@@ -88,9 +86,7 @@ class MeshTabBar extends StatelessWidget {
     }
 
     if (useIosControls) {
-      final inset = includeBottomInset
-          ? MediaQuery.viewPaddingOf(context).bottom
-          : 0.0;
+      final inset = MediaQuery.viewPaddingOf(context).bottom;
       return SizedBox(
         height: height + inset,
         child: IosControl(

@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
+import 'ios_control.dart';
 import 'location_search.dart';
 import 'navigation.dart';
 import 'position_picker.dart';
@@ -355,6 +356,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                 ),
                 const SizedBox(height: 7),
                 GlassActionButton(
+                  primary: !useIosControls,
                   onTap: point == null
                       ? null
                       : () => Navigator.pop(
@@ -400,6 +402,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
               radius: 26,
               child: SafeArea(
                 top: false,
+                // The compact native bar occupies the bottom inset itself.
+                bottom: _expanded || !useIosControls,
                 child: Column(
                   children: [
                     GestureDetector(
@@ -481,7 +485,12 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                     ),
                     if (!_expanded)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          6,
+                          16,
+                          useIosControls ? 0 : 8,
+                        ),
                         child: MeshTabBar(
                           labels: [location, tr(context, 'Контакт', 'Contact')],
                           icons: const [
@@ -494,7 +503,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                           ],
                           index: _tab.index,
                           onSelect: _select,
-                          includeBottomInset: false,
                         ),
                       ),
                   ],
