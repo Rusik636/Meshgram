@@ -165,7 +165,28 @@ class _MessageMenuState extends State<_MessageMenu> {
                                 ),
                               ),
                             const SizedBox(height: 8),
-                            IgnorePointer(child: widget.bubble),
+                            IgnorePointer(
+                              key: const ValueKey('message-menu-preview'),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  if (useIosControls)
+                                    // Give the preview its own Flutter overlay above
+                                    // the UIKit views and the dimmed chat below.
+                                    const Positioned(
+                                      left: -4,
+                                      right: -4,
+                                      top: 0,
+                                      bottom: 0,
+                                      child: IosControl(
+                                        kind: 'messagePreview',
+                                        properties: {},
+                                      ),
+                                    ),
+                                  widget.bubble,
+                                ],
+                              ),
+                            ),
                             if (_panel != _MenuPanel.emoji) ...[
                               const SizedBox(height: 9),
                               Align(

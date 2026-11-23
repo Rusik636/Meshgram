@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/ios_control.dart';
+import 'package:meshgrame/ui/message_menu.dart';
 import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 
@@ -164,4 +165,51 @@ void main() {
     expect(second.top - first.bottom, 12);
     expect(second.width, first.width);
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
+  testWidgets(
+    'iOS reaction preview has a native overlay at the message bounds',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showMessageMenu(
+                  context: context,
+                  anchor: const Rect.fromLTWH(24, 240, 160, 40),
+                  canReact: true,
+                  canReply: true,
+                  outgoing: false,
+                  bubble: const Text('Selected message'),
+                  reactions: const [],
+                  onOpenProfile: (_) {},
+                  details: const SizedBox(),
+                ),
+                child: const Text('Show reactions'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Show reactions'));
+      await tester.pumpAndSettle();
+
+      final preview = find.text('Selected message');
+      final overlay = find.byWidgetPredicate(
+        (widget) => widget is IosControl && widget.kind == 'messagePreview',
+      );
+      expect(overlay, findsOneWidget);
+      final message = tester.getRect(preview);
+      final layer = tester.getRect(overlay);
+      expect(layer.left, lessThan(message.left));
+      expect(layer.right, greaterThan(message.right));
+      expect(layer.top, message.top);
+      expect(layer.bottom, message.bottom);
+
+      await tester.tapAt(message.center);
+      await tester.pumpAndSettle();
+      expect(preview, findsNothing);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
 }

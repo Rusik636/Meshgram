@@ -23,13 +23,14 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
 
   func create(withFrame frame: CGRect, viewIdentifier id: Int64, arguments args: Any?) -> FlutterPlatformView {
     let input = args as? [String: Any] ?? [:]
-    if input["kind"] as? String == "sheetDim" {
-      let dim = MeshSheetDim(frame: frame)
+    let kind = input["kind"] as? String
+    if kind == "sheetDim" || kind == "messagePreview" {
+      let surface = MeshPassiveSurface(frame: frame)
       let color = meshColor(input["color"], .black)
-      dim.backgroundColor = color.withAlphaComponent(CGFloat(input["opacity"] as? Double ?? 0.25))
-      dim.isUserInteractionEnabled = false
-      dim.accessibilityElementsHidden = true
-      return dim
+      surface.backgroundColor = kind == "sheetDim"
+        ? color.withAlphaComponent(CGFloat(input["opacity"] as? Double ?? 0.25))
+        : .clear
+      return surface
     }
     let channel = FlutterMethodChannel(name: "meshgrame/controls/\(id)", binaryMessenger: messenger)
     if input["kind"] as? String == "messageGlass" {
@@ -51,7 +52,14 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
   }
 }
 
-private final class MeshSheetDim: UIView, FlutterPlatformView {
+private final class MeshPassiveSurface: UIView, FlutterPlatformView {
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    isUserInteractionEnabled = false
+    accessibilityElementsHidden = true
+  }
+
+  required init?(coder: NSCoder) { nil }
   func view() -> UIView { self }
 }
 

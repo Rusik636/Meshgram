@@ -5858,7 +5858,12 @@ void main() {
       await tester.drag(find.byTooltip('React 👍'), const Offset(-90, 0));
       await tester.pumpAndSettle();
       expect(menu, findsOneWidget);
-      final preview = find.descendant(of: menu, matching: bubble);
+      final previewLayer = find.byKey(const ValueKey('message-menu-preview'));
+      final preview = find.descendant(of: previewLayer, matching: bubble);
+      expect(
+        tester.getRect(preview).bottom,
+        lessThan(tester.getRect(find.text('Reply')).top),
+      );
       await tester.tapAt(tester.getCenter(preview));
       await tester.pumpAndSettle();
       expect(menu, findsNothing);
@@ -5914,6 +5919,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byKey(const ValueKey('emoji-catalog')), findsOneWidget);
+      expect(preview, findsOneWidget);
       await tester.tapAt(const Offset(6, 6));
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox());
