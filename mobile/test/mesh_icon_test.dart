@@ -122,4 +122,46 @@ void main() {
     await tester.pumpAndSettle();
     expectControls(false);
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
+  testWidgets('iOS dialog buttons leave a gap between their glass surfaces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showMeshDialog<void>(
+                context: context,
+                builder: (context) => MeshDialog(
+                  title: const Text('Short name'),
+                  content: const TextField(),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Done'),
+                    ),
+                  ],
+                ),
+              ),
+              child: const Text('Open dialog'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open dialog'));
+    await tester.pumpAndSettle();
+
+    final actions = find.byType(GlassActionButton);
+    expect(actions, findsNWidgets(2));
+    final first = tester.getRect(actions.at(0));
+    final second = tester.getRect(actions.at(1));
+    expect(second.top - first.bottom, 12);
+    expect(second.width, first.width);
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 }

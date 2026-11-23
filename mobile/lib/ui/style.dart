@@ -906,8 +906,12 @@ class MeshDialog extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         child: content,
                       ),
-                    for (final action in buttons ?? const <Widget>[])
-                      SizedBox(width: double.infinity, child: action),
+                    if (buttons != null && buttons.isNotEmpty)
+                      Column(
+                        spacing: 12,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: buttons,
+                      ),
                   ],
                 ),
               ),
@@ -933,6 +937,7 @@ class MeshDialog extends StatelessWidget {
       content: content,
       contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
       actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      actionsOverflowButtonSpacing: 12,
       actions: buttons,
     );
   }
