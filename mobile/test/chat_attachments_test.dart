@@ -119,12 +119,7 @@ void main() {
 
     final map = find.byType(MeshMap);
     final openRect = tester.getRect(map);
-    await _tapAttachmentControl(
-      tester,
-      useIosControls
-          ? _nativeControl('button', symbol: 'xmark')
-          : find.byTooltip('Close'),
-    );
+    await _tapAttachmentControl(tester, _attachmentClose);
     await tester.pump();
     expect(tester.getRect(_paperclipFlight), openRect);
     await tester.pump(const Duration(milliseconds: 225));
@@ -142,6 +137,58 @@ void main() {
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   testWidgets(
+    'iOS follows the paperclip through keyboard and rotation changes',
+    (tester) async {
+      final controller = await _openIosChat(tester);
+      final button = _attachmentSource;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 230);
+      tester.view.padding = const FakeViewPadding(top: 47);
+      await tester.pumpAndSettle();
+      final keyboardAnchor = tester.getCenter(button);
+      await _tapAttachmentControl(tester, button);
+      await tester.pump();
+      expect(tester.getCenter(_paperclipFlight), keyboardAnchor);
+
+      tester.view.resetViewInsets();
+      tester.view.padding = const FakeViewPadding(top: 47, bottom: 34);
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(844, 390);
+      tester.view.padding = const FakeViewPadding(
+        left: 47,
+        right: 47,
+        bottom: 21,
+      );
+      tester.view.viewPadding = tester.view.padding;
+      await tester.pumpAndSettle();
+      final rotatedAnchor = tester.getCenter(button);
+      final map = find.byType(MeshMap);
+      final sheetRect = tester.getRect(map);
+      final animation = ModalRoute.of(tester.element(map))!.animation!;
+      await _tapAttachmentControl(tester, _attachmentClose);
+      await tester.pump();
+      expect(tester.getRect(_paperclipFlight), sheetRect);
+      await tester.pump(const Duration(milliseconds: 320));
+      final expected = Offset.lerp(
+        rotatedAnchor,
+        sheetRect.center,
+        Curves.easeInOutCubic.transform(animation.value),
+      )!;
+      expect(
+        (tester.getCenter(_paperclipFlight) - expected).distance,
+        lessThan(.01),
+      );
+      await tester.pumpAndSettle();
+
+      expect(_sourceHidden(tester, button), isFalse);
+      expect(_paperclipFlight, findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'iOS opens and closes attachments without a reduced-motion morph',
     (tester) async {
       final controller = await _openIosChat(tester, reduceMotion: true);
@@ -150,12 +197,7 @@ void main() {
       await tester.pump();
       expect(find.byType(MeshMap), findsOneWidget);
       expect(_paperclipFlight, findsNothing);
-      await _tapAttachmentControl(
-        tester,
-        useIosControls
-            ? _nativeControl('button', symbol: 'xmark')
-            : find.byTooltip('Close'),
-      );
+      await _tapAttachmentControl(tester, _attachmentClose);
       await tester.pump();
       expect(_paperclipFlight, findsNothing);
       expect(_sourceHidden(tester, button), isFalse);
@@ -618,6 +660,10 @@ bool _sourceHidden(WidgetTester tester, Finder button) => !tester
 Finder get _attachmentSource => useIosControls
     ? _nativeControl('button', symbol: 'paperclip')
     : find.byTooltip('Attachments');
+
+Finder get _attachmentClose => useIosControls
+    ? _nativeControl('button', symbol: 'xmark')
+    : find.byTooltip('Close');
 
 Future<void> _tapAttachmentControl(WidgetTester tester, Finder control) async {
   if (tester.widget(control) case IosControl native) {
