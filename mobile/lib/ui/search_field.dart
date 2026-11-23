@@ -11,6 +11,90 @@ import 'style.dart';
 
 const meshSearchButtonSize = 48.0;
 
+/// Lets momentum finish normally, then settles a partially collapsed search bar.
+class MeshSearchScrollController extends ScrollController {
+  double collapseRange = 0;
+  bool reduceMotion = false;
+
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _MeshSearchScrollPosition(
+    physics: _MeshSearchSnapPhysics(this, parent: physics),
+    context: context,
+    oldPosition: oldPosition,
+    initialPixels: initialScrollOffset,
+    keepScrollOffset: keepScrollOffset,
+    debugLabel: debugLabel,
+  );
+}
+
+class _MeshSearchScrollPosition extends ScrollPositionWithSingleContext {
+  _MeshSearchScrollPosition({
+    required super.physics,
+    required super.context,
+    super.oldPosition,
+    super.initialPixels,
+    super.keepScrollOffset,
+    super.debugLabel,
+  });
+
+  bool get endingGesture =>
+      activity is DragScrollActivity || activity is BallisticScrollActivity;
+}
+
+class _MeshSearchSnapPhysics extends ScrollPhysics {
+  const _MeshSearchSnapPhysics(this.controller, {super.parent});
+
+  final MeshSearchScrollController controller;
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    final momentum = super.createBallisticSimulation(position, velocity);
+    if (momentum != null) return momentum;
+    if (position is! _MeshSearchScrollPosition || !position.endingGesture) {
+      return null;
+    }
+
+    final start = position.minScrollExtent;
+    final end = start + controller.collapseRange;
+    final current = position.pixels;
+    if (end > position.maxScrollExtent || current <= start || current >= end) {
+      return null;
+    }
+
+    final target = current - start < controller.collapseRange / 2 ? start : end;
+    if (controller.reduceMotion) return _MeshSearchInstantSnap(target);
+    return ScrollSpringSimulation(
+      spring,
+      current,
+      target,
+      0,
+      tolerance: toleranceFor(position),
+    );
+  }
+}
+
+class _MeshSearchInstantSnap extends Simulation {
+  _MeshSearchInstantSnap(this.target);
+
+  final double target;
+
+  @override
+  double x(double time) => target;
+
+  @override
+  double dx(double time) => 0;
+
+  @override
+  bool isDone(double time) => true;
+}
+
 double meshSearchFieldHeight(BuildContext context) =>
     (MediaQuery.textScalerOf(context).scale(17) * 1.2 + 16).clamp(
       meshSearchButtonSize,

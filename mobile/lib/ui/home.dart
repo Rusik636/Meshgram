@@ -60,7 +60,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   String? _revealedRadio;
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
-  final _chatScroll = ScrollController();
+  final _chatScroll = MeshSearchScrollController();
   late final _searchMotion = AnimationController(vsync: this);
   GlobalKey<IosControlState> _iosSearch = GlobalKey();
   bool _searchActive = false;
@@ -501,6 +501,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       headingText.dispose();
       final fieldHeight = meshSearchFieldHeight(context);
       final collapseRange = fieldHeight + 9;
+      _chatScroll
+        ..collapseRange = !_editingChats && !_showHidden && !_searchActive
+            ? collapseRange
+            : 0
+        ..reduceMotion = MediaQuery.disableAnimationsOf(context);
       final normalFieldTop = safe.top + headingHeight + 3;
       final normalCategoriesTop = normalFieldTop + fieldHeight + 9;
       final categoryHeight = ChatFilters.contentHeight(context);

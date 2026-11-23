@@ -47,7 +47,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
   String? _revealed;
   bool _deleting = false;
   final _selected = <String>{};
-  final _scroll = ScrollController();
+  final _scroll = MeshSearchScrollController();
   final _results = ScrollController();
   final _query = TextEditingController();
   final _searchFocus = FocusNode();
@@ -216,6 +216,9 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                     (meshtasticNodeAddress(peer.id)?.contains(query) ?? false));
           }).toList();
     final canSearch = !editing && nodes.isNotEmpty;
+    _scroll
+      ..collapseRange = canSearch && !_searching ? collapseRange : 0
+      ..reduceMotion = MediaQuery.disableAnimationsOf(context);
     final browse = _nodeList(
       context,
       scroll: _scroll,
@@ -225,6 +228,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
         bottom: safeBottom + 12,
       ),
       editing: editing,
+      collapseRange: canSearch ? collapseRange : 0,
     );
 
     return AnimatedBuilder(
@@ -452,6 +456,7 @@ class _MeshNodesPageState extends State<MeshNodesPage>
     required EdgeInsets padding,
     required bool editing,
     bool searching = false,
+    double collapseRange = 0,
   }) {
     final now = DateTime.now();
     final sort = controller.nodeSort;
@@ -546,6 +551,18 @@ class _MeshNodesPageState extends State<MeshNodesPage>
                   },
                 ),
         ),
+        if (collapseRange > 0)
+          SliverLayoutBuilder(
+            builder: (context, layout) {
+              final travel =
+                  layout.precedingScrollExtent - layout.viewportMainAxisExtent;
+              return SliverToBoxAdapter(
+                child: SizedBox(
+                  height: travel > 0 ? math.max(0, collapseRange - travel) : 0,
+                ),
+              );
+            },
+          ),
       ],
     );
   }

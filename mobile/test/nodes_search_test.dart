@@ -14,6 +14,42 @@ import 'package:meshgrame/ui/search_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('reduced motion snaps at once and leaves momentum scrolling', (
+    tester,
+  ) async {
+    final scroll = MeshSearchScrollController()
+      ..collapseRange = 80
+      ..reduceMotion = true;
+    addTearDown(scroll.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            controller: scroll,
+            children: const [SizedBox(height: 1800)],
+          ),
+        ),
+      ),
+    );
+    scroll.jumpTo(32);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 32);
+
+    final list = find.byType(ListView);
+    final gesture = await tester.startGesture(tester.getCenter(list));
+    await gesture.moveBy(const Offset(0, -20));
+    await gesture.moveBy(Offset(0, scroll.offset - 62));
+    expect(scroll.offset, 62);
+    await gesture.up(timeStamp: const Duration(milliseconds: 200));
+    await tester.pump();
+    expect(scroll.offset, 80);
+
+    await tester.fling(list, const Offset(0, -100), 1600);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(200));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('opens node search from either position and restores the list', (
     tester,
   ) async {
@@ -123,9 +159,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(field), expanded);
 
+    final browseScroll = tester.widget<CustomScrollView>(list).controller!;
+    final collapseRange = meshSearchFieldHeight(tester.element(field)) + 8;
+    Future<void> releasePartially(double target) async {
+      final gesture = await tester.startGesture(tester.getCenter(list));
+      await gesture.moveBy(Offset(0, (browseScroll.offset - target).sign * 20));
+      await gesture.moveBy(Offset(0, browseScroll.offset - target));
+      await tester.pump();
+      expect(browseScroll.offset, closeTo(target, .01));
+      expect(tester.getRect(field).width, inExclusiveRange(48, expanded.width));
+      await gesture.up(timeStamp: const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+    }
+
+    await releasePartially(collapseRange * .7);
+    expect(tester.getRect(field).size, const Size.square(48));
+    expect(browseScroll.offset, collapseRange);
+    await releasePartially(collapseRange * .3);
+    expect(tester.getRect(field), expanded);
+    expect(browseScroll.offset, 0);
+
     await tester.drag(list, const Offset(0, -180));
     await tester.pumpAndSettle();
-    final browseScroll = tester.widget<CustomScrollView>(list).controller!;
     final browseOffset = browseScroll.offset;
     final compact = tester.getRect(field);
     final compactTitle = titleBetween(field);
@@ -138,7 +193,6 @@ void main() {
     expect(tester.getRect(sort), sortRect);
     expectSoftHeader();
 
-    final collapseRange = meshSearchFieldHeight(tester.element(field)) + 8;
     browseScroll.jumpTo(collapseRange / 2);
     await tester.pump();
     expect(titleX(), closeTo((expandedTitle + compactTitle) / 2, .01));
