@@ -9,6 +9,81 @@ import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/style.dart';
 
 void main() {
+  testWidgets('a node marker takes taps above the map attribution', (
+    tester,
+  ) async {
+    final map = MapController();
+    addTearDown(map.dispose);
+    final credit = find.byType(MeshMapAttribution);
+    await tester.pumpWidget(_map(map, const []));
+    await tester.pumpAndSettle();
+    final target = tester.getCenter(credit);
+    final position = map.camera.screenOffsetToLatLng(target);
+    var opened = false;
+    await tester.pumpWidget(
+      _map(map, [
+        MeshMapPin.node(
+          position: (
+            latitude: position.latitude,
+            longitude: position.longitude,
+          ),
+          id: 'edge',
+          name: 'Edge relay',
+          showLabel: false,
+          onTap: () => opened = true,
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(MeshAvatar)).contains(target), isTrue);
+
+    await tester.tapAt(target);
+    expect(opened, isTrue);
+  });
+
+  testWidgets('a location preview passes taps and long presses through', (
+    tester,
+  ) async {
+    const position = (latitude: 55.75, longitude: 49.14);
+    var previewOpened = 0;
+    var pinOpened = 0;
+    var menuOpened = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GestureDetector(
+            onLongPress: () => menuOpened = true,
+            child: MeshLocationPreview(
+              position: position,
+              loadTiles: false,
+              onTap: () => previewOpened++,
+              pin: MeshMapPin.node(
+                position: position,
+                id: 'relay',
+                name: 'Relay',
+                onTap: () => pinOpened++,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final marker = tester.getCenter(find.byType(MeshAvatar));
+    final credit = tester.getRect(find.byType(MeshMapAttribution));
+    expect(credit.bottom, tester.getRect(find.byType(MeshMap)).bottom);
+
+    await tester.tapAt(marker);
+    await tester.pumpAndSettle();
+    expect(previewOpened, 1);
+    expect(pinOpened, 0);
+
+    await tester.longPressAt(credit.center);
+    await tester.pumpAndSettle();
+    expect(menuOpened, isTrue);
+    expect(previewOpened, 1);
+  });
+
   testWidgets('closest bubbles merge at their midpoint and split on tap', (
     tester,
   ) async {

@@ -44,6 +44,13 @@ void main() {
     expect(tester.getRect(map).contains(tester.getCenter(tabs)), isTrue);
     expect(tester.getRect(tabs).bottom, lessThanOrEqualTo(_size.height - 34));
     expect(tester.getRect(attribution).bottom, _size.height);
+    expect(attribution.hitTestable(), findsOneWidget);
+    final layers = tester
+        .element(attribution)
+        .findAncestorWidgetOfExactType<Stack>()!;
+    expect(layers.children[0], isA<Positioned>());
+    expect(layers.children[1], isA<PositionedDirectional>());
+    expect(layers.children[2], isA<Positioned>());
 
     await tester.tap(find.byTooltip('Expand'));
     await tester.pumpAndSettle();

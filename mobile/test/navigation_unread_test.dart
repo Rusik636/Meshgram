@@ -8,6 +8,7 @@ import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshcore.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
+import 'package:meshgrame/ui/ios_control.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,6 +50,49 @@ void main() {
     );
     expect(find.text('8'), findsOneWidget);
   });
+
+  testWidgets('only the home navigation uses the native iOS tab bar', (
+    tester,
+  ) async {
+    const attachmentTabs = ValueKey('attachment tabs');
+    final selected = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MeshTabBar(
+            key: attachmentTabs,
+            labels: const ['Location', 'Contact'],
+            icons: const [Icons.place_outlined, Icons.person_outline_rounded],
+            symbols: const ['location.fill', 'person.crop.circle'],
+            index: 0,
+            onSelect: (_) {},
+          ),
+          bottomNavigationBar: MeshNavigation(
+            index: 0,
+            unread: 8,
+            settingsUnread: 100,
+            onSelect: selected.add,
+          ),
+        ),
+      ),
+    );
+    final nativeTabs = find.byWidgetPredicate(
+      (widget) => widget is IosControl && widget.kind == 'tabs',
+    );
+    expect(
+      find.descendant(of: find.byType(MeshNavigation), matching: nativeTabs),
+      findsOneWidget,
+    );
+    final tabs = tester.widget<IosControl>(nativeTabs);
+    expect(tabs.properties['labels'], ['Chats', 'Settings']);
+    expect(tabs.properties['unreadCounts'], [8, 100]);
+    tabs.onSelect?.call(1);
+    expect(selected, [1]);
+    expect(
+      find.descendant(of: find.byKey(attachmentTabs), matching: nativeTabs),
+      findsNothing,
+    );
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   test(
     'other-radio total follows the selected profile and includes saved radios',

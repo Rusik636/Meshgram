@@ -64,7 +64,7 @@ class _AttachmentSheet extends StatefulWidget {
 }
 
 class _AttachmentSheetState extends State<_AttachmentSheet>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const _gripHeight = 18.0;
   static const _attributionMargin = 8.0;
   static const _spring = SpringDescription(
@@ -76,9 +76,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   final _map = MapController();
   final _contactSearch = TextEditingController();
   late final _point = ValueNotifier(widget.initialPosition);
+  late final _tabs = MeshNavigationFade(this);
   // One compact inset is 1.0. Values above it move the sheet off the bottom.
   late final _inset = AnimationController.unbounded(vsync: this, value: 1);
-  _AttachmentTab _tab = _AttachmentTab.location;
+  _AttachmentTab get _tab => _AttachmentTab.values[_tabs.shown];
   bool _expanded = false;
   bool? _expandedBeforeContactSearch;
   bool _locating = false;
@@ -90,6 +91,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
 
   @override
   void dispose() {
+    _tabs.opacity.dispose();
     _inset.dispose();
     _map.dispose();
     _contactSearch.dispose();
@@ -98,13 +100,16 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   }
 
   void _select(int index) {
-    final tab = _AttachmentTab.values[index];
-    if (tab == _tab || _expandedBeforeContactSearch != null) return;
+    if (index == _tabs.selected || _expandedBeforeContactSearch != null) return;
     FocusScope.of(context).unfocus();
-    setState(() {
-      _tab = tab;
-      _selectionRevision++;
-    });
+    _selectionRevision++;
+    unawaited(
+      _tabs.select(
+        index,
+        animate: meshMotion(context) != Duration.zero,
+        rebuild: () => setState(() {}),
+      ),
+    );
   }
 
   void _changeContactSearch(bool searching) {
@@ -293,21 +298,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     showAttribution: false,
   );
 
-  Widget _sheetSurface(Widget child) {
-    if (_tab != _AttachmentTab.location) {
-      return Material(
-        color: MeshStyle.of(context).surface,
-        borderRadius: BorderRadius.circular(26),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      );
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_expanded ? 0 : 26),
-      child: Stack(fit: StackFit.expand, children: [_locationMap(), child]),
-    );
-  }
-
   Widget _location() {
     final style = MeshStyle.of(context);
     final locate = _locating
@@ -474,41 +464,70 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
       showingMap ? attributionHeight : 0.0,
     );
     final bottomObstruction = math.max(footer, panelExtent * panelProgress);
-    return _sheetSurface(
-      Stack(
+    final pane = Stack(
+      key: ValueKey(_tab),
+      children: [
+        if (showingMap) ...[
+          Positioned.fill(child: _locationMap()),
+          const PositionedDirectional(
+            start: _attributionMargin,
+            end: _attributionMargin,
+            bottom: 0,
+            child: Align(
+              alignment: AlignmentDirectional.bottomEnd,
+              child: MeshMapAttribution(),
+            ),
+          ),
+          Positioned.fill(
+            bottom: bottomObstruction,
+            child: Column(
+              children: [
+                _header(location, travel),
+                Expanded(child: _location()),
+              ],
+            ),
+          ),
+        ] else ...[
+          Positioned.fill(
+            top: _gripHeight,
+            child: AttachmentContacts(
+              contacts: widget.contacts,
+              controller: widget.controller,
+              search: _contactSearch,
+              expanded: _expanded,
+              bottomObstruction: bottomObstruction,
+              onClose: _closeSheet,
+              onSearchChanged: _changeContactSearch,
+              onSelect: _closeSheet,
+              beginSheetDrag: () => _startSheetDrag(travel),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _header(location, travel),
+          ),
+        ],
+      ],
+    );
+    final switching = _tabs.shown != _tabs.selected;
+    return Material(
+      color: MeshStyle.of(context).surface,
+      borderRadius: BorderRadius.circular(_expanded && showingMap ? 0 : 26),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          if (showingMap)
-            Positioned.fill(
-              bottom: bottomObstruction,
-              child: Column(
-                children: [
-                  _header(location, travel),
-                  Expanded(child: _location()),
-                ],
-              ),
-            )
-          else ...[
-            Positioned.fill(
-              top: _gripHeight,
-              child: AttachmentContacts(
-                contacts: widget.contacts,
-                controller: widget.controller,
-                search: _contactSearch,
-                expanded: _expanded,
-                bottomObstruction: bottomObstruction,
-                onClose: _closeSheet,
-                onSearchChanged: _changeContactSearch,
-                onSelect: _closeSheet,
-                beginSheetDrag: () => _startSheetDrag(travel),
+          Positioned.fill(
+            child: FadeTransition(
+              key: const ValueKey('attachment-tab-pane'),
+              opacity: _tabs.opacity,
+              child: IgnorePointer(
+                ignoring: switching,
+                child: ExcludeSemantics(excluding: switching, child: pane),
               ),
             ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _header(location, travel),
-            ),
-          ],
+          ),
           if (panelProgress > 0)
             PositionedDirectional(
               start: 16,
@@ -525,20 +544,10 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
                       Icons.person_outline_rounded,
                     ],
                     symbols: const ['location.fill', 'person.crop.circle'],
-                    index: _tab.index,
+                    index: _tabs.selected,
                     onSelect: _select,
                   ),
                 ),
-              ),
-            ),
-          if (showingMap)
-            const PositionedDirectional(
-              start: _attributionMargin,
-              end: _attributionMargin,
-              bottom: 0,
-              child: Align(
-                alignment: AlignmentDirectional.bottomEnd,
-                child: MeshMapAttribution(),
               ),
             ),
         ],

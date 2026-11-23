@@ -56,6 +56,12 @@ class MeshNavigation extends StatelessWidget {
         14;
   }
 
+  static double bottomBarOffset(BuildContext context) {
+    if (!useIosControls) return bottomContentInset(context);
+    // Align UIKit's tab icons with the icons in the attachment sheet.
+    return 19 + (contentHeight(context) - 60) / 2;
+  }
+
   @override
   Widget build(BuildContext context) => MeshTabBar(
     labels: [
@@ -67,6 +73,7 @@ class MeshNavigation extends StatelessWidget {
     index: index,
     onSelect: onSelect,
     unreadCounts: [unread, settingsUnread],
+    nativeGlass: true,
   );
 }
 
@@ -80,6 +87,7 @@ class MeshTabBar extends StatelessWidget {
     required this.index,
     required this.onSelect,
     this.unreadCounts = const [],
+    this.nativeGlass = false,
   }) : assert(labels.length == icons.length),
        assert(labels.length == symbols.length);
 
@@ -88,6 +96,7 @@ class MeshTabBar extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelect;
   final List<int> unreadCounts;
+  final bool nativeGlass;
 
   static double bottomOffset(BuildContext context) =>
       MeshNavigation.bottomContentInset(context);
@@ -102,6 +111,26 @@ class MeshTabBar extends StatelessWidget {
       onSelect(next);
     }
 
+    if (nativeGlass && useIosControls) {
+      final style = MeshStyle.of(context);
+      final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+      return SizedBox(
+        height: heightOf(context) + safeBottom,
+        child: IosControl(
+          kind: 'tabs',
+          horizontalDrag: true,
+          onSelect: select,
+          properties: {
+            'labels': labels,
+            'symbols': symbols,
+            'index': index,
+            'unreadCounts': unreadCounts,
+            'dark': style.dark,
+            'accent': style.accent.toARGB32(),
+          },
+        ),
+      );
+    }
     return Center(
       heightFactor: 1,
       child: ConstrainedBox(
@@ -389,5 +418,52 @@ class ChatFilters extends StatelessWidget {
         onSelect: onSelect,
       ),
     );
+  }
+}
+
+/// Fades out the current pane before showing the newly selected one.
+class MeshNavigationFade {
+  MeshNavigationFade(TickerProvider vsync)
+    : opacity = AnimationController(vsync: vsync, value: 1);
+
+  static const _duration = Duration(milliseconds: 100);
+  static const _opaque = AlwaysStoppedAnimation(1.0);
+  final AnimationController opacity;
+  var shown = 0, selected = 0, counterpart = 0;
+
+  Animation<double> visibility({required bool shared}) =>
+      shared ? _opaque : opacity;
+
+  void jumpTo(int index) {
+    shown = selected = counterpart = index;
+    opacity.value = 1;
+  }
+
+  Future<void> select(
+    int index, {
+    required bool animate,
+    required VoidCallback rebuild,
+  }) async {
+    if (index == selected) return;
+    if (!animate) {
+      jumpTo(index);
+      rebuild();
+      return;
+    }
+    selected = index;
+    final switching = index != shown;
+    if (switching) counterpart = index;
+    rebuild();
+    try {
+      if (switching) {
+        await opacity.animateTo(0, duration: _duration).orCancel;
+        counterpart = shown;
+        shown = index;
+        rebuild();
+      }
+      await opacity.animateTo(1, duration: _duration).orCancel;
+    } on TickerCanceled {
+      // A new selection replaces this transition.
+    }
   }
 }

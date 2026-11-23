@@ -289,6 +289,66 @@ void main() {
     expect(grip, findsNothing);
   });
 
+  testWidgets('fades one attachment pane at a time under fixed tabs', (
+    tester,
+  ) async {
+    await _openPicker(tester, (_) {}, platform: TargetPlatform.iOS);
+    final map = find.byType(MeshMap);
+    final tabs = find.byType(MeshTabBar);
+    final tabRect = tester.getRect(tabs);
+    final fade = find.byKey(const ValueKey('attachment-tab-pane'));
+    final camera = tester.widget<MeshMap>(map).controller!;
+    final point = camera.camera.center;
+    expect(camera.move(point, 11), isTrue);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Contact'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.widget<MeshTabBar>(tabs).index, 1);
+    expect(tester.widget<FadeTransition>(fade).opacity.value, closeTo(.5, .02));
+    expect(tester.getRect(tabs), tabRect);
+    expect(map, findsOneWidget);
+    expect(find.text('Мира Соколова'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 51));
+    await tester.pump();
+    expect(map, findsNothing);
+    expect(find.text('Мира Соколова'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(tester.widget<FadeTransition>(fade).opacity.value, closeTo(.5, .02));
+    expect(tester.getRect(tabs), tabRect);
+
+    await tester.tap(_locationTab);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+    await tester.tap(find.text('Contact'));
+    await tester.pumpAndSettle();
+    expect(map, findsNothing);
+    expect(tester.widget<MeshTabBar>(tabs).index, 1);
+    expect(tester.widget<FadeTransition>(fade).opacity.value, 1);
+
+    await tester.tap(_locationTab);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(tabs), tabRect);
+    expect(camera.camera.center, point);
+    expect(camera.camera.zoom, 11);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('switches the attachment pane instantly with reduced motion', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _openPicker(tester, (_) {});
+    await tester.tap(find.text('Contact'));
+    await tester.pump();
+    expect(find.byType(MeshMap), findsNothing);
+    expect(find.text('Мира Соколова'), findsOneWidget);
+  });
+
   testWidgets(
     'passes a downward drag at the top of iOS contacts to the sheet',
     (tester) async {
