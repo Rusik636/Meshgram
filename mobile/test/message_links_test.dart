@@ -94,23 +94,27 @@ void main() {
       _bytes('<meta property="og:image" content="https://other.example/p">'),
       site,
     );
-    expect(externalImage.image, isNull);
+    expect(externalImage.image, Uri.parse('https://other.example/p'));
   });
 
   test(
-    'RuStore media uses its first-party CDN and supports Twitter metadata',
+    'reads a site name and Twitter large-card metadata from another host',
     () {
       final data = parseMessageLinkMetadata(
         _bytes('''
         <meta name="twitter:title" content="Приложения">
         <meta name="twitter:description" content="Посмотрите каталог">
-        <meta name="twitter:image" content="//static.rustore.ru/image/logo.jpg">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta property="og:site_name" content="Каталог">
+        <meta name="twitter:image" content="//cdn.example.com/image/logo.jpg">
       '''),
-        Uri.parse('https://www.rustore.ru/'),
+        Uri.parse('https://www.example.org/'),
       );
+      expect(data.siteName, 'Каталог');
       expect(data.title, 'Приложения');
       expect(data.description, 'Посмотрите каталог');
-      expect(data.image, Uri.parse('https://static.rustore.ru/image/logo.jpg'));
+      expect(data.image, Uri.parse('https://cdn.example.com/image/logo.jpg'));
+      expect(data.prefersLargeImage, isTrue);
     },
   );
 
@@ -198,13 +202,67 @@ void main() {
     await show(url, visible: true);
     await tester.pumpAndSettle();
     expect(requested, [url]);
-    await tester.tap(find.byTooltip('Retry from site'));
-    await tester.pumpAndSettle();
-    expect(requested, [url, url]);
+    expect(find.text('Preview unavailable'), findsNothing);
+    expect(find.byType(InkWell), findsNothing);
     await show(Uri.parse('http://example.net/received'), visible: true);
     await tester.pumpAndSettle();
-    expect(requested, [url, url]);
+    expect(requested, [url]);
   });
+
+  testWidgets(
+    'places a compact preview image beside text and a wide one below',
+    (tester) async {
+      final image = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFXsAAAAASUVORK5CYII=',
+      );
+
+      Future<void> show({required int width, required int height}) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 300,
+                  child: MessageLinkPreview(
+                    uri: Uri.parse('https://example.net/shape/$width'),
+                    loadMetadata: (_) async => MessageLinkMetadata(
+                      siteName: 'Mesh Journal',
+                      title: 'Trail maps',
+                      description: 'Shared with the group.',
+                      image: image,
+                      imageWidth: width,
+                      imageHeight: height,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await show(width: 500, height: 500);
+      final site = find.text('Mesh Journal');
+      final title = find.text('Trail maps');
+      final description = find.text('Shared with the group.');
+      final media = find.byType(Image);
+      expect(tester.getSize(media).width, 54);
+      expect(
+        tester.getTopLeft(media).dx,
+        greaterThan(tester.getTopRight(title).dx),
+      );
+      expect(tester.getTopLeft(site).dy, lessThan(tester.getTopLeft(title).dy));
+
+      await show(width: 1200, height: 630);
+      expect(tester.getSize(media).width, greaterThan(250));
+      expect(
+        tester.getTopLeft(media).dy,
+        greaterThan(tester.getBottomLeft(description).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('drops queued previews when they leave the visible chat', (
     tester,

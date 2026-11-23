@@ -207,15 +207,15 @@ class _MessageLinkPreviewCache {
   final _queue = Queue<Future<void> Function()>();
   final _pending = <Uri, _PendingLinkPreview>{};
   final _completed =
-      <Uri, ({Future<MessageLinkMetadata?> preview, DateTime? retryAfter})>{};
+      <Uri, ({MessageLinkMetadata? metadata, DateTime? retryAfter})>{};
   int _active = 0;
 
-  Future<MessageLinkMetadata?>? lookup(Uri uri) {
+  ({MessageLinkMetadata? metadata, DateTime? retryAfter})? lookup(Uri uri) {
     final cached = _completed.remove(uri);
     if (cached == null) return null;
     if (cached.retryAfter?.isBefore(DateTime.now()) == true) return null;
     _completed[uri] = cached;
-    return cached.preview;
+    return cached;
   }
 
   Future<MessageLinkMetadata?> request(
@@ -223,15 +223,12 @@ class _MessageLinkPreviewCache {
     _LoadLinkMetadata loader, {
     required Object owner,
     required bool Function() ownerIsVisible,
-    bool retry = false,
   }) {
     if (_pending[uri] case final pending?) {
       pending.owners[owner] = ownerIsVisible;
       return pending.result.future;
     }
-    if (!retry) {
-      if (lookup(uri) case final cached?) return cached;
-    }
+    if (lookup(uri) case final cached?) return Future.value(cached.metadata);
     final pending = _PendingLinkPreview()..owners[owner] = ownerIsVisible;
     _pending[uri] = pending;
     _queue.add(() async {
@@ -251,7 +248,7 @@ class _MessageLinkPreviewCache {
         _pending.remove(uri);
         _completed.remove(uri);
         _completed[uri] = (
-          preview: pending.result.future,
+          metadata: metadata,
           retryAfter: metadata == null
               ? DateTime.now().add(const Duration(minutes: 1))
               : null,
@@ -287,6 +284,7 @@ class MessageLinkPreview extends StatefulWidget {
     this.autoLoad = true,
     this.foreground,
     this.onDismiss,
+    this.builder,
     this.loadMetadata = fetchMessageLinkMetadata,
   });
 
@@ -295,6 +293,7 @@ class MessageLinkPreview extends StatefulWidget {
   final bool autoLoad;
   final Color? foreground;
   final VoidCallback? onDismiss;
+  final Widget Function(Widget? card)? builder;
   final Future<MessageLinkMetadata?> Function(Uri) loadMetadata;
 
   @override
@@ -307,6 +306,8 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
   Timer? _draftTimer;
   ModalRoute<dynamic>? _route;
   Future<MessageLinkMetadata?>? _preview;
+  MessageLinkMetadata? _cached;
+  bool _completed = false;
   bool get _canAutoLoad => widget.autoLoad && (_route?.isCurrent ?? true);
 
   Uri get _cacheKey {
@@ -340,8 +341,11 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
   void _loadPreview() {
     _draftTimer?.cancel();
     final key = _cacheKey;
-    _preview = _previewCache.lookup(key);
-    if (_preview != null || !_canAutoLoad || !canFetchMessageLink(key)) {
+    final cached = _previewCache.lookup(key);
+    _preview = null;
+    _cached = cached?.metadata;
+    _completed = cached != null;
+    if (_completed || !_canAutoLoad || !canFetchMessageLink(key)) {
       return;
     }
     if (widget.compact) {
@@ -356,61 +360,116 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
     }
   }
 
-  Future<MessageLinkMetadata?> _request(Uri key, {bool retry = false}) =>
-      _previewCache.request(
-        key,
-        widget.loadMetadata,
-        owner: this,
-        ownerIsVisible: () {
-          final lifecycle = WidgetsBinding.instance.lifecycleState;
-          return mounted &&
-              _cacheKey == key &&
-              _canAutoLoad &&
-              (lifecycle == null || lifecycle == AppLifecycleState.resumed);
-        },
-        retry: retry,
-      );
-
-  void _retryPreview() {
-    final preview = _request(_cacheKey, retry: true);
-    setState(() {
-      _preview = preview;
-    });
-  }
+  Future<MessageLinkMetadata?> _request(Uri key) => _previewCache.request(
+    key,
+    widget.loadMetadata,
+    owner: this,
+    ownerIsVisible: () {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      return mounted &&
+          _cacheKey == key &&
+          _canAutoLoad &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed);
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<MessageLinkMetadata?>(
       key: ValueKey(_cacheKey),
       future: _preview,
-      builder: (context, snapshot) => _card(context, snapshot),
+      initialData: _cached,
+      builder: (context, snapshot) {
+        final data = _completed ? _cached : snapshot.data;
+        final loading =
+            widget.compact &&
+            !_completed &&
+            snapshot.connectionState != ConnectionState.done &&
+            _canAutoLoad &&
+            canFetchMessageLink(widget.uri);
+        final card = data != null || loading
+            ? _MessageLinkCard(
+                uri: widget.uri,
+                metadata: data,
+                compact: widget.compact,
+                foreground: widget.foreground,
+                onDismiss: widget.onDismiss,
+              )
+            : null;
+        return widget.builder?.call(card) ?? card ?? const SizedBox.shrink();
+      },
     );
   }
+}
 
-  Widget _card(
-    BuildContext context,
-    AsyncSnapshot<MessageLinkMetadata?> snapshot,
-  ) {
-    final theme = MeshStyle.of(context);
-    final foreground = widget.foreground ?? theme.text;
-    final metadata = snapshot.data;
-    final compact = widget.compact;
-    final uri = widget.uri;
-    final fetching = snapshot.connectionState == ConnectionState.waiting;
-    final mayFetch = canFetchMessageLink(uri);
-    final failed =
-        snapshot.connectionState == ConnectionState.done && metadata == null;
-    final title = metadata?.title ?? uri.host;
-    final subtitle =
-        metadata?.description ??
-        (failed
-            ? tr(context, 'Сайт не предоставил описание', 'Preview unavailable')
-            : uri.toString());
-    final radius = BorderRadius.circular(12);
+class _MessageLinkCard extends StatelessWidget {
+  const _MessageLinkCard({
+    required this.uri,
+    required this.metadata,
+    required this.compact,
+    required this.foreground,
+    required this.onDismiss,
+  });
+
+  final Uri uri;
+  final MessageLinkMetadata? metadata;
+  final bool compact;
+  final Color? foreground;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = foreground ?? MeshStyle.of(context).text;
+    final site = metadata?.siteName;
+    final title = metadata?.title;
+    final description = metadata?.description;
+    final heading = compact
+        ? metadata == null
+              ? tr(context, 'Загрузка превью…', 'Loading preview…')
+              : title ?? site ?? uri.host
+        : site ?? (title == null ? uri.host : null);
+    final bodyTitle = compact || title?.toLowerCase() == site?.toLowerCase()
+        ? null
+        : title;
+    final bodyDescription = compact && metadata == null
+        ? uri.toString()
+        : description;
+    final image = metadata?.image;
+    final width = metadata?.imageWidth ?? 0;
+    final height = metadata?.imageHeight ?? 0;
+    final ratio = width > 0 && height > 0 ? width / height : 1.0;
+    // Mesh metadata comes from the webpage, so use its preferred size
+    // or a suitably wide source image for the large layout.
+    final large =
+        image != null &&
+        !compact &&
+        width >= 320 &&
+        height >= 160 &&
+        ((metadata?.prefersLargeImage ?? false) ||
+            (width >= 480 && ratio >= 1.5));
+
+    Widget line(String value, int maxLines, TextStyle style) => Text(
+      value,
+      maxLines: maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+
+    Widget media({double? side}) => ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.memory(
+        image!,
+        width: side ?? double.infinity,
+        height: side,
+        fit: BoxFit.cover,
+        cacheWidth: large ? 768 : 144,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      ),
+    );
 
     return Material(
-      color: foreground.withValues(alpha: .075),
-      borderRadius: radius,
+      color: color.withValues(alpha: .075),
+      borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
@@ -418,103 +477,76 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
             child: InkWell(
               onTap: () => _openMessageLink(context, uri),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!compact) ...[
-                      if (metadata?.image case final image?)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: Image.memory(
-                            image,
-                            width: 43,
-                            height: 43,
-                            fit: BoxFit.cover,
-                            cacheWidth: 128,
-                            cacheHeight: 128,
-                            errorBuilder: (_, _, _) =>
-                                Icon(Icons.language_rounded, color: foreground),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (heading != null)
+                                line(
+                                  heading,
+                                  1,
+                                  TextStyle(
+                                    color: color,
+                                    fontSize: 13,
+                                    fontWeight: compact
+                                        ? FontWeight.w600
+                                        : FontWeight.w700,
+                                  ),
+                                ),
+                              if (bodyTitle != null)
+                                line(
+                                  bodyTitle,
+                                  2,
+                                  TextStyle(
+                                    color: color,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              if (bodyDescription != null)
+                                line(
+                                  bodyDescription,
+                                  compact ? 1 : 4,
+                                  TextStyle(
+                                    color: color.withValues(alpha: .85),
+                                    fontSize: compact ? 12 : 13,
+                                  ),
+                                ),
+                            ],
                           ),
-                        )
-                      else
-                        Icon(
-                          Icons.language_rounded,
-                          color: foreground,
-                          size: 22,
                         ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (metadata?.title != null && !compact)
-                            Text(
-                              uri.host,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: foreground.withValues(alpha: .8),
-                                fontSize: 11,
-                              ),
-                            ),
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: foreground,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (subtitle != title)
-                            Text(
-                              subtitle,
-                              maxLines: compact ? 1 : 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: foreground.withValues(alpha: .85),
-                                fontSize: 12,
-                              ),
-                            ),
+                        if (image != null && !large) ...[
+                          const SizedBox(width: 8),
+                          media(side: compact ? 34 : 54),
                         ],
-                      ),
+                      ],
                     ),
+                    if (large) ...[
+                      const SizedBox(height: 8),
+                      AspectRatio(
+                        aspectRatio: ratio.clamp(1.0, 2.5),
+                        child: media(),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
-          if (fetching)
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: foreground,
-                ),
-              ),
-            )
-          else if (mayFetch && failed && _canAutoLoad)
-            IconButton(
-              tooltip: tr(
-                context,
-                'Повторить загрузку с сайта',
-                'Retry from site',
-              ),
-              onPressed: _retryPreview,
-              color: foreground,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-          if (widget.onDismiss case final dismiss?)
+          if (onDismiss case final dismiss?)
             IconButton(
               tooltip: tr(context, 'Убрать предпросмотр', 'Remove preview'),
               onPressed: dismiss,
-              color: foreground,
+              color: color,
               icon: const Icon(Icons.close_rounded, size: 20),
             ),
         ],
