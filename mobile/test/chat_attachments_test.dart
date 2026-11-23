@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/chat_attachments.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/navigation.dart';
+import 'package:meshgrame/ui/node_list.dart';
+import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 
 const _contacts = [
@@ -41,7 +43,8 @@ void main() {
     expect(find.text('Илья Ветров'), findsOneWidget);
     expect(find.byType(MeshAvatar), findsNWidgets(2));
 
-    await tester.enterText(find.byType(TextField), 'сокол');
+    await _startContactSearch(tester);
+    await tester.enterText(_contactEditor, 'сокол');
     await tester.pumpAndSettle();
     expect(find.text('Илья Ветров'), findsNothing);
 
@@ -49,6 +52,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, _contacts.first.link);
     expect(find.byType(MeshTabBar), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'sorts contacts with the Nodes picker and keeps the shared rows',
+    (tester) async {
+      await _openPicker(tester, (_) {});
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
+
+      Future<List<String>> sortedBy(String option) async {
+        await tester.tap(find.byTooltip('Sort by'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(option));
+        await tester.pumpAndSettle();
+        return tester
+            .widgetList<MeshNodeRow>(find.byType(MeshNodeRow))
+            .map((row) => row.peer.name)
+            .toList();
+      }
+
+      expect(await sortedBy('Name'), ['Илья Ветров', 'Мира Соколова']);
+      expect(await sortedBy('Last heard'), ['Мира Соколова', 'Илья Ветров']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('morphs contact search from a compact button into the editor', (
+    tester,
+  ) async {
+    await _openPicker(
+      tester,
+      (_) {},
+      contacts: [
+        for (var index = 0; index < 18; index++)
+          (
+            peer: (
+              id: 'node:$index',
+              name: 'Node $index',
+              channel: false,
+              writable: true,
+            ),
+            link: 'meshgram://contact/$index',
+          ),
+      ],
+    );
+    await tester.tap(find.text('Contact'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MeshSearchLauncher), findsOneWidget);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+    await tester.pumpAndSettle();
+    expect(find.byType(MeshSearchLauncher), findsNothing);
+
+    final collapsed = find.byTooltip('Search nodes');
+    final collapsedWidth = tester.getSize(collapsed).width;
+    await tester.tap(collapsed);
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(_contactEditor).width, greaterThan(collapsedWidth));
+    expect(find.byTooltip('Close search'), findsOneWidget);
+    expect(find.byType(MeshTabBar), findsOneWidget);
+    await tester.tap(find.byTooltip('Close search'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Search nodes'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -89,9 +157,10 @@ void main() {
       await tester.tap(find.text('Contact'));
       await tester.pumpAndSettle();
 
+      await _startContactSearch(tester);
       tester.view.viewInsets = const FakeViewPadding(bottom: 440);
       addTearDown(tester.view.resetViewInsets);
-      await tester.enterText(find.byType(TextField), 'сокол');
+      await tester.enterText(_contactEditor, 'сокол');
       await tester.pumpAndSettle();
       expect(find.byType(MeshTabBar), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -150,10 +219,21 @@ Finder get _locationTab => find.descendant(
   matching: find.text('Location'),
 );
 
+Finder get _contactEditor => find.descendant(
+  of: find.byType(MeshSearchEditor),
+  matching: find.byType(TextField),
+);
+
+Future<void> _startContactSearch(WidgetTester tester) async {
+  await tester.tap(find.byType(MeshSearchLauncher));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openPicker(
   WidgetTester tester,
-  ValueChanged<String?> onResult,
-) async {
+  ValueChanged<String?> onResult, {
+  List<ShareableNode> contacts = _contacts,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(390, 844);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -166,7 +246,7 @@ Future<void> _openPicker(
             onPressed: () async => onResult(
               await pickChatAttachment(
                 context,
-                contacts: _contacts,
+                contacts: contacts,
                 initialPosition: (latitude: 55.725, longitude: 52.401),
                 locationNodes: const [
                   (

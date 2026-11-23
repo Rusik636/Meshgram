@@ -8,19 +8,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../mesh/network.dart';
+import '../mesh/controller.dart';
 import '../mesh/nodes.dart';
+import 'contact_picker.dart';
 import 'ios_control.dart';
 import 'location_search.dart';
 import 'navigation.dart';
 import 'position_picker.dart';
 import 'style.dart';
 
-typedef ShareableNode = ({Peer peer, String? link});
+export 'contact_picker.dart' show ShareableNode;
 
 Future<String?> pickChatAttachment(
   BuildContext context, {
   required List<ShareableNode> contacts,
+  MeshController? controller,
   NodePosition? initialPosition,
   List<AttachmentLocationNode> locationNodes = const [],
   Uint8List? backdrop,
@@ -37,6 +39,7 @@ Future<String?> pickChatAttachment(
     image: backdrop,
     child: _AttachmentSheet(
       contacts: contacts,
+      controller: controller,
       initialPosition: initialPosition,
       locationNodes: locationNodes,
     ),
@@ -48,11 +51,13 @@ enum _AttachmentTab { location, contact }
 class _AttachmentSheet extends StatefulWidget {
   const _AttachmentSheet({
     required this.contacts,
+    required this.controller,
     required this.locationNodes,
     this.initialPosition,
   });
 
   final List<ShareableNode> contacts;
+  final MeshController? controller;
   final List<AttachmentLocationNode> locationNodes;
   final NodePosition? initialPosition;
 
@@ -71,7 +76,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
   double? _zoom;
   int _selectionRevision = 0;
   double _drag = 0;
-  String _query = '';
   String? _positionError;
 
   @override
@@ -208,92 +212,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     if (_positionError != null) setState(() => _positionError = null);
   }
 
-  Widget _contacts() {
-    final style = MeshStyle.of(context);
-    final visible = widget.contacts
-        .where(
-          (contact) =>
-              contact.peer.name.toLowerCase().contains(_query) ||
-              contact.peer.id.toLowerCase().contains(_query),
-        )
-        .toList();
-    return CustomScrollView(
-      key: const PageStorageKey('attachment-contacts'),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: TextField(
-              controller: _contactSearch,
-              onChanged: (value) =>
-                  setState(() => _query = value.trim().toLowerCase()),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: tr(context, 'Поиск узлов', 'Search nodes'),
-                prefixIcon: const Icon(Icons.search_rounded),
-                filled: true,
-                fillColor: style.field,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (visible.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  widget.contacts.isEmpty
-                      ? tr(context, 'Список узлов пуст', 'No nodes yet')
-                      : tr(context, 'Узлы не найдены', 'No matching nodes'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: style.secondary),
-                ),
-              ),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            sliver: SliverList.builder(
-              itemCount: visible.length,
-              itemBuilder: (_, index) {
-                final contact = visible[index];
-                return ListTile(
-                  leading: MeshAvatar(contact.peer.name, size: 40),
-                  title: Text(
-                    contact.peer.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  enabled: contact.link != null,
-                  subtitle: Text(
-                    contact.link == null
-                        ? tr(
-                            context,
-                            'Ссылка недоступна',
-                            'Contact link unavailable',
-                          )
-                        : contact.peer.id,
-                  ),
-                  trailing: const Icon(Icons.arrow_upward_rounded, size: 18),
-                  onTap: contact.link == null
-                      ? null
-                      : () => Navigator.pop(context, contact.link),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _locationMap() => MeshMap(
     controller: _map,
     center: _point.value,
@@ -395,9 +313,6 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final location = tr(context, 'Геопозиция', 'Location');
-    final title = _tab == _AttachmentTab.location
-        ? location
-        : tr(context, 'Контакты', 'Contacts');
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final motion = _dragging || keyboard > 0
         ? Duration.zero
@@ -447,28 +362,28 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Row(
-                        children: [
-                          GlassButton(
-                            icon: Icons.close_rounded,
-                            label: tr(context, 'Закрыть', 'Close'),
-                            onTap: () => Navigator.pop(context),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                    if (_tab == _AttachmentTab.location) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Row(
+                          children: [
+                            GlassButton(
+                              icon: Icons.close_rounded,
+                              label: tr(context, 'Закрыть', 'Close'),
+                              onTap: () => Navigator.pop(context),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                          if (_tab == _AttachmentTab.location)
                             GlassButton(
                               icon: Icons.search_rounded,
                               label: tr(
@@ -478,28 +393,35 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                               ),
                               onTap: () => unawaited(_searchLocation()),
                             ),
-                          const SizedBox(width: 6),
-                          GlassButton(
-                            icon: _expanded
-                                ? Icons.close_fullscreen_rounded
-                                : Icons.open_in_full_rounded,
-                            label: _expanded
-                                ? tr(context, 'Свернуть', 'Collapse')
-                                : tr(context, 'На весь экран', 'Expand'),
-                            onTap: () {
-                              FocusScope.of(context).unfocus();
-                              _setExpanded(!_expanded);
-                            },
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            GlassButton(
+                              icon: _expanded
+                                  ? Icons.close_fullscreen_rounded
+                                  : Icons.open_in_full_rounded,
+                              label: _expanded
+                                  ? tr(context, 'Свернуть', 'Collapse')
+                                  : tr(context, 'На весь экран', 'Expand'),
+                              onTap: () {
+                                FocusScope.of(context).unfocus();
+                                _setExpanded(!_expanded);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: switch (_tab) {
-                        _AttachmentTab.location => _location(),
-                        _AttachmentTab.contact => _contacts(),
-                      },
-                    ),
+                      Expanded(child: _location()),
+                    ] else
+                      Expanded(
+                        child: AttachmentContacts(
+                          contacts: widget.contacts,
+                          controller: widget.controller,
+                          search: _contactSearch,
+                          expanded: _expanded,
+                          onClose: () => Navigator.pop(context),
+                          onToggleExpand: () => _setExpanded(!_expanded),
+                          onSelect: (link) => Navigator.pop(context, link),
+                        ),
+                      ),
                     if (!_expanded)
                       Padding(
                         padding: EdgeInsets.fromLTRB(
