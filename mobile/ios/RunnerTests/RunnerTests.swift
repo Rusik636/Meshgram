@@ -9,6 +9,58 @@ import XCTest
 
 class RunnerTests: XCTestCase {
   @MainActor
+  func testComposerKeepsEditableTextAboveGlassAcrossCoverAndResize() throws {
+    let draft = "Первая строка\nВторая 👋"
+    let input = appearance(dark: true).merging([
+      "text": draft, "placeholder": "Сообщение",
+    ]) { _, value in value }
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 240, height: 46),
+      id: 0, input: input, messenger: TestMessenger())
+    let root = composer.view()
+    root.layoutIfNeeded()
+    let glass = try XCTUnwrap(root.subviews.first as? UIVisualEffectView)
+    let editor = try XCTUnwrap(root.subviews.last as? UITextView)
+    let placeholder = try XCTUnwrap(editor.subviews.compactMap { $0 as? UILabel }.first {
+      $0.text == "Сообщение"
+    })
+    let press = try XCTUnwrap(root.gestureRecognizers?.first as? UILongPressGestureRecognizer)
+    XCTAssertFalse(root.clipsToBounds)
+    XCTAssertFalse(glass.isUserInteractionEnabled)
+    XCTAssertFalse(press.cancelsTouchesInView)
+    XCTAssertFalse(press.delaysTouchesBegan)
+    XCTAssertTrue(composer.gestureRecognizer(press,
+      shouldRecognizeSimultaneouslyWith: editor.panGestureRecognizer))
+    XCTAssertEqual(editor.accessibilityLabel, placeholder.text)
+    XCTAssertFalse(placeholder.isAccessibilityElement)
+    XCTAssertTrue(placeholder.isHidden)
+
+    let selection = NSRange(location: 2, length: 4)
+    editor.selectedRange = selection
+    for covered in [true, false] {
+      composer.updateAppearance(input.merging(["coveredByModal": covered]) { _, value in value })
+      root.frame.size.height = covered ? 84 : 66
+      root.layoutIfNeeded()
+      XCTAssertTrue(root.subviews.last === editor)
+      XCTAssertEqual(editor.bounds.height, root.bounds.height)
+      XCTAssertEqual(editor.text, draft)
+      XCTAssertEqual(editor.selectedRange, selection)
+      XCTAssertTrue(editor.transform.isIdentity)
+      XCTAssertEqual(root.accessibilityElementsHidden, covered)
+      XCTAssertEqual(press.isEnabled, !covered && !UIAccessibility.isReduceMotionEnabled)
+      if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+        XCTAssertNil(try XCTUnwrap(glass.effect as? UIGlassEffect).tintColor)
+      }
+    }
+
+    composer.updateAppearance(input.merging(["highContrast": true]) { _, value in value })
+    XCTAssertNil(glass.effect)
+    XCTAssertEqual(glass.backgroundColor, meshColor(input["surface"], .clear))
+    editor.text = ""
+    composer.textViewDidChange(editor)
+    XCTAssertFalse(placeholder.isHidden)
+  }
+
+  @MainActor
   func testNativeButtonsKeepTheirConfigurationWhileCovered() throws {
     let controls: [(name: String, properties: [String: Any])] = [
       ("back", ["symbol": "chevron.left", "label": "Back"]),

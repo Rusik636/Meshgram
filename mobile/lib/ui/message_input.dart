@@ -86,6 +86,8 @@ class MessageInputState extends State<MessageInput> {
       'coveredByModal': widget.coveredByModal,
       'placeholder': tr(context, 'Сообщение', 'Message'),
       'dark': style.dark,
+      'highContrast': MediaQuery.highContrastOf(context),
+      'surface': style.surface.toARGB32(),
       'foreground': style.text.toARGB32(),
       'secondary': style.secondary.toARGB32(),
       'accent': style.accent.toARGB32(),
@@ -153,8 +155,14 @@ class MessageInputState extends State<MessageInput> {
   @override
   Widget build(BuildContext context) {
     if (_native) {
-      return SizedBox(
-        height: _height,
+      return TweenAnimationBuilder<double>(
+        tween: Tween(end: _height),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        builder: (context, height, editor) =>
+            SizedBox(height: height, child: editor),
         child: MeshSheetControlClip(
           child: UiKitView(
             viewType: 'meshgrame/composer',

@@ -1385,6 +1385,68 @@ class _ChatState extends State<MeshChatPage>
     required bool send,
   }) {
     final controller = widget.controller;
+    final native = useIosControls;
+    Widget accessory(Widget child) => native
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: GlassSurface(radius: 16, child: child),
+          )
+        : child;
+    final composer = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (reply != null)
+          accessory(
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 6, 3, native ? 4 : 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _MessageQuote(
+                      message: reply,
+                      onTap: () => unawaited(_revealQuote(reply)),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: tr(context, 'Отменить ответ', 'Cancel reply'),
+                    onPressed: () => controller.setReplyDraft(peer.id, null),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (previewLink != null)
+          MessageLinkPreview(
+            uri: previewLink,
+            compact: true,
+            autoLoad: _canPreviewLinks,
+            onDismiss: () => setState(() => _dismissedDraftLink = previewLink),
+            builder: (card) => card == null
+                ? const SizedBox.shrink()
+                : accessory(
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(7, 7, 7, native ? 7 : 0),
+                      child: card,
+                    ),
+                  ),
+          ),
+        MessageInput(
+          key: _input,
+          coveredByModal:
+              _controlsCovered || ModalRoute.isCurrentOf(context) == false,
+          controller: _draft,
+          onChanged: (value) {
+            controller.setDraft(peer.id, value);
+            setState(() {
+              if (firstMessageLink(value) != _dismissedDraftLink) {
+                _dismissedDraftLink = null;
+              }
+            });
+          },
+        ),
+      ],
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -1409,68 +1471,7 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: GlassSurface(
-            radius: 23,
-            modal: true,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (reply != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 3, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _MessageQuote(
-                            message: reply,
-                            onTap: () => unawaited(_revealQuote(reply)),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: tr(
-                            context,
-                            'Отменить ответ',
-                            'Cancel reply',
-                          ),
-                          onPressed: () =>
-                              controller.setReplyDraft(peer.id, null),
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (previewLink != null)
-                  MessageLinkPreview(
-                    uri: previewLink,
-                    compact: true,
-                    autoLoad: _canPreviewLinks,
-                    onDismiss: () =>
-                        setState(() => _dismissedDraftLink = previewLink),
-                    builder: (card) => card == null
-                        ? const SizedBox.shrink()
-                        : Padding(
-                            padding: const EdgeInsets.fromLTRB(7, 7, 7, 0),
-                            child: card,
-                          ),
-                  ),
-                MessageInput(
-                  key: _input,
-                  coveredByModal:
-                      _controlsCovered ||
-                      ModalRoute.isCurrentOf(context) == false,
-                  controller: _draft,
-                  onChanged: (value) {
-                    controller.setDraft(peer.id, value);
-                    setState(() {
-                      if (firstMessageLink(value) != _dismissedDraftLink) {
-                        _dismissedDraftLink = null;
-                      }
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
+          child: native ? composer : GlassSurface(radius: 23, child: composer),
         ),
         const SizedBox(width: 8),
         GlassButton(

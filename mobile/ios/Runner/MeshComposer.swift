@@ -21,23 +21,27 @@ final class MeshComposerFactory: NSObject, FlutterPlatformViewFactory {
 }
 
 private class MeshInputGlass: UIVisualEffectView {
+  var maximumRadius: Double?
+
   override func layoutSubviews() {
     super.layoutSubviews()
     if #available(iOS 26.0, *) {
-      cornerConfiguration = .capsule()
+      cornerConfiguration = .capsule(maximumRadius: maximumRadius)
     } else {
-      layer.cornerRadius = bounds.height / 2
+      layer.cornerRadius = min(maximumRadius.map { CGFloat($0) } ?? .greatestFiniteMagnitude, bounds.height / 2)
     }
   }
 
-  func applyMaterial(surface: UIColor) {
+  func applyMaterial(surface: UIColor, opaque: Bool = false, panelTint: Bool = true) {
     backgroundColor = .clear
-    if UIAccessibility.isReduceTransparencyEnabled {
+    if opaque || UIAccessibility.isReduceTransparencyEnabled {
       effect = nil
       backgroundColor = surface
     } else if #available(iOS 26.0, *) {
       let material = UIGlassEffect(style: .regular)
-      material.tintColor = meshPanelTint(dark: overrideUserInterfaceStyle == .dark)
+      if panelTint {
+        material.tintColor = meshPanelTint(dark: overrideUserInterfaceStyle == .dark)
+      }
       effect = material
     } else {
       effect = UIBlurEffect(style: .systemThickMaterial)
@@ -54,12 +58,16 @@ private final class ComposerTextView: UITextView {
   }
 }
 
-private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate {
+final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIGestureRecognizerDelegate {
   private let container = UIView()
+  private let glass = MeshInputGlass(effect: nil)
   private let textView: ComposerTextView
   private let placeholder = UILabel()
   private let channel: FlutterMethodChannel
   private var reportedHeight: CGFloat = 0
+  private var surface: UIColor = .secondarySystemBackground
+  private var highContrast = false
+  private var press: UILongPressGestureRecognizer?
 
   init(frame: CGRect, id: Int64, input: [String: Any], messenger: FlutterBinaryMessenger) {
     textView = ComposerTextView(frame: frame)
@@ -67,6 +75,21 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
     super.init()
     container.frame = frame
     container.backgroundColor = .clear
+
+    glass.maximumRadius = 23
+    glass.layer.cornerCurve = .continuous
+    glass.clipsToBounds = true
+    glass.isUserInteractionEnabled = false
+    glass.accessibilityElementsHidden = true
+    glass.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(glass)
+    NSLayoutConstraint.activate([
+      glass.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      glass.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      glass.topAnchor.constraint(equalTo: container.topAnchor),
+      glass.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
+    // Keep the editor above the backdrop so glyphs and the caret stay sharp.
     container.addSubview(textView)
     textView.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
@@ -96,6 +119,20 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
       placeholder.trailingAnchor.constraint(lessThanOrEqualTo: textView.frameLayoutGuide.trailingAnchor, constant: -22),
     ])
     textView.onLayout = { [weak self] in self?.updateHeight() }
+
+    let press = UILongPressGestureRecognizer(target: self, action: #selector(pressChanged))
+    press.minimumPressDuration = 0
+    press.cancelsTouchesInView = false
+    press.delaysTouchesBegan = false
+    press.delaysTouchesEnded = false
+    press.delegate = self
+    container.addGestureRecognizer(press)
+    self.press = press
+
+    NotificationCenter.default.addObserver(self, selector: #selector(updateGlass),
+      name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(updatePressAvailability),
+      name: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil)
     updateAppearance(input)
     updatePlaceholder()
 
@@ -109,10 +146,13 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
       case "focus":
         self.textView.becomeFirstResponder()
       case "replaceText":
-        if let value = call.arguments as? String, value != self.textView.text {
-          self.textView.text = value
-          self.updatePlaceholder()
-          self.updateHeight()
+        if let value = call.arguments as? String {
+          if value != self.textView.text {
+            self.textView.text = value
+            self.updatePlaceholder()
+          }
+          // The initial height may have been measured before Flutter connected the channel.
+          self.updateHeight(force: true)
         }
       default:
         result(FlutterMethodNotImplemented)
@@ -123,10 +163,51 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
   }
 
   deinit {
+    NotificationCenter.default.removeObserver(self)
     channel.setMethodCallHandler(nil)
   }
 
   func view() -> UIView { container }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+  ) -> Bool {
+    gestureRecognizer === press
+  }
+
+  @objc private func pressChanged(_ gesture: UILongPressGestureRecognizer) {
+    switch gesture.state {
+    case .began:
+      setGlassPressed(true)
+    case .ended, .cancelled, .failed:
+      setGlassPressed(false)
+    default:
+      break
+    }
+  }
+
+  private func setGlassPressed(_ pressed: Bool) {
+    let transform = pressed ? CGAffineTransform(scaleX: 0.985, y: 0.94) : .identity
+    let duration: TimeInterval = pressed ? 0.15 : 0.38
+    UIView.animate(withDuration: duration, delay: 0, usingSpringWithDamping: 0.65,
+      initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+      self.glass.transform = transform
+    }
+  }
+
+  @objc private func updatePressAvailability() {
+    let enabled = container.isUserInteractionEnabled && !UIAccessibility.isReduceMotionEnabled
+    press?.isEnabled = enabled
+    if !enabled {
+      glass.layer.removeAllAnimations()
+      glass.transform = .identity
+    }
+  }
+
+  @objc private func updateGlass() {
+    glass.applyMaterial(surface: surface, opaque: highContrast, panelTint: false)
+  }
 
   func textViewDidChange(_ textView: UITextView) {
     updatePlaceholder()
@@ -138,37 +219,41 @@ private final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDeleg
     placeholder.isHidden = !textView.text.isEmpty
   }
 
-  private func updateHeight() {
+  private func updateHeight(force: Bool = false) {
     guard textView.bounds.width > 36 else { return }
     let lineHeight = textView.font?.lineHeight ?? 22
     let maximum = min(160, ceil(lineHeight * 4 + 24))
     let measured = textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height
     let desired = min(maximum, max(46, ceil(measured)))
     if textView.isScrollEnabled != (measured > maximum) { textView.isScrollEnabled = measured > maximum }
-    guard desired != reportedHeight else { return }
+    guard force || desired != reportedHeight else { return }
     reportedHeight = desired
     channel.invokeMethod("height", arguments: Double(desired))
   }
 
-  private func updateAppearance(_ input: [String: Any]) {
+  func updateAppearance(_ input: [String: Any]) {
     let covered = input["coveredByModal"] as? Bool == true
     container.isUserInteractionEnabled = !covered
     container.accessibilityElementsHidden = covered
     if covered && textView.isFirstResponder { textView.resignFirstResponder() }
     let dark = input["dark"] as? Bool ?? false
-    container.overrideUserInterfaceStyle = dark ? .dark : .light
+    let style: UIUserInterfaceStyle = dark ? .dark : .light
+    let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
+    let nextContrast = input["highContrast"] as? Bool == true
+    if style != glass.overrideUserInterfaceStyle || nextSurface != surface || nextContrast != highContrast {
+      glass.overrideUserInterfaceStyle = style
+      surface = nextSurface
+      highContrast = nextContrast
+      updateGlass()
+    }
+    container.overrideUserInterfaceStyle = style
     textView.keyboardAppearance = dark ? .dark : .light
-    textView.textColor = color(input["foreground"], .label)
-    textView.tintColor = color(input["accent"], .systemBlue)
-    placeholder.textColor = color(input["secondary"], .placeholderText)
+    textView.textColor = meshColor(input["foreground"], .label)
+    textView.tintColor = meshColor(input["accent"], .systemBlue)
+    placeholder.textColor = meshColor(input["secondary"], .placeholderText)
     placeholder.text = input["placeholder"] as? String
     textView.accessibilityLabel = placeholder.text
-  }
-
-  private func color(_ input: Any?, _ fallback: UIColor) -> UIColor {
-    guard let n = (input as? NSNumber)?.uint32Value else { return fallback }
-    return UIColor(red: CGFloat(n >> 16 & 255) / 255, green: CGFloat(n >> 8 & 255) / 255,
-                   blue: CGFloat(n & 255) / 255, alpha: CGFloat(n >> 24 & 255) / 255)
+    updatePressAvailability()
   }
 }
 
