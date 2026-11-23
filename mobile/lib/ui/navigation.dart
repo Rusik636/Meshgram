@@ -391,3 +391,50 @@ class ChatFilters extends StatelessWidget {
     );
   }
 }
+
+/// Fades out the current pane before showing the newly selected one.
+class MeshNavigationFade {
+  MeshNavigationFade(TickerProvider vsync)
+    : opacity = AnimationController(vsync: vsync, value: 1);
+
+  static const _duration = Duration(milliseconds: 100);
+  static const _opaque = AlwaysStoppedAnimation(1.0);
+  final AnimationController opacity;
+  var shown = 0, selected = 0, counterpart = 0;
+
+  Animation<double> visibility({required bool shared}) =>
+      shared ? _opaque : opacity;
+
+  void jumpTo(int index) {
+    shown = selected = counterpart = index;
+    opacity.value = 1;
+  }
+
+  Future<void> select(
+    int index, {
+    required bool animate,
+    required VoidCallback rebuild,
+  }) async {
+    if (index == selected) return;
+    if (!animate) {
+      jumpTo(index);
+      rebuild();
+      return;
+    }
+    selected = index;
+    final switching = index != shown;
+    if (switching) counterpart = index;
+    rebuild();
+    try {
+      if (switching) {
+        await opacity.animateTo(0, duration: _duration).orCancel;
+        counterpart = shown;
+        shown = index;
+        rebuild();
+      }
+      await opacity.animateTo(1, duration: _duration).orCancel;
+    } on TickerCanceled {
+      // A new selection replaces this transition.
+    }
+  }
+}
