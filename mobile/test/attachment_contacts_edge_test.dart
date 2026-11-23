@@ -9,6 +9,7 @@ import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/search_field.dart';
+import 'package:meshgrame/ui/style.dart';
 
 const _size = Size(390, 844);
 const _contactCount = 18;
@@ -89,7 +90,10 @@ void main() {
       matching: find.byType(MeshScrollEdge),
     );
     expect(softEdges, findsOneWidget);
-    expect(tester.widget<MeshScrollEdge>(headingEdge).tint, isNull);
+    expect(
+      tester.widget<MeshScrollEdge>(headingEdge).tint,
+      MeshStyle.of(tester.element(picker)).surface,
+    );
     expect(tester.getRect(headingEdge).top, bounds.top);
     expect(tester.getRect(headingEdge).width, bounds.width);
     expect(
