@@ -15,6 +15,7 @@ import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/search_field.dart';
+import 'package:meshgrame/ui/sheet_control_clip.dart';
 import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,6 +88,9 @@ void main() {
     final moving = tester.getRect(_paperclipFlight);
     expect(moving.width, greaterThan(source.width));
     expect(moving.top, lessThan(source.top));
+    if (useIosControls) {
+      expect(tester.getRect(find.byType(MeshOpaqueSheetRegion)), moving);
+    }
 
     await tester.tapAt(const Offset(200, 90));
     await tester.pump();
