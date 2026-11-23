@@ -6609,8 +6609,19 @@ void main() {
       expect(mid.width, lessThan(expanded.width));
       expect(mid.width, greaterThan(48));
       expect(mid.top, lessThan(expanded.top));
-      await gesture.moveBy(const Offset(0, -58));
-      await gesture.up();
+      await gesture.up(timeStamp: const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(search), expanded);
+
+      final closing = await tester.startGesture(tester.getCenter(firstChat));
+      await closing.moveBy(const Offset(0, -20));
+      await closing.moveBy(const Offset(0, -41));
+      await tester.pump();
+      expect(
+        tester.getRect(search).width,
+        inExclusiveRange(48, expanded.width),
+      );
+      await closing.up(timeStamp: const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
       expect(fixedControls.map(tester.getRect), positions);
       expect(tester.getTopLeft(firstChat).dy, lessThan(firstChatTop));
@@ -6641,7 +6652,15 @@ void main() {
       tester.widget<GlassButton>(glass('Close search')).onTap!();
       await tester.pumpAndSettle();
       expect(tester.getRect(search), collapsed);
-      await tester.drag(list, const Offset(0, 175));
+      final opening = await tester.startGesture(tester.getCenter(firstChat));
+      await opening.moveBy(const Offset(0, 20));
+      await opening.moveBy(const Offset(0, 38));
+      await tester.pump();
+      expect(
+        tester.getRect(search).width,
+        inExclusiveRange(48, expanded.width),
+      );
+      await opening.up(timeStamp: const Duration(milliseconds: 200));
       await tester.pumpAndSettle();
       expect(tester.getRect(search), expanded);
 
