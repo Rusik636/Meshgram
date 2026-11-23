@@ -60,9 +60,7 @@ class RunnerTests: XCTestCase {
       let view = try XCTUnwrap(search.view() as? UIVisualEffectView)
       let initialEffect = view.effect
       let initialBackground = view.backgroundColor
-      if !UIAccessibility.isReduceTransparencyEnabled {
-        XCTAssertNotNil(initialEffect)
-      }
+      let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
       XCTAssertTrue(view.isUserInteractionEnabled)
       XCTAssertFalse(view.accessibilityElementsHidden)
 
@@ -70,7 +68,18 @@ class RunnerTests: XCTestCase {
         let state = "dark=\(dark), covered=\(covered)"
         search.update(input.merging(["coveredByModal": covered]) { _, value in value })
         XCTAssertTrue(search.view() === view, state)
-        XCTAssertEqual(view.effect, initialEffect, state)
+        if reduceTransparency {
+          XCTAssertNil(initialEffect, state)
+          XCTAssertNil(view.effect, state)
+        } else if #available(iOS 26.0, *) {
+          let initialGlass = try XCTUnwrap(initialEffect as? UIGlassEffect, state)
+          let glass = try XCTUnwrap(view.effect as? UIGlassEffect, state)
+          XCTAssertEqual(glass.tintColor, initialGlass.tintColor, state)
+          XCTAssertEqual(glass.isInteractive, initialGlass.isInteractive, state)
+        } else {
+          XCTAssertTrue(initialEffect is UIBlurEffect, state)
+          XCTAssertTrue(view.effect is UIBlurEffect, state)
+        }
         XCTAssertEqual(view.backgroundColor, initialBackground, state)
         XCTAssertEqual(view.isUserInteractionEnabled, !covered, state)
         XCTAssertEqual(view.accessibilityElementsHidden, covered, state)
