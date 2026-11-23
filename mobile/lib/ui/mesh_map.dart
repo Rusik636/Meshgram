@@ -436,18 +436,29 @@ Future<void> openMeshLocation(
   BuildContext context,
   NodePosition position, {
   String? title,
+  MeshMapPin? pin,
 }) => Navigator.of(context).push<void>(
   meshPageRoute(
     context,
-    builder: (context) => _LocationMapPage(position: position, title: title),
+    builder: (context) =>
+        _LocationMapPage(position: position, title: title, pin: pin),
   ),
 );
 
 class _LocationMapPage extends StatelessWidget {
-  const _LocationMapPage({required this.position, this.title});
+  const _LocationMapPage({required this.position, this.title, this.pin});
 
   final NodePosition position;
   final String? title;
+  final MeshMapPin? pin;
+
+  Future<void> _copy(BuildContext context, String coordinates) async {
+    await Clipboard.setData(ClipboardData(text: coordinates));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr(context, 'Скопировано', 'Copied'))),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -455,59 +466,80 @@ class _LocationMapPage extends StatelessWidget {
     final safe = MediaQuery.paddingOf(context);
     final coordinates = formatMapCoordinates(position, digits: 6);
     return Scaffold(
-      body: Padding(
-        padding: EdgeInsets.only(bottom: safe.bottom),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: MeshMap(
-                center: position,
-                zoom: 15,
-                pins: [MeshMapPin(position: position)],
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          MeshMap(
+            center: position,
+            zoom: 15,
+            pins: [pin ?? MeshMapPin(position: position)],
+            showAttribution: false,
+          ),
+          Positioned(
+            top: safe.top,
+            left: safe.left,
+            right: safe.right,
+            child: PageHeading(
+              title ?? tr(context, 'Геопозиция', 'Location'),
+              titleBackground: style.pill,
+              leading: GlassButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                label: tr(context, 'Назад', 'Back'),
+                onTap: () => Navigator.pop(context),
               ),
             ),
-            Positioned(
-              top: safe.top,
-              left: safe.left,
-              right: safe.right,
-              child: PageHeading(
-                title ?? tr(context, 'Геопозиция', 'Location'),
-                titleBackground: style.surface,
-                leading: GlassButton(
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  label: tr(context, 'Назад', 'Back'),
-                  onTap: () => Navigator.pop(context),
-                ),
-              ),
-            ),
-            Positioned(
-              left: safe.left + 16,
-              right: safe.right + 16,
-              bottom: 30,
-              child: GlassSurface(
-                radius: 17,
-                color: style.surface,
-                child: MeshRow(
-                  title: tr(context, 'Координаты', 'Coordinates'),
-                  subtitle: coordinates,
-                  icon: Icons.copy_rounded,
-                  tint: style.accent,
-                  showChevron: false,
-                  onTap: () async {
-                    await Clipboard.setData(ClipboardData(text: coordinates));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(tr(context, 'Скопировано', 'Copied')),
+          ),
+          Positioned(
+            left: safe.left + 12,
+            right: safe.right + 12,
+            bottom: safe.bottom + 4,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GlassSurface(
+                  radius: 20,
+                  child: Tooltip(
+                    message: tr(
+                      context,
+                      'Скопировать координаты',
+                      'Copy coordinates',
+                    ),
+                    child: InkWell(
+                      onTap: () => unawaited(_copy(context, coordinates)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: SizedBox(
+                          height: 44,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.copy_rounded,
+                                size: 17,
+                                color: style.accent,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  coordinates,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: style.text),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    }
-                  },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 6),
+                const MeshMapAttribution(),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

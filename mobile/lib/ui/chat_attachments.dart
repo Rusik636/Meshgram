@@ -294,65 +294,81 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
     );
   }
 
+  Widget _locationMap() => MeshMap(
+    controller: _map,
+    center: _point.value,
+    zoom: _zoom,
+    onCenterChanged: (point) {
+      _zoom = _map.camera.zoom;
+      _setPoint(point);
+    },
+    onMapTap: (point) => _moveTo(point, _map.camera.zoom),
+    showCrosshair: true,
+    showAttribution: false,
+  );
+
+  Widget _sheetSurface(Widget child) {
+    if (_tab != _AttachmentTab.location) {
+      return MessageMenuSurface(radius: 26, child: child);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_expanded ? 0 : 26),
+      child: Stack(fit: StackFit.expand, children: [_locationMap(), child]),
+    );
+  }
+
   Widget _location() {
     final style = MeshStyle.of(context);
-    return Column(
+    final locate = _locating
+        ? const SizedBox.square(
+            dimension: 48,
+            child: Center(
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        : GlassButton(
+            icon: Icons.my_location_rounded,
+            label: tr(context, 'Моя геопозиция', 'My location'),
+            onTap: () => unawaited(_locate()),
+          );
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              MeshMap(
-                controller: _map,
-                center: _point.value,
-                zoom: _zoom,
-                onCenterChanged: (point) {
-                  _zoom = _map.camera.zoom;
-                  _setPoint(point);
-                },
-                onMapTap: (point) => _moveTo(point, _map.camera.zoom),
-                showCrosshair: true,
-              ),
-              PositionedDirectional(
-                end: 12,
-                top: 12,
-                child: _locating
-                    ? const SizedBox.square(
-                        dimension: 48,
-                        child: Center(
-                          child: SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      )
-                    : GlassButton(
-                        icon: Icons.my_location_rounded,
-                        label: tr(context, 'Моя геопозиция', 'My location'),
-                        onTap: () => unawaited(_locate()),
-                      ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        PositionedDirectional(end: 12, top: 4, child: locate),
+        PositionedDirectional(
+          start: 16,
+          end: 16,
+          bottom: 4,
           child: ValueListenableBuilder(
             valueListenable: _point,
             builder: (context, point, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  _positionError ??
-                      (point == null
-                          ? tr(
-                              context,
-                              'Передвиньте карту, чтобы выбрать точку',
-                              'Move the map to pick a point',
-                            )
-                          : formatChatPosition(point)),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: style.secondary, fontSize: 13),
+                Center(
+                  child: GlassSurface(
+                    radius: 16,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        _positionError ??
+                            (point == null
+                                ? tr(
+                                    context,
+                                    'Передвиньте карту, чтобы выбрать точку',
+                                    'Move the map to pick a point',
+                                  )
+                                : formatChatPosition(point)),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: style.text, fontSize: 13),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 7),
                 GlassActionButton(
@@ -365,6 +381,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
                         ),
                   label: tr(context, 'Отправить геопозицию', 'Send location'),
                 ),
+                const SizedBox(height: 5),
+                const Center(child: MeshMapAttribution()),
               ],
             ),
           ),
@@ -398,9 +416,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet> {
             duration: motion,
             curve: Curves.easeOutCubic,
             height: (available * fraction - _drag).clamp(minHeight, available),
-            child: MessageMenuSurface(
-              radius: 26,
-              child: SafeArea(
+            child: _sheetSurface(
+              SafeArea(
                 top: false,
                 // The compact native bar occupies the bottom inset itself.
                 bottom: _expanded || !useIosControls,
