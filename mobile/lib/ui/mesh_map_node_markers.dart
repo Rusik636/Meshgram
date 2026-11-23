@@ -219,32 +219,32 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
           b._avatarName!.toLowerCase(),
         ),
       );
+    Widget buildList(BuildContext context) => SafeArea(
+      top: false,
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 8),
+        itemCount: members.length,
+        itemBuilder: (context, index) {
+          final pin = members[index];
+          final name = pin._avatarName!;
+          return ListTile(
+            leading: MeshAvatar(name, size: 38, online: pin._online),
+            title: Text(name),
+            subtitle: Text(pin._nodeId!),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            enabled: pin.onTap != null,
+            onTap: pin.onTap == null ? null : () => Navigator.pop(context, pin),
+          );
+        },
+      ),
+    );
     final selection = await showModalBottomSheet<MeshMapPin>(
       context: context,
       useSafeArea: true,
       backgroundColor: style.surface,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        top: false,
-        child: ListView.builder(
-          padding: const EdgeInsets.only(bottom: 8),
-          itemCount: members.length,
-          itemBuilder: (context, index) {
-            final pin = members[index];
-            final name = pin._avatarName!;
-            return ListTile(
-              leading: MeshAvatar(name, size: 38, online: pin._online),
-              title: Text(name),
-              subtitle: Text(pin._nodeId!),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              enabled: pin.onTap != null,
-              onTap: pin.onTap == null
-                  ? null
-                  : () => Navigator.pop(context, pin),
-            );
-          },
-        ),
-      ),
+      builder: (context) =>
+          MeshSheetScrollContent(dragArea: 8, builder: buildList),
     );
     if (context.mounted) selection?.onTap?.call();
   }
