@@ -2226,30 +2226,46 @@ class _ContactCard extends StatelessWidget {
   final String? shortName;
   final VoidCallback? onOpenProfile, onWrite;
 
-  Widget _shortName(String name, double fontSize, MeshStyle style) {
-    final text = Text(
-      name,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: Colors.black, fontSize: fontSize),
-    );
-    if (!style.dark) return text;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const MeshStyle(false).field,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: text,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final nameSize = Theme.of(context).textTheme.bodyMedium?.fontSize ?? 16;
+    final nameStyle = TextStyle(
+      color: style.text,
+      fontSize: nameSize,
+      fontWeight: FontWeight.w700,
+    );
+    final shortStyle = TextStyle(
+      color: style.dark ? style.text : Colors.black,
+      fontSize: nameSize - 2,
+    );
+    final addressStyle = TextStyle(color: style.secondary, fontSize: 12);
+    final short = shortName;
+    final hasShortName = short != null && short.isNotEmpty;
+    double textHeight(
+      String text,
+      TextStyle style, {
+      double width = double.infinity,
+      int maxLines = 1,
+    }) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: DefaultTextStyle.of(context).style.merge(style),
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: maxLines,
+        ellipsis: '…',
+      )..layout(maxWidth: width);
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    final detailHeight = hasShortName
+        ? textHeight(short, shortStyle) + textHeight(id, addressStyle)
+        : 0.0;
     return Material(
       color: style.text.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(13),
@@ -2261,39 +2277,64 @@ class _ContactCard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  MeshAvatar(name, size: 36),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: style.text,
-                            fontSize: nameSize,
-                            fontWeight: FontWeight.w700,
-                          ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const gap = 9.0;
+                  final limit = constraints.maxWidth * .4;
+                  var avatarSize = math.min(36.0, limit);
+                  if (hasShortName) {
+                    final singleLineSize = math.min(
+                      limit,
+                      textHeight(name, nameStyle) + detailHeight,
+                    );
+                    final nameWidth = math.max(
+                      0.0,
+                      constraints.maxWidth - gap - singleLineSize,
+                    );
+                    avatarSize = math.min(
+                      limit,
+                      textHeight(
+                            name,
+                            nameStyle,
+                            width: nameWidth,
+                            maxLines: 2,
+                          ) +
+                          detailHeight,
+                    );
+                  }
+                  return Row(
+                    children: [
+                      MeshAvatar(name, size: avatarSize),
+                      const SizedBox(width: gap),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: nameStyle,
+                            ),
+                            if (hasShortName)
+                              Text(
+                                short,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: shortStyle,
+                              ),
+                            Text(
+                              id,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: addressStyle,
+                            ),
+                          ],
                         ),
-                        if (shortName case final short? when short.isNotEmpty)
-                          _shortName(short, nameSize - 2, style),
-                        Text(
-                          id,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: style.secondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                    ],
+                  );
+                },
               ),
               if (onWrite != null) ...[
                 const SizedBox(height: 6),

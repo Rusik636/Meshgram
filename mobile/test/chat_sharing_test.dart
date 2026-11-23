@@ -91,6 +91,7 @@ void main() {
     const contact = (id: 'node:5151', name: 'Bridge relay');
     final (controller, chat) = await _openChat(
       tester,
+      dark: true,
       prepare: (controller, peer) {
         final link = const MeshtasticAdapter()
             .contactCode(
@@ -125,7 +126,16 @@ void main() {
         .first;
     expect(tester.getCenter(write).dx, closeTo(tester.getCenter(card).dx, .01));
     final shortName = _contactCaption('BR');
+    expect(
+      tester.widget<Text>(shortName).style!.color,
+      const MeshStyle(true).text,
+    );
     final address = find.text('!0000141f');
+    final nameRect = tester.getRect(find.text(contact.name));
+    final addressRect = tester.getRect(address);
+    final avatarRect = tester.getRect(avatar);
+    expect(avatarRect.height, closeTo(addressRect.bottom - nameRect.top, 2));
+    expect(avatarRect.top, closeTo(nameRect.top, 1));
     final divider = find.descendant(of: card, matching: find.byType(Divider));
     expect(find.text(contact.id), findsNothing);
     expect(
@@ -352,6 +362,7 @@ Future<void> _openAttachment(WidgetTester tester, String item) async {
 
 Future<(MeshController, Peer)> _openChat(
   WidgetTester tester, {
+  bool dark = false,
   Peer? directPeer,
   void Function(MeshController, Peer)? prepare,
 }) async {
@@ -370,6 +381,7 @@ Future<(MeshController, Peer)> _openChat(
   prepare?.call(controller, chat);
   await tester.pumpWidget(
     MaterialApp(
+      theme: MeshStyle(dark).theme(),
       home: MeshChatPage(controller: controller, peer: chat),
     ),
   );
