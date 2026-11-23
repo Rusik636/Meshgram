@@ -8,6 +8,51 @@ const _clusterRadius = 66.0;
 const _clusterHeadroom = .35;
 const _clusterMemberDiameter = 26.0;
 const _clusterMaxDiameter = 84.0;
+const _dropletBorder = 2.0;
+const _dropletDuration = Duration(milliseconds: 280);
+const _dropletAttraction = Cubic(.55, .06, .28, 1);
+const _dropletFaceIn = Interval(.5, 1, curve: Curves.easeOut);
+
+// RURUS restores the silhouette of the blurred layer with a steep alpha
+// threshold. Neighboring silhouettes overlap before their circles touch.
+const _dropletThreshold = ColorFilter.matrix([
+  1,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+  0,
+  0,
+  0,
+  0,
+  22,
+  -2805,
+]);
+
+double _groupDiameter(int count) => math.min(
+  _clusterMaxDiameter,
+  math.sqrt(
+    _nodeMarkerDiameter * _nodeMarkerDiameter +
+        (count - 1) * _clusterMemberDiameter * _clusterMemberDiameter,
+  ),
+);
+
+double _dropletFaceScale(Offset center, double radius, Size viewport) {
+  final toEdge = math.min(
+    math.min(center.dx, viewport.width - center.dx),
+    math.min(center.dy, viewport.height - center.dy),
+  );
+  return (toEdge / radius).clamp(0.0, 1.0);
+}
 
 class _NodeMarkerGroup {
   const _NodeMarkerGroup(
@@ -213,11 +258,24 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
   Widget build(BuildContext context) {
     final camera = MapCamera.of(context);
     final style = MeshStyle.of(context);
-    final motion = meshMotion(context);
+    final motion = meshMotion(context) == Duration.zero
+        ? Duration.zero
+        : _dropletDuration;
     final labelHeight = MediaQuery.textScalerOf(context).scale(12) * 1.3 + 9;
     final world = camera.getWorldWidthAtZoom();
     final centerX = camera.pixelOrigin.dx + camera.size.width / 2;
     final groups = _groupsFor(camera, centerX, world);
+    final drops = [
+      for (final group in groups)
+        (
+          group: group,
+          position: group.isSingle
+              ? meshMapPoint(group.members.single.position)
+              : camera.unprojectAtZoom(group.center),
+          diameter: _groupDiameter(group.members.length),
+        ),
+    ];
+
     Offset localPoint(LatLng point) {
       final projected = camera.projectAtZoom(point);
       return projected.translate(
@@ -227,64 +285,179 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
           camera.pixelOrigin;
     }
 
-    return ClipRect(
-      child: Stack(
-        fit: StackFit.expand,
+    Widget at(
+      Key key,
+      LatLng target,
+      Widget Function(Offset position, Widget child) place,
+      Widget child,
+    ) => TweenAnimationBuilder<LatLng>(
+      key: key,
+      tween: _MarkerPositionTween(target, target),
+      duration: motion,
+      curve: _dropletAttraction,
+      builder: (context, position, child) =>
+          place(localPoint(position), child!),
+      child: child,
+    );
+
+    Widget silhouettes({required bool border}) {
+      Widget shapes = Stack(
         children: [
-          for (final group in groups)
-            for (final pin in group.members)
-              TweenAnimationBuilder<LatLng>(
-                key: ValueKey(pin._nodeId),
-                tween: _MarkerPositionTween(
-                  meshMapPoint(pin.position),
-                  group.isSingle
-                      ? meshMapPoint(pin.position)
-                      : camera.unprojectAtZoom(group.center),
+          for (final drop in drops)
+            for (final pin in drop.group.members)
+              at(
+                ValueKey((border, pin._nodeId!)),
+                drop.position,
+                (point, child) => Positioned(
+                  left: point.dx - _clusterMaxDiameter / 2,
+                  top: point.dy - _clusterMaxDiameter / 2,
+                  width: _clusterMaxDiameter,
+                  height: _clusterMaxDiameter,
+                  child: child,
                 ),
-                duration: motion,
-                curve: const Cubic(.55, .06, .28, 1),
-                builder: (context, position, child) {
-                  final point = localPoint(position);
-                  return Positioned(
-                    left: point.dx - 81,
-                    top:
-                        point.dy -
-                        _nodeMarkerDiameter / 2 -
-                        (pin.label == null ? 0 : labelHeight),
-                    width: 162,
-                    height:
-                        _nodeMarkerDiameter +
-                        (pin.label == null ? 0 : labelHeight),
-                    child: child!,
-                  );
-                },
-                child: IgnorePointer(
-                  ignoring: !group.isSingle,
-                  child: ExcludeSemantics(
-                    excluding: !group.isSingle,
-                    child: AnimatedOpacity(
-                      duration: motion,
-                      opacity: group.isSingle ? 1 : 0,
-                      child: _NodeAvatarMarker(pin: pin),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(
+                    end: drop.diameter - (border ? 0 : _dropletBorder * 2),
+                  ),
+                  duration: motion,
+                  curve: _dropletAttraction,
+                  builder: (context, diameter, _) => Center(
+                    child: SizedBox.square(
+                      dimension: diameter,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: border ? style.surface : drop.group.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-          for (final group in groups)
-            if (!group.isSingle)
-              _NodeGroupMarker(
-                key: ValueKey(
-                  group.members.map((pin) => pin._nodeId).join(' '),
+        ],
+      );
+      if (widget.pins.length > 1 && motion != Duration.zero) {
+        shapes = ColorFiltered(
+          colorFilter: _dropletThreshold,
+          child: ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(
+              sigmaX: 11,
+              sigmaY: 11,
+              tileMode: ui.TileMode.decal,
+            ),
+            child: shapes,
+          ),
+        );
+      }
+      return IgnorePointer(child: shapes);
+    }
+
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Keep the border and colored fill in separate filtered passes;
+          // labels and hit targets live above both passes.
+          silhouettes(border: true),
+          silhouettes(border: false),
+          for (final drop in drops)
+            for (final pin in drop.group.members)
+              at(
+                ValueKey(('avatar', pin._nodeId!)),
+                drop.position,
+                (point, child) => Positioned(
+                  left: point.dx - 81,
+                  top:
+                      point.dy -
+                      _nodeMarkerDiameter / 2 -
+                      (pin.label == null ? 0 : labelHeight),
+                  width: 162,
+                  height:
+                      _nodeMarkerDiameter +
+                      (pin.label == null ? 0 : labelHeight),
+                  child: Transform.scale(
+                    scale: _dropletFaceScale(
+                      point,
+                      drop.diameter / 2,
+                      camera.size,
+                    ),
+                    child: child,
+                  ),
                 ),
-                center: group.center - camera.pixelOrigin,
-                group: group,
-                borderColor: style.surface,
-                onTap: () => unawaited(_openGroup(context, camera, group)),
+                _DropletFace(
+                  visible: drop.group.isSingle,
+                  motion: motion,
+                  child: _NodeAvatarMarker(pin: pin),
+                ),
+              ),
+          for (final drop in drops)
+            if (!drop.group.isSingle)
+              at(
+                ValueKey((
+                  'count',
+                  drop.group.members.map((pin) => pin._nodeId).join(' '),
+                )),
+                drop.position,
+                (point, child) => Positioned(
+                  left: point.dx - drop.diameter / 2,
+                  top: point.dy - drop.diameter / 2,
+                  width: drop.diameter,
+                  height: drop.diameter,
+                  child: Transform.scale(
+                    scale: _dropletFaceScale(
+                      point,
+                      drop.diameter / 2,
+                      camera.size,
+                    ),
+                    child: child,
+                  ),
+                ),
+                _DropletFace(
+                  visible: true,
+                  appear: true,
+                  motion: motion,
+                  child: _NodeGroupFace(
+                    count: drop.group.members.length,
+                    onTap: () =>
+                        unawaited(_openGroup(context, camera, drop.group)),
+                  ),
+                ),
               ),
         ],
       ),
     );
   }
+}
+
+class _DropletFace extends StatelessWidget {
+  const _DropletFace({
+    required this.visible,
+    required this.motion,
+    required this.child,
+    this.appear = false,
+  });
+
+  final bool visible, appear;
+  final Duration motion;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: appear ? 0.0 : null, end: visible ? 1.0 : 0.0),
+    duration: visible ? motion * 2 : motion,
+    curve: visible ? _dropletFaceIn : Curves.easeOut,
+    builder: (context, opacity, child) {
+      final interactive = visible && opacity >= .5;
+      return IgnorePointer(
+        ignoring: !interactive,
+        child: ExcludeSemantics(
+          excluding: !interactive,
+          child: Opacity(opacity: opacity, child: child),
+        ),
+      );
+    },
+    child: child,
+  );
 }
 
 class _MarkerPositionTween extends Tween<LatLng> {
@@ -353,16 +526,7 @@ class _NodeAvatarMarker extends StatelessWidget {
             SizedBox.square(
               dimension: _nodeMarkerDiameter,
               child: Center(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: style.surface,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2.5),
-                    child: MeshAvatar(name, size: 44, online: pin._online),
-                  ),
-                ),
+                child: MeshAvatar(name, size: 44, online: pin._online),
               ),
             ),
           ],
@@ -372,76 +536,37 @@ class _NodeAvatarMarker extends StatelessWidget {
   }
 }
 
-class _NodeGroupMarker extends StatelessWidget {
-  const _NodeGroupMarker({
-    super.key,
-    required this.center,
-    required this.group,
-    required this.borderColor,
-    required this.onTap,
-  });
+class _NodeGroupFace extends StatelessWidget {
+  const _NodeGroupFace({required this.count, required this.onTap});
 
-  final Offset center;
-  final _NodeMarkerGroup group;
-  final Color borderColor;
+  final int count;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final count = group.members.length;
-    final diameter = math.min(
-      _clusterMaxDiameter,
-      math.sqrt(
-        _nodeMarkerDiameter * _nodeMarkerDiameter +
-            (count - 1) * _clusterMemberDiameter * _clusterMemberDiameter,
-      ),
-    );
-    final duration = meshMotion(context);
-    return Positioned(
-      left: center.dx - diameter / 2,
-      top: center.dy - diameter / 2,
-      width: diameter,
-      height: diameter,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: duration == Duration.zero ? 1 : .76, end: 1),
-        duration: duration,
-        curve: Curves.easeOutCubic,
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
-        child: Semantics(
-          label: tr(context, 'Группа узлов, $count', 'Node group, $count'),
-          button: true,
-          excludeSemantics: true,
-          onTap: onTap,
-          child: GestureDetector(
-            onTap: onTap,
-            excludeFromSemantics: true,
-            behavior: HitTestBehavior.opaque,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: group.color,
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: 2.5),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    MaterialLocalizations.of(context).formatDecimal(count),
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
+  Widget build(BuildContext context) => Semantics(
+    label: tr(context, 'Группа узлов, $count', 'Node group, $count'),
+    button: true,
+    excludeSemantics: true,
+    onTap: onTap,
+    child: GestureDetector(
+      onTap: onTap,
+      excludeFromSemantics: true,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            MaterialLocalizations.of(context).formatDecimal(count),
+            maxLines: 1,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
