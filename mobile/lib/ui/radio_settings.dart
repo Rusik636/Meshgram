@@ -11,12 +11,14 @@ import 'package:flutter/services.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
+import '../mesh/radio_settings_index.dart';
 import 'position_picker.dart';
 import 'style.dart';
 import 'signal.dart';
 import 'swipe_actions.dart';
 import 'page_route.dart';
 import 'radio_avatar.dart';
+import 'radio_setting_visibility.dart';
 import 'chat_setup.dart';
 
 PageRoute<void> radioSettingsRoute(
@@ -32,6 +34,7 @@ class RadioSettingsPage extends StatefulWidget {
     this.section = RadioFieldSection.device,
     this.remote,
     this.peer,
+    this.initialQuery = '',
   }) : assert((remote == null) == (peer == null));
 
   final MeshController controller;
@@ -39,6 +42,7 @@ class RadioSettingsPage extends StatefulWidget {
   final RadioFieldSection section;
   final RadioSettingsSession? remote;
   final Peer? peer;
+  final String initialQuery;
 
   @override
   State<RadioSettingsPage> createState() => _RadioSettingsState();
@@ -46,6 +50,22 @@ class RadioSettingsPage extends StatefulWidget {
 
 class _RadioSettingsState extends State<RadioSettingsPage> {
   List<RadioField> _fields = [];
+  List<RadioField> _profileFields = [];
+  late final _search = TextEditingController(text: widget.initialQuery);
+
+  String get _query => _normalizeSearch(_search.text);
+
+  static String _normalizeSearch(String input) => input
+      .trim()
+      .toLowerCase()
+      .replaceAll('ё', 'е')
+      .replaceAll(RegExp(r'wi[\s‐‑–—-]*fi'), 'wifi');
+
+  bool _matches(Iterable<String> parts) {
+    final label = _normalizeSearch(parts.join(' '));
+    return _query.split(RegExp(r'\s+')).every(label.contains);
+  }
+
   final _changed = <String, String>{};
   bool _busy = true;
   bool _saving = false;
@@ -103,6 +123,12 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
     unawaited(_load());
   }
 
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<bool> _load({bool save = false}) async {
     if (save && !_canSave) return false;
     setState(() {
@@ -158,6 +184,7 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
           : await widget.controller.readRadioSettings(widget.radio);
       if (!mounted) return false;
       setState(() {
+        if (section == RadioFieldSection.device) _profileFields = fields;
         _fields = fields
             .where((field) => field.section == widget.section)
             .toList();
@@ -459,19 +486,32 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
     _ => Icons.tune_rounded,
   };
 
-  static const _commonSections = {
+  static const _connectionSections = [
     RadioFieldSection.lora,
-    RadioFieldSection.telemetry,
-    RadioFieldSection.position,
     RadioFieldSection.connectivity,
     RadioFieldSection.bluetooth,
+    RadioFieldSection.routing,
+  ];
+
+  static const _measurementSections = [
+    RadioFieldSection.position,
+    RadioFieldSection.telemetry,
+  ];
+
+  static const _deviceSections = [
     RadioFieldSection.power,
     RadioFieldSection.display,
-    RadioFieldSection.routing,
+    RadioFieldSection.deviceUi,
     RadioFieldSection.notifications,
-  };
+    RadioFieldSection.security,
+    RadioFieldSection.contacts,
+  ];
 
-  Future<void> _openSection(RadioFieldSection section) async {
+  Future<void> _openSection(
+    RadioFieldSection section, {
+    String initialQuery = '',
+  }) async {
+    FocusScope.of(context).unfocus();
     await Navigator.of(context).push<void>(
       radioSettingsRoute(
         context,
@@ -481,10 +521,159 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
           section: section,
           remote: widget.remote,
           peer: widget.peer,
+          initialQuery: initialQuery,
         ),
       ),
     );
     if (mounted) setState(() {});
+  }
+
+  Iterable<RadioSettingName> _settingNames(RadioFieldSection section) {
+    final catalog = _catalog;
+    if (catalog is RadioSettingsIndex &&
+        (catalog?.extraSettings.contains(section) ?? false)) {
+      return (catalog as RadioSettingsIndex).settingNames(section);
+    }
+    return _profileFields
+        .where((field) => field.section == section)
+        .map(
+          (field) => (id: field.id, title: field.title, russian: field.russian),
+        );
+  }
+
+  bool get _presetRateOverride {
+    if (widget.remote != null) return true;
+    final firmware = widget.controller.radioDeviceInfo(widget.radio)?.firmware;
+    final version = RegExp(r'^(\d+)\.(\d+)\.(\d+)').firstMatch(firmware ?? '');
+    if (version == null) return true;
+    final major = int.parse(version[1]!);
+    final minor = int.parse(version[2]!);
+    final patch = int.parse(version[3]!);
+    // Clients support a coding-rate override in preset mode from 2.7.18.
+    return major > 2 || major == 2 && (minor > 7 || minor == 7 && patch >= 18);
+  }
+
+  List<RadioField> get _shownFields {
+    final values = {for (final field in _fields) field.id: _value(field)};
+    final network = widget.radio.network;
+    final section = widget.section;
+    final presetRateOverride =
+        network != 'meshtastic' ||
+        section != RadioFieldSection.lora ||
+        _presetRateOverride;
+    final matches = _query.isEmpty
+        ? null
+        : <String>{
+            for (final field in _fields)
+              if (_matches([field.title, field.russian, field.id])) ...[
+                field.id,
+                for (final rule in radioSettingConditions(
+                  network,
+                  section,
+                  field.id,
+                  presetRateOverride: presetRateOverride,
+                ))
+                  ...rule.keys,
+              ],
+          };
+    return [
+      for (final field in _fields)
+        if ((matches == null || matches.contains(field.id)) &&
+            radioSettingVisible(
+              network,
+              section,
+              field.id,
+              values,
+              presetRateOverride: presetRateOverride,
+            ))
+          field,
+    ];
+  }
+
+  Widget _searchField(MeshStyle style) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+    child: TextField(
+      key: const ValueKey('radio-settings-search'),
+      controller: _search,
+      onChanged: (_) => setState(() {}),
+      textInputAction: TextInputAction.search,
+      autocorrect: false,
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+      decoration: InputDecoration(
+        hintText: tr(context, 'Поиск настроек', 'Search settings'),
+        prefixIcon: const Icon(Icons.search_rounded, size: 21),
+        suffixIcon: _query.isEmpty
+            ? null
+            : IconButton(
+                onPressed: () => setState(_search.clear),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: tr(context, 'Очистить поиск', 'Clear search'),
+              ),
+        filled: true,
+        fillColor: style.searchField,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+        isDense: true,
+      ),
+    ),
+  );
+
+  Widget _settingsGroup(String? title, List<Widget> rows) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (title != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 7),
+            child: Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: MeshStyle.of(context).secondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        MeshGroup(children: rows),
+      ],
+    ),
+  );
+
+  Widget _fieldRow(RadioField field, Color tint, bool android) {
+    final label = _label(field);
+    if (field.kind == RadioFieldKind.toggle) {
+      return SwitchListTile.adaptive(
+        title: Text(label),
+        value: _value(field) == 'true',
+        activeTrackColor: android ? const Color(0xff34c759) : null,
+        activeThumbColor: android ? Colors.white : null,
+        onChanged: !_busy && field.editable
+            ? (value) => _set(field, '$value')
+            : null,
+      );
+    }
+    final value = _displayValue(field);
+    final displayAsDetail =
+        !_busy && field.editable && field.units == null && value.length <= 18;
+    return MeshRow(
+      title: label,
+      icon: field.kind == RadioFieldKind.text
+          ? Icons.info_outline_rounded
+          : Icons.tune_rounded,
+      tint: tint,
+      detail: displayAsDetail ? value : null,
+      subtitle: displayAsDetail
+          ? null
+          : '$value${field.units == null ? '' : ' ${field.units}'}',
+      onTap: !_busy && field.editable ? () => unawaited(_edit(field)) : null,
+    );
   }
 
   Future<void> _runCommand(RemoteAdminConsole console) async {
@@ -671,18 +860,173 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
         RadioFieldSection.telemetry,
       ...extra.where((section) => section != RadioFieldSection.sensors),
     };
-    final separate = sections.where(
-      (section) => !_commonSections.contains(section),
-    );
-    Widget sectionRow(RadioFieldSection section) => MeshRow(
+    final isProfile = widget.section == RadioFieldSection.device;
+    final shownFields = _shownFields;
+    final fieldRows = shownFields
+        .map((field) => _fieldRow(field, tint, android))
+        .toList();
+
+    Widget sectionRow(RadioFieldSection section, {String? detail}) => MeshRow(
       title: _sectionName(section),
+      subtitle: detail,
       icon: _sectionIcon(section),
       tint: section == RadioFieldSection.telemetry
           ? const Color(0xff168a87)
           : tint,
-      onTap: () => unawaited(_openSection(section)),
+      onTap: () => unawaited(
+        _openSection(
+          section,
+          initialQuery: detail == null ? '' : _search.text.trim(),
+        ),
+      ),
     );
-    final isProfile = widget.section == RadioFieldSection.device;
+    Iterable<Widget> sectionRows(Iterable<RadioFieldSection> group) sync* {
+      for (final section in group.where(sections.contains)) {
+        final name = _sectionName(section);
+        if (_query.isEmpty || _matches([name, section.name])) {
+          yield sectionRow(section);
+          continue;
+        }
+        final results = _settingNames(section)
+            .where((field) => _matches([field.title, field.russian, field.id]))
+            .map((field) => tr(context, field.russian, field.title))
+            .toSet();
+        if (results.isNotEmpty) {
+          yield sectionRow(section, detail: results.take(2).join(' · '));
+        }
+      }
+    }
+
+    final deviceInfoTitle = tr(
+      context,
+      'Информация об устройстве',
+      'Device information',
+    );
+    final channelsTitle = tr(context, 'Каналы', 'Channels');
+    final consoleTitle = tr(context, 'Консоль команд', 'Command console');
+    final neighborsTitle = tr(context, 'Соседние узлы', 'Neighbor table');
+    final restart = widget.controller.radioRestartSession(widget.radio);
+    final restartTitle = tr(context, 'Перезагрузить рацию', 'Restart radio');
+    final restartNodeTitle = tr(context, 'Перезагрузить узел', 'Restart node');
+    final shutdownNodeTitle = tr(context, 'Выключить узел', 'Shut down node');
+    bool showAction(String title) => _query.isEmpty || _matches([title]);
+    final identityRows = [
+      ...fieldRows,
+      if (widget.remote == null && showAction(deviceInfoTitle))
+        MeshRow(
+          title: deviceInfoTitle,
+          icon: Icons.info_outline_rounded,
+          tint: tint,
+          onTap: () => unawaited(
+            Navigator.of(context).push<void>(
+              meshPageRoute(
+                context,
+                builder: (_) => _RadioInformation(
+                  controller: widget.controller,
+                  radio: widget.radio,
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
+    final connectionRows = [
+      ...sectionRows(_connectionSections),
+      if (widget.remote == null &&
+          widget.controller.channelActions.isNotEmpty &&
+          showAction(channelsTitle))
+        MeshRow(
+          title: channelsTitle,
+          icon: Icons.tag_rounded,
+          tint: const Color(0xff168a87),
+          onTap: () => unawaited(showRadioChannels(context, widget.controller)),
+        ),
+    ];
+    final measurementRows = [
+      ...sectionRows(_measurementSections),
+      if (hasTelemetrySettings && _query.isNotEmpty)
+        if (_matches([_sectionName(RadioFieldSection.sensors)]) ||
+            _settingNames(
+              RadioFieldSection.sensors,
+            ).any((field) => _matches([field.title, field.russian, field.id])))
+          sectionRow(
+            RadioFieldSection.sensors,
+            detail: _matches([_sectionName(RadioFieldSection.sensors)])
+                ? null
+                : _sectionName(RadioFieldSection.telemetry),
+          ),
+    ];
+    final deviceRows = sectionRows(_deviceSections).toList();
+    final moduleRows = sectionRows(
+      sections.where(
+        (section) =>
+            !_connectionSections.contains(section) &&
+            !_measurementSections.contains(section) &&
+            !_deviceSections.contains(section),
+      ),
+    ).toList();
+    final serviceRows = [
+      if (restart != null && showAction(restartTitle) && widget.remote == null)
+        MeshRow(
+          title: restartTitle,
+          icon: Icons.restart_alt_rounded,
+          tint: tint,
+          onTap: _busy
+              ? null
+              : () => unawaited(_power(restart.restartRadio, reboot: true)),
+        ),
+      if (widget.remote case final RemoteAdminConsole console
+          when showAction(consoleTitle))
+        MeshRow(
+          title: consoleTitle,
+          icon: Icons.terminal_rounded,
+          tint: const Color(0xff6851ab),
+          onTap: _busy ? null : () => unawaited(_runCommand(console)),
+        ),
+      if (widget.remote case final RemoteNeighborTable node
+          when node.canReadNeighbors && showAction(neighborsTitle))
+        MeshRow(
+          title: neighborsTitle,
+          icon: Icons.hub_outlined,
+          tint: const Color(0xff168a87),
+          onTap: _busy ? null : () => unawaited(_runRemote(node.readNeighbors)),
+        ),
+      if (widget.remote case final RemoteNodePower node
+          when showAction(restartNodeTitle))
+        MeshRow(
+          title: restartNodeTitle,
+          icon: Icons.restart_alt_rounded,
+          tint: tint,
+          onTap: _busy
+              ? null
+              : () => unawaited(
+                  _power(() => node.setPower(reboot: true), reboot: true),
+                ),
+        ),
+      if (widget.remote case final RemoteNodePower node
+          when showAction(shutdownNodeTitle))
+        MeshRow(
+          title: shutdownNodeTitle,
+          icon: Icons.power_settings_new_rounded,
+          tint: const Color(0xffa95361),
+          onTap: _busy
+              ? null
+              : () => unawaited(
+                  _power(() => node.setPower(reboot: false), reboot: false),
+                ),
+        ),
+    ];
+    final groups = [
+      (tr(context, 'Профиль узла', 'Node profile'), identityRows),
+      (tr(context, 'Связь', 'Connections'), connectionRows),
+      (
+        tr(context, 'Позиция и измерения', 'Location and readings'),
+        measurementRows,
+      ),
+      (tr(context, 'Устройство', 'Device'), deviceRows),
+      (tr(context, 'Модули', 'Modules'), moduleRows),
+      (tr(context, 'Обслуживание', 'Maintenance'), serviceRows),
+    ];
     final peer = widget.peer;
     final info = isProfile && peer == null
         ? widget.controller.radioDeviceInfo(widget.radio)
@@ -715,6 +1059,23 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
             onTap: _canSave ? () => unawaited(_load(save: true)) : null,
           );
     final children = <Widget>[
+      if (isProfile ||
+          widget.section != RadioFieldSection.telemetry &&
+              (_fields.isNotEmpty || widget.initialQuery.isNotEmpty))
+        _searchField(style),
+      if (_query.isNotEmpty &&
+          !_busy &&
+          _error == null &&
+          (isProfile
+              ? groups.every((group) => group.$2.isEmpty)
+              : shownFields.isEmpty))
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Text(
+            tr(context, 'Настройки не найдены', 'No matching settings'),
+            style: TextStyle(color: style.secondary),
+          ),
+        ),
       if (_busy) const LinearProgressIndicator(minHeight: 2),
       if (_error != null)
         Padding(
@@ -757,171 +1118,15 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
           onPressed: _load,
           child: Text(tr(context, 'Повторить', 'Retry')),
         ),
-      if (_fields.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-          child: MeshGroup(
-            children: [
-              for (final field in _fields)
-                if (field.kind == RadioFieldKind.toggle)
-                  SwitchListTile.adaptive(
-                    title: Text(_label(field)),
-                    value: _value(field) == 'true',
-                    activeTrackColor: android ? const Color(0xff34c759) : null,
-                    activeThumbColor: android ? Colors.white : null,
-                    onChanged: !_busy && field.editable
-                        ? (value) => _set(field, '$value')
-                        : null,
-                  )
-                else
-                  MeshRow(
-                    title: _label(field),
-                    icon: field.kind == RadioFieldKind.text
-                        ? Icons.info_outline_rounded
-                        : Icons.tune_rounded,
-                    tint: tint,
-                    detail: !_busy && field.editable
-                        ? _displayValue(field)
-                        : null,
-                    subtitle: !_busy && field.editable && field.units == null
-                        ? null
-                        : '${_displayValue(field)}${field.units == null ? '' : ' ${field.units}'}',
-                    onTap: !_busy && field.editable
-                        ? () => unawaited(_edit(field))
-                        : null,
-                  ),
-            ],
-          ),
-        ),
-      if (widget.section == RadioFieldSection.device)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 5),
-          child: MeshGroup(
-            children: [
-              if (widget.remote == null)
-                MeshRow(
-                  title: tr(
-                    context,
-                    'Информация об устройстве',
-                    'Device information',
-                  ),
-                  icon: Icons.info_outline_rounded,
-                  tint: tint,
-                  onTap: () => unawaited(
-                    Navigator.of(context).push<void>(
-                      meshPageRoute(
-                        context,
-                        builder: (_) => _RadioInformation(
-                          controller: widget.controller,
-                          radio: widget.radio,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              for (final section in sections.where(_commonSections.contains))
-                sectionRow(section),
-              if (widget.remote == null &&
-                  widget.controller.channelActions.isNotEmpty)
-                MeshRow(
-                  title: tr(context, 'Каналы', 'Channels'),
-                  icon: Icons.tag_rounded,
-                  tint: const Color(0xff168a87),
-                  onTap: () =>
-                      unawaited(showRadioChannels(context, widget.controller)),
-                ),
-              if (widget.remote case final RemoteAdminConsole console)
-                MeshRow(
-                  title: tr(context, 'Консоль команд', 'Command console'),
-                  icon: Icons.terminal_rounded,
-                  tint: const Color(0xff6851ab),
-                  onTap: _busy ? null : () => unawaited(_runCommand(console)),
-                ),
-              if (widget.remote case final RemoteNeighborTable node
-                  when node.canReadNeighbors)
-                MeshRow(
-                  title: tr(context, 'Соседние узлы', 'Neighbor table'),
-                  icon: Icons.hub_outlined,
-                  tint: const Color(0xff168a87),
-                  onTap: _busy
-                      ? null
-                      : () => unawaited(_runRemote(node.readNeighbors)),
-                ),
-            ],
-          ),
-        ),
-      if (widget.section == RadioFieldSection.device && separate.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 5),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 0, 6),
-                child: Text(
-                  widget.controller.label(widget.radio.network),
-                  style: TextStyle(color: style.secondary, fontSize: 13),
-                ),
-              ),
-              MeshGroup(children: separate.map(sectionRow).toList()),
-            ],
-          ),
-        ),
-      if (widget.remote == null &&
-          (widget.section == RadioFieldSection.device ||
-              (widget.section == RadioFieldSection.connectivity &&
-                  widget.radio.network == 'meshcore')))
-        if (widget.controller.radioRestartSession(widget.radio)
-            case final restart?)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
-            child: MeshGroup(
-              children: [
-                MeshRow(
-                  title: tr(context, 'Перезагрузить рацию', 'Restart radio'),
-                  icon: Icons.restart_alt_rounded,
-                  tint: tint,
-                  onTap: _busy
-                      ? null
-                      : () => unawaited(
-                          _power(restart.restartRadio, reboot: true),
-                        ),
-                ),
-              ],
-            ),
-          ),
-      if (widget.remote case final RemoteNodePower node
-          when widget.section == RadioFieldSection.device)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 5),
-          child: MeshGroup(
-            children: [
-              MeshRow(
-                title: tr(context, 'Перезагрузить узел', 'Restart node'),
-                icon: Icons.restart_alt_rounded,
-                tint: tint,
-                onTap: _busy
-                    ? null
-                    : () => unawaited(
-                        _power(() => node.setPower(reboot: true), reboot: true),
-                      ),
-              ),
-              MeshRow(
-                title: tr(context, 'Выключить узел', 'Shut down node'),
-                icon: Icons.power_settings_new_rounded,
-                tint: const Color(0xffa95361),
-                onTap: _busy
-                    ? null
-                    : () => unawaited(
-                        _power(
-                          () => node.setPower(reboot: false),
-                          reboot: false,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
+      if (isProfile)
+        for (final (title, rows) in groups)
+          if (rows.isNotEmpty) _settingsGroup(title, rows),
+      if (!isProfile && fieldRows.isNotEmpty) _settingsGroup(null, fieldRows),
+      if (widget.section == RadioFieldSection.connectivity &&
+          widget.radio.network == 'meshcore' &&
+          widget.remote == null &&
+          serviceRows.isNotEmpty)
+        _settingsGroup(null, serviceRows),
       if (widget.section == RadioFieldSection.telemetry) ...[
         if (hasTelemetrySettings)
           Padding(
@@ -996,6 +1201,7 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
           ),
         ),
       if (widget.section == RadioFieldSection.position &&
+          showAction(tr(context, 'Выбрать на карте', 'Choose on map')) &&
           widget.controller.canSetFixedPosition(widget.radio, widget.remote))
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),

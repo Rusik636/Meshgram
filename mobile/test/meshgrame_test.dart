@@ -5212,6 +5212,62 @@ void main() {
     expect(tester.getTopLeft(back), backPosition);
   });
 
+  testWidgets(
+    'radio search reaches hidden MeshCore Wi-Fi fields through the toggle',
+    (tester) async {
+      _reduceMotion(tester);
+      const radio = (network: 'meshcore', device: 'test', name: 'Field radio');
+      final link = _CoreSettingsLink()
+        ..firmwareProtocol = 14
+        ..wifiEnabled = false;
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _ProtocolTestTransport(link),
+        adapters: const [MeshCoreAdapter()],
+      );
+      await controller.connect(radio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RadioSettingsPage(controller: controller, radio: radio),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Node profile'), findsOneWidget);
+
+      final commands = link.commands.length;
+      const query = 'пароль Wi‑Fi';
+      final search = find.byKey(const ValueKey('radio-settings-search'));
+      await tester.enterText(search, query);
+      await tester.pumpAndSettle();
+      expect(find.text('Wi-Fi password'), findsOneWidget);
+      expect(link.commands.length, commands);
+      await tester.tap(find.text('Network'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<TextField>(search).controller!.text, query);
+      final wifi = find.widgetWithText(SwitchListTile, 'Enable Wi-Fi');
+      expect(wifi, findsOneWidget);
+      expect(find.text('Wi-Fi password'), findsNothing);
+      await tester.tap(wifi);
+      await tester.pumpAndSettle();
+      expect(find.text('Wi-Fi password'), findsOneWidget);
+      expect(link.wifiEnabled, isFalse);
+      await tester.tap(find.byTooltip('Save to radio'));
+      await tester.pumpAndSettle();
+      expect(link.wifiEnabled, isTrue);
+      expect(find.text('Wi-Fi password'), findsOneWidget);
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pumpAndSettle();
+      expect(find.text('Wi-Fi network'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      final disconnect = controller.disconnect(manual: false);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      await disconnect;
+      controller.dispose();
+    },
+  );
+
   testWidgets('radio keeps LoRa settings and readings in separate views', (
     tester,
   ) async {
@@ -5240,6 +5296,11 @@ void main() {
     expect(find.text('Frequency'), findsOneWidget);
     await tester.tap(find.byTooltip('Back').last);
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Telemetry'),
+      130,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Telemetry'));
     await tester.pumpAndSettle();
     expect(find.text('Battery voltage'), findsOneWidget);

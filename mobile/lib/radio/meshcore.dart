@@ -13,6 +13,7 @@ import '../mesh/contact_attachment.dart';
 import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
+import '../mesh/radio_settings_index.dart';
 import '../mesh/route_trace.dart';
 import 'channel_keys.dart';
 import 'meshcore_reactions.dart';
@@ -395,6 +396,7 @@ class _CoreSession
         RemoteAdminSession,
         RadioSettingsSession,
         RadioSettingsCatalog,
+        RadioSettingsIndex,
         RadioTelemetrySession,
         RadioBatteryReader,
         NetworkNodeActions,
@@ -593,6 +595,65 @@ class _CoreSession
       ))
         section,
   ];
+
+  @override
+  Iterable<RadioSettingName> settingNames(RadioFieldSection section) sync* {
+    if (!extraSettings.contains(section)) return;
+    for (final setting in _coreCliSettings) {
+      if (setting.section == section && _cliFields.contains(setting.key)) {
+        yield (id: setting.key, title: setting.title, russian: setting.russian);
+      }
+    }
+    final names = switch (section) {
+      RadioFieldSection.position => [
+        ('latitude', 'Latitude', 'Широта'),
+        ('longitude', 'Longitude', 'Долгота'),
+        (
+          'advertPosition',
+          'Advertise position',
+          'Добавлять позицию в объявление',
+        ),
+        if (_hasCustomSettings) ...[
+          ('custom:gps', 'GPS', 'GPS'),
+          ('custom:gps_interval', 'GPS interval', 'Интервал GPS'),
+        ],
+      ],
+      RadioFieldSection.bluetooth => [('pin', 'Pairing PIN', 'PIN сопряжения')],
+      RadioFieldSection.contacts => [
+        ('manual', 'Manually add contacts', 'Добавлять контакты вручную'),
+        if (_autoAddSupported) ...[
+          for (final (id, en, ru, _) in _coreContactFlags) (id, en, ru),
+          (
+            'maxHops',
+            'Automatic import hop limit',
+            'Лимит переходов для автодобавления',
+          ),
+        ],
+      ],
+      RadioFieldSection.sensors => [
+        ('base', 'Battery data', 'Данные батареи'),
+        ('position', 'Position data', 'Данные позиции'),
+        ('environment', 'Environmental data', 'Данные окружающей среды'),
+      ],
+      RadioFieldSection.routing => [
+        if (_protocol >= 9) ('repeat', 'Forward packets', 'Пересылать пакеты'),
+        if (_protocol >= 10)
+          ('path', 'Path hash length', 'Длина идентификатора маршрута'),
+        if (_protocol >= 7)
+          ('acks', 'Additional acknowledgments', 'Доп. подтверждения'),
+        ('rxDelay', 'Receive delay factor', 'Множитель задержки приёма'),
+        ('airtime', 'Airtime factor', 'Множитель эфирного времени'),
+        if (_scopeSupported) ...[
+          ('scopeName', 'Default scope name', 'Область маршрутизации'),
+          ('scopeKey', 'Scope key', 'Ключ области'),
+        ],
+      ],
+      _ => const <(String, String, String)>[],
+    };
+    for (final (id, title, russian) in names) {
+      yield (id: id, title: title, russian: russian);
+    }
+  }
 
   static const _telemetryAccess = {
     '0': 'Disabled',
