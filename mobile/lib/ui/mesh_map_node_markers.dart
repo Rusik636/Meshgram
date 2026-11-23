@@ -236,7 +236,7 @@ class _NodeMarkerLayerState extends State<_NodeMarkerLayer> {
               leading: MeshAvatar(name, size: 38, online: pin._online),
               title: Text(name),
               subtitle: Text(pin._nodeId!),
-              trailing: const Icon(Icons.chevron_right_rounded),
+              trailing: const MeshIcon(Icons.chevron_right_rounded),
               enabled: pin.onTap != null,
               onTap: pin.onTap == null
                   ? null
