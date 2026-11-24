@@ -1505,7 +1505,6 @@ class _ChatState extends State<MeshChatPage>
     final radio = controller.active;
     _dismissKeyboard();
     setState(() => _quickPhrasePickerOpen = true);
-    unawaited(playMeshHaptic(MeshHaptic.selection));
     final String? phrase;
     try {
       phrase = await pickQuickPhrase(context, controller.store);

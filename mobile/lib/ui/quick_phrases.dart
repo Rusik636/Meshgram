@@ -1,10 +1,15 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart' show PointerEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../mesh/store.dart';
+import 'haptics.dart';
 import 'style.dart';
 
 List<String> _phrases(BuildContext context, MeshStore store) =>
@@ -37,28 +42,40 @@ class QuickPhraseStrip extends StatefulWidget {
 }
 
 class _QuickPhraseStripState extends State<QuickPhraseStrip> {
+  static const _expandThreshold = 46.0;
+  int? _pointer;
   double _pull = 0;
-  bool _openedByDrag = false;
+
+  void _updatePull(double value) {
+    final pull = math.max(0.0, value);
+    if (pull == _pull) return;
+    final reachedThreshold =
+        _pull < _expandThreshold && pull >= _expandThreshold;
+    setState(() => _pull = pull);
+    if (reachedThreshold) unawaited(playMeshHaptic(MeshHaptic.medium));
+  }
+
+  void _finishPull(PointerEvent event, {required bool released}) {
+    if (event.pointer != _pointer) return;
+    _pointer = null;
+    final expand = released && _pull >= _expandThreshold;
+    _updatePull(0);
+    if (expand) widget.onExpand?.call();
+  }
 
   bool _trackPull(ScrollNotification event) {
-    if (event.depth != 0 || event.metrics.axis != Axis.horizontal) return false;
-    if (event is ScrollStartNotification || event is ScrollEndNotification) {
-      _openedByDrag = false;
-      _pull = 0;
-    } else if (event is ScrollUpdateNotification) {
-      _pull = 0;
-    } else if (event is OverscrollNotification &&
-        event.dragDetails != null &&
-        event.overscroll > 0 &&
-        !_openedByDrag &&
-        widget.onExpand != null) {
-      _pull += event.overscroll;
-      if (_pull >= 46) {
-        _openedByDrag = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) widget.onExpand?.call();
-        });
-      }
+    if (_pointer == null ||
+        widget.onExpand == null ||
+        event.depth != 0 ||
+        event.metrics.axis != Axis.horizontal) {
+      return false;
+    }
+    if (event is OverscrollNotification && event.dragDetails != null) {
+      _updatePull(_pull + event.overscroll);
+    } else if (_pull > 0 &&
+        event is ScrollUpdateNotification &&
+        event.dragDetails != null) {
+      _updatePull(_pull + math.min(0, event.scrollDelta ?? 0));
     }
     return false;
   }
@@ -68,7 +85,12 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
     final style = MeshStyle.of(context);
     final phrases = _phrases(context, widget.store);
     final select = widget.onSelect;
+    final expand = widget.onExpand;
     final height = QuickPhraseStrip.extent(context);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final pulling = _pull > 0;
+    final ready = _pull >= _expandThreshold;
+    final pullProgress = (_pull / _expandThreshold).clamp(0.0, 1.5);
     final contentOpacity = const Interval(
       .34,
       .88,
@@ -78,56 +100,91 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
     final content = Row(
       children: [
         Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _trackPull,
-            child: ListView.separated(
-              key: const ValueKey('quick-phrase-scroll'),
-              primary: false,
-              scrollDirection: Axis.horizontal,
-              physics: const ClampingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              itemCount: phrases.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 2),
-              itemBuilder: (context, index) {
-                final phrase = phrases[index];
-                return ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 190),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: style.text,
-                      disabledForegroundColor: style.secondary,
-                      minimumSize: const Size(48, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      textStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+          child: Listener(
+            onPointerDown: (event) => _pointer ??= event.pointer,
+            onPointerUp: (event) => _finishPull(event, released: true),
+            onPointerCancel: (event) => _finishPull(event, released: false),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _trackPull,
+              child: ListView.separated(
+                key: const ValueKey('quick-phrase-scroll'),
+                primary: false,
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: phrases.length,
+                separatorBuilder: (_, _) => VerticalDivider(
+                  width: 2,
+                  thickness: 1,
+                  indent: (height - 18) / 2,
+                  endIndent: (height - 18) / 2,
+                  color: style.secondary.withValues(alpha: .32),
+                ),
+                itemBuilder: (context, index) {
+                  final phrase = phrases[index];
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 190),
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: style.text,
+                        disabledForegroundColor: style.secondary,
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      onPressed: select == null ? null : () => select(phrase),
+                      child: Text(
+                        phrase,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    onPressed: select == null ? null : () => select(phrase),
-                    child: Text(
-                      phrase,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
         SizedBox.square(
           dimension: 48,
           child: IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 20),
+            icon: AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 130),
+              child: pulling
+                  ? Transform.scale(
+                      key: const ValueKey('pull-arrow'),
+                      scale: reduceMotion ? 1 : 1 + .45 * pullProgress,
+                      child: Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        size: 20,
+                        color: ready ? style.accent : null,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.edit_outlined,
+                      key: ValueKey('quick-phrase-pencil'),
+                      size: 20,
+                    ),
+            ),
             color: style.text,
             tooltip: tr(
               context,
               'Развернуть быстрые фразы',
               'Expand quick phrases',
             ),
-            onPressed: widget.onExpand,
+            onPressed: expand == null
+                ? null
+                : () {
+                    unawaited(playMeshHaptic(MeshHaptic.selection));
+                    expand();
+                  },
           ),
         ),
       ],
