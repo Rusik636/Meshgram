@@ -833,6 +833,7 @@ class _ChatState extends State<MeshChatPage>
         canReact: controller.canChooseReaction(peer, message),
         recentReactions: controller.recentReactionEmojis,
         canReply: controller.canUseMessageActions(peer, message),
+        saved: controller.isMessageSaved(message),
         outgoing: message.outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -861,6 +862,16 @@ class _ChatState extends State<MeshChatPage>
       _selectReply(peer, message);
     } else if (value == 'copy') {
       await Clipboard.setData(ClipboardData(text: message.text));
+    } else if (value == 'saved') {
+      if (!await controller.toggleSavedMessage(peer, message) && mounted) {
+        _notice(
+          tr(
+            context,
+            'Не удалось обновить Избранное',
+            'Could not update Saved Messages',
+          ),
+        );
+      }
     } else {
       await _react(peer, message, value);
     }

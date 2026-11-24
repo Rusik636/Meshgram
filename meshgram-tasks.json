@@ -114,6 +114,13 @@
           "version": "0.3.62",
           "build": 84,
           "result": "Установлено поверх 83. Устройство подтвердило номер 84, приложение запущено."
+        },
+        {
+          "kind": "radio_check",
+          "device": "iPhone 18 Pro",
+          "build": 84,
+          "result": "После отключения Redmi iPhone подключился к Heltec V4 по Meshtastic. Ответ в канале test появился в истории и получил отметку подтверждения узлом сети.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-meshtastic-reply.png"
         }
       ]
     },
@@ -265,7 +272,7 @@
       "depends_on": [
         "02"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -283,12 +290,27 @@
       "depends_on": [
         "02"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Сохраняются текст, ссылки и координаты с метками, автором, датой и источником.",
         "Копия открывается после очистки обычной истории и перезапуска без интернета и рации."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/messenger/SavedMessagesController.java#L350-L376",
+          "behavior": "Сохранённые сообщения учитывают диалог-источник."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L7841-L7854",
+          "behavior": "Избранное открывается как отдельная история с собственными метками."
+        },
+        {
+          "kind": "check",
+          "result": "Тест подтвердил независимое сохранение текста, ссылки и координат после очистки чата и повторной загрузки. Ни одного подключения транспорта."
+        }
+      ]
     },
     {
       "id": "03.browse",
@@ -302,12 +324,23 @@
       "depends_on": [
         "02"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Есть просмотр и переход к доступному оригиналу.",
         "При работе с «Избранным» транспорт получает ноль пакетов."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Сохранение из меню и переход к точному исходному сообщению из Избранного."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Сохранение из меню, редактирование меток и переход к источнику."
+        }
+      ]
     },
     {
       "id": "04",
