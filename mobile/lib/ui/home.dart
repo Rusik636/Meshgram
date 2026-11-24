@@ -185,6 +185,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
       } else if (controller.hiddenConversations.isEmpty && _archiveRevealed) {
         _archiveRevealed = false;
+        _resetArchiveDrag();
         _archiveHeight.value = 0;
       }
     });
@@ -376,7 +377,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     setState(() => _archiveReady = ready);
     if (ready) {
       unawaited(playMeshHaptic(MeshHaptic.medium));
-      if (_archiveIsIos) _revealArchive();
+      if (_archiveIsIos) _revealArchive(pointerHeld: true);
     }
   }
 
@@ -390,15 +391,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     );
   }
 
-  void _revealArchive() {
-    _resetArchiveDrag();
+  void _revealArchive({bool pointerHeld = false}) {
+    if (!pointerHeld) _resetArchiveDrag();
     setState(() => _archiveRevealed = true);
     _animateArchive(_archiveExtent);
   }
 
   void _finishArchiveDrag({required bool released}) {
     if (_archivePointer == null) return;
-    if (released && _canPullArchive && _archiveReady) {
+    if (_archiveRevealed) {
+      setState(_resetArchiveDrag);
+      if (!_archiveHeight.isAnimating &&
+          _archiveHeight.value < _archiveExtent) {
+        _animateArchive(_archiveExtent);
+      }
+    } else if (released && _canPullArchive && _archiveReady) {
       _revealArchive();
     } else {
       _resetArchiveDrag();
@@ -433,6 +440,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         return;
       }
       final height = _archiveHeight.value;
+      _resetArchiveDrag();
       _archiveHeight.value = 0;
       setState(() {
         _archiveRevealed = false;
@@ -1497,7 +1505,20 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             heightFactor: height / extent,
             child: SizedBox(
               height: extent,
-              child: Center(child: content),
+              child: Center(
+                child: AnimatedPadding(
+                  duration: meshMotion(context),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.only(
+                    // Center the archive between the visible folder bar and
+                    // the first chat, whose avatar has the usual row padding.
+                    bottom: _archivePointer == null
+                        ? ChatFolderTabs.verticalInset(context)
+                        : 0,
+                  ),
+                  child: content,
+                ),
+              ),
             ),
           ),
         );
