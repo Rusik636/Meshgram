@@ -2602,6 +2602,52 @@
           "result": "Сборка 0.3.62 (101) установлена. Экран остаётся заблокирован; сценарий пройден на эмуляторе."
         }
       ]
+    },
+    {
+      "id": "43",
+      "parent_id": null,
+      "title": "Прозрачное стекло под полосой папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/43-ios-clear-folder-glass",
+      "depends_on": [
+        "41",
+        "42"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На iOS 26+ полоса папок использует выбранный вариант Clear Glass с системным контуром и внутренним отступом.",
+        "Линза переключения срабатывает по тапу. Папки прокручиваются внутри фиксированной полосы."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-glass-102.png",
+          "result": "Подложка и контур на тёмной теме, видна выбранная категория."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-glass-tap-102.mov",
+          "result": "Линза UIKit преломляет подписи при переключении категории."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ прошли. Проверки на ветке dev подтвердили размер стеклянной области и прокрутку."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (102) установлена и запущена. Внешний вид проверен на симуляторе."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Сборка 0.3.62 (102) установлена. Проверено переключение категорий и возврат в «Все»."
+        }
+      ]
     }
   ]
 }
