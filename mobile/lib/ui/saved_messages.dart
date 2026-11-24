@@ -261,7 +261,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CustomPaint(painter: _ContourPaper(style)),
+          const MeshChatWallpaper(),
           SafeArea(
             child: Column(
               children: [

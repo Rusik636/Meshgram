@@ -24,12 +24,14 @@ class ProfilePage extends StatefulWidget {
     this.showExpandedTitle = true,
     this.subtitleMaxLines = 1,
     this.heading,
+    this.backgroundColor,
     this.leading,
     this.trailing,
   });
 
   final String title, subtitle;
   final String? identity, heading;
+  final Color? backgroundColor;
   final bool showExpandedTitle;
   final int subtitleMaxLines;
   final Widget avatar;
@@ -136,7 +138,7 @@ class _ProfilePageState extends State<ProfilePage> {
         onPointerPanZoomStart: (_) => _beginGesture(),
         onPointerSignal: (_) => _beginGesture(),
         child: MeshScrollViewport(
-          tint: MeshStyle.of(context).canvas,
+          tint: widget.backgroundColor ?? style.canvas,
           fadeTop: false,
           edgeExtent: math.max(18.0, widget.padding.bottom),
           child: CustomScrollView(
@@ -239,7 +241,7 @@ class _ProfileHeader extends SliverPersistentHeaderDelegate {
     final backdropFade = Curves.easeInOut.transform(
       ((progress - .65) / .35).clamp(0.0, 1.0),
     );
-    final canvas = MeshStyle.of(context).canvas;
+    final canvas = page.backgroundColor ?? MeshStyle.of(context).canvas;
     final safeTop = page.padding.top;
     final safeArea = MediaQuery.paddingOf(context);
     final leadingX = 16.0 + safeArea.left;

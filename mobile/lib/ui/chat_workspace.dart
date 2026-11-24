@@ -53,12 +53,7 @@ class ChatWorkspaceResizeHandle extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragUpdate: (details) => onResize(details.delta.dx),
-        child: Center(
-          child: ColoredBox(
-            color: MeshStyle.of(context).separator,
-            child: const SizedBox(width: 1, height: double.infinity),
-          ),
-        ),
+        child: const SizedBox.expand(),
       ),
     ),
   );
@@ -100,10 +95,10 @@ class ChatFolderRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final mac = Theme.of(context).platform == TargetPlatform.macOS;
-    final row = (53 + MediaQuery.textScalerOf(context).scale(11) * 2.4).clamp(
-      68.0,
-      132.0,
-    );
+    final labelStyle = Theme.of(context).textTheme.labelMedium!;
+    final labelSize = labelStyle.fontSize!;
+    final row = (47 + MediaQuery.textScalerOf(context).scale(labelSize) * 2.4)
+        .clamp(68.0, 132.0);
     final builtInCount = builtInLabels.length;
     Widget item(int index) {
       final builtIn = index < builtInCount;
@@ -231,7 +226,7 @@ class ChatFolderRail extends StatelessWidget {
                 content,
               ],
             )
-          : ColoredBox(color: style.surface, child: content),
+          : ColoredBox(color: style.desktopPanel, child: content),
     );
   }
 
@@ -249,6 +244,7 @@ class ChatFolderRail extends StatelessWidget {
     final style = MeshStyle.of(context);
     final foreground = active ? style.accent : style.secondary;
     final shape = BorderRadius.circular(14);
+    final labelStyle = Theme.of(context).textTheme.labelMedium!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Stack(
@@ -274,11 +270,9 @@ class ChatFolderRail extends StatelessWidget {
                 onDoubleTap: onEdit,
                 onSecondaryTap: onEdit,
                 child: Padding(
-                  padding: EdgeInsetsDirectional.only(
-                    top: 8,
-                    bottom: 8,
-                    start: 3,
-                    end: onDelete == null ? 3 : 25,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 8,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -292,10 +286,10 @@ class ChatFolderRail extends StatelessWidget {
                       Flexible(
                         child: Text(
                           title,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: foreground, fontSize: 11),
+                          style: labelStyle.copyWith(color: foreground),
                         ),
                       ),
                     ],
@@ -307,7 +301,7 @@ class ChatFolderRail extends StatelessWidget {
           if (onDelete != null)
             PositionedDirectional(
               end: 0,
-              bottom: 0,
+              top: 0,
               child: MeshIconButton(
                 label: tr(
                   context,
@@ -316,7 +310,7 @@ class ChatFolderRail extends StatelessWidget {
                 ),
                 constraints: const BoxConstraints.tightFor(
                   width: 28,
-                  height: 34,
+                  height: 28,
                 ),
                 style: IconButton.styleFrom(
                   overlayColor: Colors.transparent,

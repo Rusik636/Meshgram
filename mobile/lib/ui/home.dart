@@ -914,6 +914,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 4,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: selected.isEmpty
                 ? tr(context, 'Прочитать все', 'Read all')
                 : markUnread
@@ -937,6 +938,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 3,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: _showHidden
                 ? tr(context, 'Показать', 'Show')
                 : tr(context, 'Скрыть', 'Hide'),
@@ -950,6 +952,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 3,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: tr(context, 'Удалить', 'Delete'),
             onTap: _removingChats || selected.isEmpty
                 ? null
@@ -1040,7 +1043,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               children: [
                 if (desktop)
                   Positioned.fill(
-                    child: ColoredBox(color: MeshStyle.of(context).surface),
+                    child: ColoredBox(color: MeshStyle.of(context).canvas),
                   ),
                 if (_desktopRail)
                   Positioned(
@@ -1224,12 +1227,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Widget _sidebar(BuildContext context) {
     final style = MeshStyle.of(context);
+    final background = _desktopRail ? style.desktopPanel : style.canvas;
     final keyboard = !_split || _searchActive
         ? MediaQuery.viewInsetsOf(context).bottom
         : 0.0;
     final nativeNavigation = useIosControls;
     final showingChats = _selectedTab == 0;
     return Scaffold(
+      backgroundColor: background,
       // The keyboard can resize the content without relocating the navigation.
       resizeToAvoidBottomInset: false,
       body: SafeArea(
@@ -1270,7 +1275,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                             child: IgnorePointer(
                               ignoring: showingChats,
                               child: ColoredBox(
-                                color: style.canvas,
+                                color: background,
                                 child: _settings(style),
                               ),
                             ),
@@ -1364,10 +1369,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final searchResults = _searchActive || _searchMotion.value > 0
           ? _searchResults(style)
           : null;
-      final editSideWidth = ((constraints.maxWidth - 112) / 2).clamp(
-        96.0,
-        128.0,
-      );
+      final editSideWidth =
+          ((constraints.maxWidth - (_desktopRail ? 76 : 112)) / 2).clamp(
+            96.0,
+            _desktopRail ? 172.0 : 128.0,
+          );
       final heading = PageHeading(
         caption,
         sideWidth: _editingChats
@@ -1406,6 +1412,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   : GlassActionButton(
                       primary: false,
                       width: editSideWidth,
+                      fitContent: _desktopRail,
                       icon: Icons.create_new_folder_outlined,
                       label: tr(context, 'Добавить', 'Add'),
                       onTap: controller.active == null || _removingChats
@@ -1513,7 +1520,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 height: lerpDouble(headerHeight, resultsTop, progress)!,
                 child: MeshScrollEdge(
                   top: true,
-                  tint: style.canvas,
+                  tint: _desktopRail ? style.desktopPanel : style.canvas,
                   opaqueEdge: true,
                 ),
               ),
@@ -1609,7 +1616,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         child: Column(
           children: [
             if (_editingChats)
-              ColoredBox(color: style.canvas, child: row)
+              ColoredBox(
+                color: _desktopRail ? style.desktopPanel : style.canvas,
+                child: row,
+              )
             else
               ChatSwipeRow(
                 revealed: _revealedChat == peer.id,
@@ -2522,6 +2532,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final busy = controller.linkState == LinkState.connecting;
     return ProfilePage(
       key: const PageStorageKey('settings'),
+      backgroundColor: _desktopRail ? style.desktopPanel : null,
       identity:
           (active == null ? null : controller.radioPublicKey(active)) ??
           'local:$profile',

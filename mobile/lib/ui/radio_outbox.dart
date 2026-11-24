@@ -306,8 +306,7 @@ class RadioOutboxPage extends StatelessWidget {
             ),
           ),
         ),
-        body: CustomPaint(
-          painter: _ContourPaper(MeshStyle.of(context)),
+        body: MeshChatWallpaper(
           child: SafeArea(
             top: false,
             child: Column(

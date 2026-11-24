@@ -2304,7 +2304,7 @@ class _ChatState extends State<MeshChatPage>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CustomPaint(painter: _ContourPaper(style)),
+                const MeshChatWallpaper(),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
@@ -5376,16 +5376,25 @@ class _AdminAccessState extends State<_AdminAccessDialog> {
 }
 
 class MeshChatWallpaper extends StatelessWidget {
-  const MeshChatWallpaper({super.key});
+  const MeshChatWallpaper({super.key, this.child});
+
+  final Widget? child;
 
   @override
-  Widget build(BuildContext context) =>
-      CustomPaint(painter: _ContourPaper(MeshStyle.of(context)));
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _ContourPaper(
+      MeshStyle.of(context),
+      blendWithWorkspace:
+          meshDesktop(context) && ChatWorkspacePane.of(context)?.split == true,
+    ),
+    child: child,
+  );
 }
 
 class _ContourPaper extends CustomPainter {
-  const _ContourPaper(this.style);
+  const _ContourPaper(this.style, {this.blendWithWorkspace = false});
   final MeshStyle style;
+  final bool blendWithWorkspace;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -5429,9 +5438,20 @@ class _ContourPaper extends CustomPainter {
       }
     }
     canvas.restore();
+    if (blendWithWorkspace) {
+      final edge = Rect.fromLTWH(0, 0, math.min(size.width, 42), size.height);
+      canvas.drawRect(
+        edge,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [style.canvas, style.canvas.withValues(alpha: 0)],
+          ).createShader(edge),
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_ContourPaper oldDelegate) =>
-      oldDelegate.style.dark != style.dark;
+      oldDelegate.style.dark != style.dark ||
+      oldDelegate.blendWithWorkspace != blendWithWorkspace;
 }

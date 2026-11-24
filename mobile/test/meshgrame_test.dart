@@ -2404,6 +2404,19 @@ void main() {
         expect(find.byType(ChatFolderTabs), findsNothing);
         expect(find.descendant(of: rail, matching: remove), findsOneWidget);
         expect(findControl('Delete folder All'), findsNothing);
+        final folderTitle = find.text('Field work');
+        final folderRow = find.ancestor(
+          of: folderTitle,
+          matching: find.byType(InkWell),
+        );
+        final folderIcon = find.descendant(
+          of: folderRow,
+          matching: find.byIcon(Icons.folder_outlined),
+        );
+        final railCenter = tester.getCenter(rail).dx;
+        expect(tester.getCenter(folderIcon).dx, closeTo(railCenter, .5));
+        expect(tester.getCenter(folderTitle).dx, closeTo(railCenter, .5));
+        expect(tester.widget<Text>(folderTitle).maxLines, 1);
         final reorder = find.descendant(
           of: rail,
           matching: find.byType(ReorderableListView),
