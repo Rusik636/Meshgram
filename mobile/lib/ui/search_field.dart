@@ -11,9 +11,10 @@ import 'style.dart';
 
 const meshSearchButtonSize = 48.0;
 
-/// Lets momentum finish normally, then settles a partially collapsed search bar.
+/// Lets momentum finish normally, then settles a partially collapsed header.
 class MeshSearchScrollController extends ScrollController {
   double collapseRange = 0;
+  double trailingSnapExtent = 0;
   bool reduceMotion = false;
 
   @override
@@ -61,14 +62,18 @@ class _MeshSearchSnapPhysics extends ScrollPhysics {
       return null;
     }
 
-    final start = position.minScrollExtent;
-    final end = start + controller.collapseRange;
     final current = position.pixels;
+    final searchEnd = position.minScrollExtent + controller.collapseRange;
+    final afterSearch = current > searchEnd;
+    final start = afterSearch ? searchEnd : position.minScrollExtent;
+    final end = afterSearch
+        ? searchEnd + controller.trailingSnapExtent
+        : searchEnd;
     if (end > position.maxScrollExtent || current <= start || current >= end) {
       return null;
     }
 
-    final target = current - start < controller.collapseRange / 2 ? start : end;
+    final target = current < (start + end) / 2 ? start : end;
     if (controller.reduceMotion) return _MeshSearchInstantSnap(target);
     return ScrollSpringSimulation(
       spring,

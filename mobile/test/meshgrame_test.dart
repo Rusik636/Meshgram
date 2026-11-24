@@ -58,6 +58,7 @@ import 'package:meshgrame/ui/message_input.dart';
 import 'package:meshgrame/ui/message_reactions.dart';
 import 'package:meshgrame/ui/quick_phrases.dart';
 import 'package:meshgrame/ui/qr_scanner.dart';
+import 'package:meshgrame/ui/search_field.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class _TestEmojiBundle extends CachingAssetBundle {
@@ -2200,6 +2201,105 @@ void main() {
       } else {
         expect(archive, findsNothing);
       }
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
+  );
+
+  testWidgets(
+    'archive fades and settles on either side of a partial scroll',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.hideChats(['node:a'], hidden: true);
+      controller.setArchiveHidden(true);
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+
+      final trail = find.text('Тропа');
+      final fade = find.byKey(const ValueKey('archive-opacity'));
+      double opacity() => tester.widget<Opacity>(fade).opacity;
+      final scroll =
+          tester
+                  .widget<CustomScrollView>(
+                    find.byKey(const PageStorageKey('chats')),
+                  )
+                  .controller!
+              as MeshSearchScrollController;
+
+      final shortPull = await tester.startGesture(tester.getCenter(trail));
+      await shortPull.moveBy(const Offset(0, 24));
+      await shortPull.moveBy(const Offset(0, 26));
+      await tester.pump();
+      final whilePulling = opacity();
+      expect(whilePulling, inExclusiveRange(0, 1));
+      await shortPull.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final whileClosing = opacity();
+      expect(whileClosing, inExclusiveRange(0, whilePulling));
+      final resumedPull = await tester.startGesture(tester.getCenter(trail));
+      await resumedPull.moveBy(const Offset(0, 24));
+      await resumedPull.moveBy(const Offset(0, 12));
+      await tester.pump();
+      expect(opacity(), greaterThan(whileClosing));
+      await resumedPull.cancel();
+      await tester.pumpAndSettle();
+      expect(fade, findsNothing);
+
+      final longPull = await tester.startGesture(tester.getCenter(trail));
+      await longPull.moveBy(const Offset(0, 28));
+      await longPull.moveBy(const Offset(0, 100));
+      await tester.pump(const Duration(milliseconds: 230));
+      await longPull.up();
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      final fullyOpen = scroll.collapseRange;
+      scroll.jumpTo(fullyOpen);
+      await tester.pumpAndSettle();
+
+      Future<TestGesture> scrollTo(double position) async {
+        final drag = await tester.startGesture(tester.getCenter(trail));
+        await drag.moveBy(const Offset(0, -21));
+        await drag.moveBy(const Offset(0, -8));
+        await drag.moveBy(Offset(0, scroll.offset - position));
+        await tester.pump(const Duration(milliseconds: 160));
+        expect(scroll.offset, closeTo(position, .5));
+        return drag;
+      }
+
+      final mostlyOpen = await scrollTo(fullyOpen + 17);
+      expect(opacity(), inExclusiveRange(0, 1));
+      await mostlyOpen.up();
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(fullyOpen, .5));
+      expect(opacity(), 1);
+
+      final mostlyHidden = await scrollTo(fullyOpen + 52);
+      final beforeClosing = opacity();
+      expect(beforeClosing, inExclusiveRange(0, 1));
+      await mostlyHidden.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(opacity(), inExclusiveRange(0, beforeClosing));
+      await tester.pumpAndSettle();
+      expect(fade, findsNothing);
+      expect(scroll.offset, closeTo(fullyOpen, .5));
+      expect(controller.hiddenConversations.single.id, 'node:a');
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
