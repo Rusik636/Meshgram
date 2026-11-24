@@ -7101,8 +7101,7 @@ void main() {
 
       tester.widget<MeshNavigation>(navigation).onSelect(1);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 110));
-      await tester.pump(const Duration(milliseconds: 110));
+      await tester.pumpAndSettle();
       expect(firstChat, findsNothing);
       tester.widget<MeshNavigation>(navigation).onSelect(0);
       await tester.pumpAndSettle();

@@ -240,17 +240,23 @@ class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
         ]),
         // Keep the stock edge recognizer mounted even while the page is hidden.
         child: cupertino.child,
-        builder: (_, gestureDetector) => popGestureInProgress
-            ? SlideTransition(
-                position: _snapshot.value == _SnapshotPhase.idle
-                    ? animation.drive(
-                        Tween(begin: const Offset(1, 0), end: Offset.zero),
-                      )
-                    : const AlwaysStoppedAnimation(Offset.zero),
-                textDirection: Directionality.of(context),
-                child: gestureDetector,
-              )
-            : _fadePage(animation, gestureDetector!),
+        builder: (_, gestureDetector) {
+          final swiping = popGestureInProgress;
+          return SlideTransition(
+            position: swiping && _snapshot.value == _SnapshotPhase.idle
+                ? animation.drive(
+                    Tween(begin: const Offset(1, 0), end: Offset.zero),
+                  )
+                : const AlwaysStoppedAnimation(Offset.zero),
+            textDirection: Directionality.of(context),
+            child: FadeTransition(
+              opacity: swiping
+                  ? const AlwaysStoppedAnimation(1.0)
+                  : animation.drive(CurveTween(curve: Curves.easeInOutCubic)),
+              child: gestureDetector,
+            ),
+          );
+        },
       ),
     );
   }
