@@ -740,12 +740,18 @@
       "depends_on": [
         "07"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "0f64ae4",
+          "result": "221 тест Flutter в ветке задачи. После слияния повторно прошли сценарии Meshtastic и MeshCore."
+        }
+      ]
     },
     {
       "id": "08.forward",
