@@ -6105,9 +6105,38 @@ void main() {
       expect(highlight.value, greaterThan(0));
       await tester.pumpAndSettle();
       expect(highlight.value, 0);
+
+      cache.messages.removeWhere((message) => message.id == 'history-14');
+      controller.refreshNodePresence();
+      final history = tester.widget<ChatMessageList>(
+        find.byType(ChatMessageList),
+      );
+      history.controller!.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Original message'));
+      await tester.pumpAndSettle();
+      expect(find.text('This message is no longer in local history'), findsOne);
+
+      unawaited(
+        openMeshMessage(
+          tester.element(find.byType(MeshChatPage)),
+          controller: controller,
+          chatId: peer.id,
+          messageId: 'history-22',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('history-22')).hitTestable(),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
   );
 
   testWidgets(
