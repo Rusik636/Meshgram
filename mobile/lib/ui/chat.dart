@@ -2823,6 +2823,7 @@ class _ChatState extends State<MeshChatPage>
   }) {
     final controller = widget.controller;
     final enabled = !_controlsCovered && !_sending;
+    final hasOutbox = controller.outboxFor(peer.id).isNotEmpty;
     final status = _ComposerStatus(
       connected: controller.connected,
       canSend: canSend,
@@ -2844,6 +2845,8 @@ class _ChatState extends State<MeshChatPage>
             final extent = QuickPhraseStrip.extent(context);
             final start = math.min(48.0, constraints.maxWidth);
             final width = start + (constraints.maxWidth - start) * progress;
+            final triggerSpace = 54 * (1 - progress);
+            final statusInset = triggerSpace + (hasOutbox ? 54 : 0);
             return Stack(
               children: [
                 Column(
@@ -2855,8 +2858,8 @@ class _ChatState extends State<MeshChatPage>
                       ),
                       child: Row(
                         children: [
-                          SizedBox(width: 54 * (1 - progress)),
-                          if (controller.outboxFor(peer.id).isNotEmpty) ...[
+                          SizedBox(width: triggerSpace),
+                          if (hasOutbox) ...[
                             GlassButton(
                               coveredByModal: _controlsCovered,
                               icon: Icons.schedule_rounded,
@@ -2870,6 +2873,7 @@ class _ChatState extends State<MeshChatPage>
                             const SizedBox(width: 6),
                           ],
                           Expanded(child: status),
+                          SizedBox(width: statusInset),
                         ],
                       ),
                     ),
@@ -3158,24 +3162,38 @@ class _ChatState extends State<MeshChatPage>
     );
   }
 
-  Widget _unreadDivider(MeshStyle style) => Container(
-    key: const ValueKey('unread-divider'),
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
-    decoration: BoxDecoration(
-      color: style.accent.withValues(alpha: .14),
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Text(
-      tr(context, 'Непрочитанные сообщения', 'Unread messages'),
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: style.accent,
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
+  Widget _unreadDivider(MeshStyle style) {
+    final line = Divider(height: 1, color: style.accent.withValues(alpha: .32));
+    return Padding(
+      key: const ValueKey('unread-divider'),
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Expanded(child: line),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * .76,
+                ),
+                child: Text(
+                  tr(context, 'Непрочитанные сообщения', 'Unread messages'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: style.accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(child: line),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _day(DateTime date, MeshStyle style) => Padding(
     padding: const EdgeInsets.only(top: 7, bottom: 7),
