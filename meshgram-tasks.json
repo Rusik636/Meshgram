@@ -729,6 +729,41 @@
       ]
     },
     {
+      "id": "07.alignment",
+      "parent_id": "07",
+      "title": "Выравнивание кнопок быстрых фраз и вложений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-align-quick-phrase",
+      "depends_on": [
+        "07.templates"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Центры обеих кнопок лежат на одной вертикали. Цитата сохраняет выравнивание."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Кнопки Liquid Glass выровнены в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-aligned.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator API 24",
+          "result": "Центр каждой кнопки находится на x=68 px с цитатой и без неё.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-aligned.png"
+        },
+        {
+          "kind": "check",
+          "result": "Автотест проверяет совпадение координат с цитатой и без неё и вставку фразы в черновик."
+        }
+      ]
+    },
+    {
       "id": "08",
       "parent_id": null,
       "title": "Пересылка текста и цитирование фрагмента",

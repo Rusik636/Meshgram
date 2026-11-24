@@ -2266,7 +2266,10 @@ class _ChatState extends State<MeshChatPage>
                               )
                             else ...[
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 0, 7, 5),
+                                padding: const EdgeInsets.only(
+                                  right: 7,
+                                  bottom: 5,
+                                ),
                                 child: Row(
                                   children: [
                                     GlassButton(
