@@ -81,6 +81,12 @@ class ChatFolderTabs extends StatefulWidget {
   final ReorderCallback onReorder;
   final ValueChanged<String> onEdit, onDelete;
 
+  static double verticalInset(BuildContext context) {
+    if (!useIosControls) return 2;
+    final height = ChatFilters.contentHeight(context);
+    return ((height - 40) / 2).clamp(0.0, 4.0);
+  }
+
   @override
   State<ChatFolderTabs> createState() => _ChatFolderTabsState();
 }
@@ -363,9 +369,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     final native = useIosControls && !widget.editing;
     // Telegram iOS gives the header panel a 40 pt strip at the default
     // text size, then uses one uniform inset for the lens and its scroll view.
-    final barHeight = native
-        ? math.min(height, math.max(40.0, height - 8))
-        : height - 4;
+    final verticalInset = native ? ChatFolderTabs.verticalInset(context) : 2.0;
+    final barHeight = height - verticalInset * 2;
     final viewportPadding = native
         ? const EdgeInsets.all(_iosLensInset)
         : const EdgeInsets.symmetric(horizontal: _padding);
@@ -382,10 +387,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
       ),
     );
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: (height - barHeight) / 2,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: verticalInset),
       child: native
           ? DecoratedBox(
               decoration: ShapeDecoration(

@@ -2166,8 +2166,14 @@ void main() {
       await gesture.moveBy(const Offset(0, 65));
       await tester.pump(const Duration(milliseconds: 230));
       await tester.pump();
+      final archiveIcon = find.descendant(
+        of: archive,
+        matching: find.byType(MeshRowIcon),
+      );
+      double? heldTop;
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+        heldTop = tester.getTopLeft(archiveIcon).dy;
       } else {
         expect(find.text('Release to show Archive'), findsOneWidget);
         expect(tester.widget<ListTile>(archive).onTap, isNull);
@@ -2177,6 +2183,20 @@ void main() {
       await tester.pumpAndSettle();
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+        final folderBar = find.byType(ChatFolderTabs);
+        final barBottom =
+            tester.getBottomLeft(folderBar).dy -
+            ChatFolderTabs.verticalInset(tester.element(folderBar));
+        final icon = tester.getRect(archiveIcon);
+        final firstAvatar = find.descendant(
+          of: find.byKey(const ValueKey('ch:0')),
+          matching: find.byType(MeshAvatar),
+        );
+        expect(icon.top, lessThan(heldTop!));
+        expect(
+          icon.top - barBottom,
+          closeTo(tester.getTopLeft(firstAvatar).dy - icon.bottom, .5),
+        );
       } else {
         expect(archive, findsNothing);
       }
