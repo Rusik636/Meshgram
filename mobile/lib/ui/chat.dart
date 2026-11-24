@@ -36,6 +36,7 @@ import 'message_details.dart';
 import 'message_menu.dart';
 import 'message_reactions.dart';
 import 'message_search.dart';
+import 'message_text_actions.dart';
 import 'navigation.dart';
 import 'node_actions.dart';
 import 'position_picker.dart';
@@ -269,6 +270,7 @@ class _ChatState extends State<MeshChatPage>
   ItemAnimation? _messageScroll;
   int _messageJump = 0;
   String? _highlighted;
+  MessageExcerpt? _highlightedExcerpt;
   late final _highlight = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1350),
@@ -649,7 +651,10 @@ class _ChatState extends State<MeshChatPage>
     return math.max(34.0, padding);
   }
 
-  Future<void> _revealMessage(String? messageId) async {
+  Future<void> _revealMessage(
+    String? messageId, {
+    MessageExcerpt? excerpt,
+  }) async {
     final jump = ++_messageJump;
     _messageScroll?.cancel();
     _historyAnchor = null;
@@ -705,7 +710,10 @@ class _ChatState extends State<MeshChatPage>
       }
       if (animation.isCanceled) return;
     }
-    setState(() => _highlighted = messageId);
+    setState(() {
+      _highlighted = messageId;
+      _highlightedExcerpt = excerpt;
+    });
     unawaited(_highlight.forward(from: 0));
   }
 
@@ -723,6 +731,7 @@ class _ChatState extends State<MeshChatPage>
         peer,
         text,
         reply: reply,
+        replyExcerpt: controller.replyDraftExcerpt(peer.id),
         suppressLinkPreview:
             dismissed != null && firstMessageLink(text) == dismissed,
       );
@@ -853,14 +862,73 @@ class _ChatState extends State<MeshChatPage>
         ? ' '
         : '';
     final text = '$before$prefix$phrase$suffix$after';
+    _updateDraft(
+      peer,
+      text,
+      cursor: before.length + prefix.length + phrase.length + suffix.length,
+    );
+  }
+
+  void _updateDraft(Peer peer, String text, {int? cursor}) {
     _draft.value = TextEditingValue(
       text: text,
-      selection: TextSelection.collapsed(
-        offset: before.length + prefix.length + phrase.length + suffix.length,
-      ),
+      selection: TextSelection.collapsed(offset: cursor ?? text.length),
     );
-    controller.setDraft(peer.id, text);
+    widget.controller.setDraft(peer.id, text);
     setState(() {});
+  }
+
+  Future<void> _forwardText(Peer peer, MeshMessage message) async {
+    final controller = widget.controller;
+    final profile = controller.active;
+    final text = '${_quoteAuthor(context, message)}:\n${message.text}';
+    final target = await pickForwardChat(
+      context,
+      controller.conversations.where(controller.canSendTo).toList(),
+    );
+    if (!mounted || target == null || controller.active != profile) return;
+    final prior = controller.draft(target.id);
+    final draft = prior.isEmpty ? text : '$prior\n\n$text';
+    if (target.id == peer.id) {
+      _updateDraft(peer, draft);
+    } else {
+      controller.setDraft(target.id, draft);
+      await showMeshChat(context, controller, target);
+    }
+  }
+
+  Future<void> _quoteSelectedText(Peer peer, MeshMessage message) async {
+    final controller = widget.controller;
+    final profile = controller.active;
+    final excerpt = await selectMessageExcerpt(context, message.text);
+    if (!mounted || excerpt == null || controller.active != profile) return;
+    if (controller.canDraftMessageReply(peer, message)) {
+      _selectReply(peer, message, excerpt: excerpt);
+      return;
+    }
+    final limit =
+        (controller.limit(peer) ?? 0) -
+        utf8.encode(_draft.text.trim()).length -
+        utf8.encode('«»\n').length;
+    final quote = StringBuffer();
+    var used = 0;
+    for (final character in excerpt.text.trim().characters) {
+      used += utf8.encode(character).length;
+      if (used > math.min(64, limit)) break;
+      quote.write(character);
+    }
+    if (quote.isEmpty) {
+      _notice(
+        tr(
+          context,
+          'Для цитаты нет места в сообщении',
+          'No room for a quote in this message',
+        ),
+      );
+      return;
+    }
+    final prefix = '«$quote»\n';
+    _updateDraft(peer, '$prefix${_draft.text}', cursor: prefix.length);
   }
 
   bool get _contactContextIsCurrent {
@@ -979,9 +1047,12 @@ class _ChatState extends State<MeshChatPage>
     setState(() => _searching = true);
   }
 
-  void _selectReply(Peer peer, MeshMessage message) {
+  void _selectReply(Peer peer, MeshMessage message, {MessageExcerpt? excerpt}) {
     final controller = widget.controller;
-    if (!controller.canUseMessageActions(peer, message)) return;
+    final supported = excerpt == null
+        ? controller.canUseMessageActions(peer, message)
+        : controller.canDraftMessageReply(peer, message);
+    if (!supported) return;
     // Android introduces the first accessory as the keyboard starts moving.
     // A physical keyboard or disabled IME can leave the inset at zero.
     if (Theme.of(context).platform == TargetPlatform.android &&
@@ -997,7 +1068,7 @@ class _ChatState extends State<MeshChatPage>
       _closeSearch();
     }
     _linkBehindReply = firstMessageLink(_draft.text);
-    controller.setReplyDraft(peer.id, message);
+    controller.setReplyDraft(peer.id, message, excerpt: excerpt);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _input.currentState?.focusInput();
     });
@@ -1061,6 +1132,14 @@ class _ChatState extends State<MeshChatPage>
         pinned: profile == null
             ? null
             : controller.pinnedMessageId(peer.id) == message.id,
+        canForward:
+            profile != null &&
+            message.text.trim().isNotEmpty &&
+            controller.conversations.any(controller.canSendTo),
+        canQuoteText:
+            profile != null &&
+            message.text.trim().isNotEmpty &&
+            controller.canSendTo(peer),
         outgoing: message.outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -1089,6 +1168,10 @@ class _ChatState extends State<MeshChatPage>
       _selectReply(peer, message);
     } else if (value == 'copy') {
       await Clipboard.setData(ClipboardData(text: message.text));
+    } else if (value == 'forward-text' && controller.active == profile) {
+      await _forwardText(peer, message);
+    } else if (value == 'quote-text' && controller.active == profile) {
+      await _quoteSelectedText(peer, message);
     } else if (value == 'pin' && controller.active == profile) {
       controller.setPinnedMessage(
         peer.id,
@@ -1286,6 +1369,7 @@ class _ChatState extends State<MeshChatPage>
       final characters = outgoing.characters.length;
       final limit = controller.limit(peer);
       final reply = controller.replyDraft(peer.id);
+      final replyExcerpt = controller.replyDraftExcerpt(peer.id);
       final canCompose = controller.canOpenChat(peer);
       final canSend = controller.canSendTo(peer);
       final send =
@@ -1420,6 +1504,12 @@ class _ChatState extends State<MeshChatPage>
                               peer.id,
                               item.replyTo,
                             );
+                            final draftExcerpt = reply?.id == item.id
+                                ? replyExcerpt
+                                : null;
+                            final revealedExcerpt = _highlighted == item.id
+                                ? _highlightedExcerpt
+                                : null;
                             final emoji = emojiCatalog?.singleEmoji(item.text);
                             final contact = controller.contactAttachment(
                               item.text,
@@ -1505,10 +1595,21 @@ class _ChatState extends State<MeshChatPage>
                                     next?.id != unreadBoundary &&
                                     _joins(item, next),
                                 quoted: quote,
+                                highlightedExcerpt:
+                                    draftExcerpt ?? revealedExcerpt,
+                                excerptAnimation:
+                                    draftExcerpt == null &&
+                                        revealedExcerpt != null
+                                    ? _highlightOpacity
+                                    : null,
                                 onQuote: onMenu == null || item.replyTo == null
                                     ? null
-                                    : () =>
-                                          unawaited(_revealMessage(quote?.id)),
+                                    : () => unawaited(
+                                        _revealMessage(
+                                          quote?.id,
+                                          excerpt: item.replyExcerpt,
+                                        ),
+                                      ),
                                 highlight:
                                     onMenu != null && _highlighted == item.id
                                     ? _highlightOpacity
@@ -1877,6 +1978,7 @@ class _ChatState extends State<MeshChatPage>
   }) {
     final controller = widget.controller;
     final native = useIosControls;
+    final excerpt = controller.replyDraftExcerpt(peer.id);
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     Widget editorFor(DraftLinkPreview? preview) {
       final showLink =
@@ -1892,7 +1994,7 @@ class _ChatState extends State<MeshChatPage>
           ? null
           : (
               title: _quoteAuthor(context, reply),
-              text: reply.text,
+              text: excerpt?.text ?? reply.text,
               image: null,
               link: false,
             );
@@ -1900,7 +2002,7 @@ class _ChatState extends State<MeshChatPage>
         if (showLink) {
           unawaited(openMessageLink(context, previewLink!));
         } else if (reply != null) {
-          unawaited(_revealMessage(reply.id));
+          unawaited(_revealMessage(reply.id, excerpt: excerpt));
         }
       }
 
@@ -2265,6 +2367,8 @@ class _Bubble extends StatelessWidget {
     this.onQuote,
     this.onAuthor,
     this.highlight,
+    this.highlightedExcerpt,
+    this.excerptAnimation,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -2280,6 +2384,8 @@ class _Bubble extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onQuote;
   final Animation<double>? highlight;
+  final MessageExcerpt? highlightedExcerpt;
+  final Animation<double>? excerptAnimation;
 
   @override
   Widget build(BuildContext context) {
@@ -2361,6 +2467,8 @@ class _Bubble extends StatelessWidget {
                         stateLabel: subtitle,
                         showAuthor: showAuthor,
                         quoted: quoted,
+                        highlightedExcerpt: highlightedExcerpt,
+                        excerptAnimation: excerptAnimation,
                         reactions: reactions,
                         onTap: tap,
                         onReact: onReact,
@@ -2443,7 +2551,11 @@ class _StickerContent extends StatelessWidget {
               color: style.pill,
               borderRadius: BorderRadius.circular(10),
               clipBehavior: Clip.antiAlias,
-              child: _MessageQuote(message: quoted, onTap: onQuote),
+              child: _MessageQuote(
+                message: quoted,
+                excerpt: item.replyExcerpt?.text,
+                onTap: onQuote,
+              ),
             ),
           ),
         SizedBox(
@@ -2548,6 +2660,8 @@ class _MessageContent extends StatelessWidget {
     this.onRetry,
     this.onQuote,
     this.onAuthor,
+    this.highlightedExcerpt,
+    this.excerptAnimation,
   });
 
   final VoidCallback? onAuthor;
@@ -2563,6 +2677,40 @@ class _MessageContent extends StatelessWidget {
   final ValueChanged<String>? onReact;
   final VoidCallback? onRetry;
   final VoidCallback? onQuote;
+  final MessageExcerpt? highlightedExcerpt;
+  final Animation<double>? excerptAnimation;
+
+  Widget _text(MeshStyle style, TextStyle textStyle) {
+    final highlighted = highlightedExcerpt;
+    final range = highlighted != null && highlighted.matches(item.text)
+        ? TextRange(
+            start: highlighted.offset,
+            end: highlighted.offset + highlighted.text.length,
+          )
+        : null;
+    Widget render(double opacity) =>
+        link == null && (range == null || opacity == 0)
+        ? EmojiText(item.text, style: textStyle, textAlign: TextAlign.left)
+        : MessageLinkifiedText(
+            text: item.text,
+            style: textStyle,
+            linkColor: item.outgoing && style.dark ? style.text : style.accent,
+            textAlign: TextAlign.left,
+            highlight: range == null || opacity == 0
+                ? null
+                : (
+                    range: range,
+                    color: style.accent.withValues(alpha: .32 * opacity),
+                  ),
+          );
+    final animation = excerptAnimation;
+    return animation == null
+        ? render(1)
+        : AnimatedBuilder(
+            animation: animation,
+            builder: (_, _) => render(animation.value),
+          );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2677,7 +2825,11 @@ class _MessageContent extends StatelessWidget {
                 if (item.replyTo != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 5),
-                    child: _MessageQuote(message: quoted, onTap: onQuote),
+                    child: _MessageQuote(
+                      message: quoted,
+                      excerpt: item.replyExcerpt?.text,
+                      onTap: onQuote,
+                    ),
                   ),
                 if (!hideText)
                   GestureDetector(
@@ -2688,20 +2840,7 @@ class _MessageContent extends StatelessWidget {
                       constraints: BoxConstraints(
                         minWidth: chips == null ? textMinWidth : bubbleWidth,
                       ),
-                      child: link == null
-                          ? EmojiText(
-                              item.text,
-                              style: textStyle,
-                              textAlign: TextAlign.left,
-                            )
-                          : MessageLinkifiedText(
-                              text: item.text,
-                              style: textStyle,
-                              linkColor: item.outgoing && style.dark
-                                  ? style.text
-                                  : style.accent,
-                              textAlign: TextAlign.left,
-                            ),
+                      child: _text(style, textStyle),
                     ),
                   ),
                 if (preview case final card?)
@@ -3219,8 +3358,9 @@ class _ComposerAccessoryRow extends StatelessWidget {
 }
 
 class _MessageQuote extends StatelessWidget {
-  const _MessageQuote({required this.message, this.onTap});
+  const _MessageQuote({required this.message, this.excerpt, this.onTap});
   final MeshMessage? message;
+  final String? excerpt;
   final VoidCallback? onTap;
 
   @override
@@ -3248,7 +3388,8 @@ class _MessageQuote extends StatelessWidget {
             ),
           ),
           EmojiText(
-            source?.text ??
+            excerpt ??
+                source?.text ??
                 tr(context, 'Исходное сообщение', 'Original message'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
