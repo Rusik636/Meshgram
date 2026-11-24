@@ -2441,10 +2441,13 @@ void main() {
         matching: find.byType(IosControl),
       );
       IosControl categories() => tester.widget<IosControl>(control);
-      expect(categories().kind, 'tabs');
+      expect(categories().kind, 'folderTabs');
       expect(categories().horizontalDrag, isFalse);
       expect(categories().tapOnly, isTrue);
       expect(categories().properties['labels'], ['All', 'Direct', 'Channels']);
+      final widths = categories().properties['widths']! as List<double>;
+      expect(widths, orderedEquals([...widths]..sort()));
+      expect(widths.toSet().length, 3);
       expect(tester.getSize(picker).height, 48);
       final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
       expect(
@@ -7705,7 +7708,18 @@ void main() {
       lessThan(tester.getCenter(find.text('Field team')).dx),
     );
 
-    await tester.tap(find.byTooltip('Delete folder Field team'));
+    tabs.jumpTo(tabs.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final deleteButton = find.byTooltip('Delete folder Field team');
+    final close = find.descendant(
+      of: deleteButton,
+      matching: find.byIcon(Icons.close_rounded),
+    );
+    expect(
+      tester.getCenter(close).dx,
+      greaterThan(tester.getCenter(find.text('Field team')).dx),
+    );
+    await tester.tap(deleteButton);
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
@@ -7736,6 +7750,7 @@ void main() {
     );
     final names = [for (var i = 1; i <= 8; i++) 'Field $i'];
     for (final name in names) {
+      await tester.pump();
       controller.saveChatFolder(name: name, chats: {'node:a'});
     }
     await tester.pumpWidget(
@@ -7757,11 +7772,15 @@ void main() {
     expect(scrollController.offset, greaterThan(0));
     expect(selected(), 0);
     final displayed = tabs().properties['labels']! as List<String>;
-    expect(displayed.length, lessThanOrEqualTo(5));
-    final label = displayed.firstWhere(names.contains);
+    expect(displayed, ['All', 'Direct', 'Channels', ...names]);
+    final label = names.last;
+    final end = scrollController.position.maxScrollExtent;
+    scrollController.jumpTo(end - 18);
+    await tester.pumpAndSettle();
     tabs().onSelect!(displayed.indexOf(label));
     await tester.pumpAndSettle();
     expect(selected(), names.indexOf(label) + 3);
+    expect(scrollController.offset, end);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
