@@ -7167,6 +7167,14 @@ void main() {
     await tester.pumpAndSettle();
     final phraseButton = find.byTooltip('Quick phrases');
     final attachmentButton = find.byTooltip('Attachments');
+    final counter = find.text('5 chars · 5/200 B');
+    void expectCenteredCounter() {
+      expect(
+        tester.getCenter(counter).dx,
+        closeTo(tester.getCenter(find.byType(MeshChatPage)).dx, .1),
+      );
+    }
+
     void expectAlignedButtons() {
       expect(
         tester.getCenter(phraseButton).dx,
@@ -7175,6 +7183,7 @@ void main() {
     }
 
     expectAlignedButtons();
+    expectCenteredCounter();
     controller.setReplyDraft(peer.id, controller.messages(peer.id).first);
     await tester.pumpAndSettle();
     expect(find.byTooltip('Cancel reply'), findsOneWidget);
@@ -7185,8 +7194,9 @@ void main() {
     await tester.tap(phraseButton);
     await tester.pumpAndSettle();
     final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    expectCenteredCounter();
     expect(
-      tester.getBottomLeft(find.text('5 chars · 5/200 B')).dy,
+      tester.getBottomLeft(counter).dy,
       lessThan(tester.getTopLeft(strip).dy),
     );
     expect(find.byTooltip('Collapse quick phrases'), findsNothing);

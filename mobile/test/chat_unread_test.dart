@@ -82,7 +82,16 @@ void main() {
           .controller!;
       final latest = find.byTooltip('Go to latest message');
 
-      expect(find.text('Unread messages'), findsOneWidget);
+      final unread = find.byKey(const ValueKey('unread-divider'));
+      final label = find.text('Unread messages');
+      final lines = find.descendant(of: unread, matching: find.byType(Divider));
+      expect(label, findsOneWidget);
+      expect(lines, findsNWidgets(2));
+      expect(
+        tester.getSize(lines.first).width,
+        tester.getSize(lines.last).width,
+      );
+      expect(tester.getCenter(label).dx, tester.getCenter(unread).dx);
       expect(
         find.byKey(const ValueKey('packet:30')).hitTestable(),
         findsOneWidget,
