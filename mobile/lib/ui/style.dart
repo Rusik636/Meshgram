@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import 'ios_control.dart';
@@ -109,22 +110,39 @@ class MessageMenuBackdrop extends InheritedWidget {
       image != oldWidget.image;
 }
 
+Future<Uint8List?> captureMessageMenuBackdrop(GlobalKey source) async {
+  await WidgetsBinding.instance.endOfFrame;
+  final boundary = source.currentContext?.findRenderObject();
+  if (boundary is! RenderRepaintBoundary || boundary.size.isEmpty) return null;
+  final image = await boundary.toImage(pixelRatio: 0.125);
+  try {
+    final data = await image.toByteData(format: ImageByteFormat.png);
+    return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  } finally {
+    image.dispose();
+  }
+}
+
 class MessageMenuSurface extends StatelessWidget {
   const MessageMenuSurface({
     super.key,
     required this.radius,
     required this.child,
+    this.backdrop,
   });
   final double radius;
   final Widget child;
+  final Uint8List? backdrop;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final border = BorderRadius.circular(radius);
-    final backdrop = context
-        .dependOnInheritedWidgetOfExactType<MessageMenuBackdrop>()
-        ?.image;
+    final backdrop =
+        this.backdrop ??
+        context
+            .dependOnInheritedWidgetOfExactType<MessageMenuBackdrop>()
+            ?.image;
     if (useIosControls &&
         backdrop != null &&
         !MediaQuery.highContrastOf(context)) {

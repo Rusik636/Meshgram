@@ -4,14 +4,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui' show ImageByteFormat, ImageFilter;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, setEquals;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:leap_sliver_list/leap_sliver_list.dart';
 
 import '../app_name.dart';
@@ -164,7 +163,20 @@ Future<bool> showMeshChatPreview(
   Rect anchor, {
   required Widget sourceRow,
   List<ChatPreviewMenuItem> actions = const [],
+  GlobalKey? backdropSource,
 }) async {
+  Uint8List? backdrop;
+  if (useIosControls &&
+      backdropSource != null &&
+      actions.isNotEmpty &&
+      !MediaQuery.highContrastOf(context)) {
+    try {
+      backdrop = await captureMessageMenuBackdrop(backdropSource);
+    } on Exception {
+      // The menu uses its opaque surface if the snapshot is unavailable.
+    }
+  }
+  if (!context.mounted) return false;
   final messages = controller.messages(peer.id).reversed.take(12).toList();
   final reduceMotion = MediaQuery.disableAnimationsOf(context);
   final ios = Theme.of(context).platform == TargetPlatform.iOS;
@@ -452,6 +464,7 @@ Future<bool> showMeshChatPreview(
                           opacity: Curves.easeIn.transform(details),
                           child: MessageMenuSurface(
                             radius: 22,
+                            backdrop: backdrop,
                             child: ListView(
                               primary: false,
                               padding: EdgeInsets.zero,
@@ -1802,20 +1815,8 @@ class _ChatState extends State<MeshChatPage>
 
   // Capture only the chat before inserting the overlay and its controls.
   // The downsampled image isolates UIKit glass from the foreground.
-  Future<Uint8List?> _glassBackdrop() async {
-    await WidgetsBinding.instance.endOfFrame;
-    final boundary = _menuBackground.currentContext?.findRenderObject();
-    if (boundary is! RenderRepaintBoundary || boundary.size.isEmpty) {
-      return null;
-    }
-    final image = await boundary.toImage(pixelRatio: 0.125);
-    try {
-      final data = await image.toByteData(format: ImageByteFormat.png);
-      return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-    } finally {
-      image.dispose();
-    }
-  }
+  Future<Uint8List?> _glassBackdrop() =>
+      captureMessageMenuBackdrop(_menuBackground);
 
   Future<void> _messageMenu(
     Peer peer,
