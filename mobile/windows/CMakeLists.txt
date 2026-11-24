@@ -106,3 +106,6 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../tool/desktop_flasher.cmake")
+meshgram_bundle_esptool(windows-amd64)

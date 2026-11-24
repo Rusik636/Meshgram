@@ -36,9 +36,10 @@ class FirmwareTarget {
     this.archive,
     this.releasePrefix,
     this.warning,
+    this.eraser,
   });
   final String project, repository, role, pattern;
-  final String? archive, releasePrefix, warning;
+  final String? archive, releasePrefix, warning, eraser;
   final FirmwareChip chip;
 
   RegExp filePattern(String version) {
@@ -51,13 +52,22 @@ class FirmwareTarget {
 }
 
 class FirmwareBoard {
-  const FirmwareBoard(this.name, this.artwork, this.aliases, this.targets);
-  final String name, artwork;
+  const FirmwareBoard({
+    required this.name,
+    required this.artwork,
+    required this.manufacturer,
+    required this.aliases,
+    required this.targets,
+  });
+  final String name, artwork, manufacturer;
   final List<String> aliases;
   final List<FirmwareTarget> targets;
 
+  Iterable<String> get protocols =>
+      targets.map((target) => target.project).toSet();
+
   bool matches(String query) {
-    final search = [name, ...aliases].join(' ').toLowerCase();
+    final search = [name, manufacturer, ...aliases].join(' ').toLowerCase();
     return query
         .toLowerCase()
         .trim()
@@ -67,9 +77,8 @@ class FirmwareBoard {
 }
 
 class FirmwareCatalog {
-  const FirmwareCatalog(this.projects, this.boards);
-  final Map<String, String> projects;
-  final Map<String, List<FirmwareBoard>> boards;
+  const FirmwareCatalog(this.boards);
+  final List<FirmwareBoard> boards;
 
   static Future<FirmwareCatalog> read(AssetBundle bundle) async {
     final data = await Future.wait([
@@ -79,13 +88,9 @@ class FirmwareCatalog {
     final boards = jsonDecode(data.first) as Map<String, dynamic>;
     final projects = (jsonDecode(data.last) as List)
         .cast<Map<String, dynamic>>();
-    final categories = <String, List<FirmwareBoard>>{};
-    final labels = <String, String>{};
+    final targets = <String, List<FirmwareTarget>>{};
     for (final project in projects) {
-      final id = project['id'] as String;
       final label = project['name'] as String;
-      labels[id] = label;
-      final targets = <String, List<FirmwareTarget>>{};
       for (final definition
           in (project['targets'] as List).cast<Map<String, dynamic>>()) {
         targets
@@ -100,19 +105,29 @@ class FirmwareCatalog {
                 archive: definition['archive'] as String?,
                 releasePrefix: definition['releasePrefix'] as String?,
                 warning: definition['warning'] as String?,
+                eraser: definition['eraser'] as String?,
               ),
             );
       }
-      categories[id] = [
-        for (final entry in targets.entries)
-          FirmwareBoard(
-            boards[entry.key]['name'] as String,
-            boards[entry.key]['image'] as String,
-            (boards[entry.key]['aliases'] as List).cast<String>(),
-            entry.value,
-          ),
-      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     }
-    return FirmwareCatalog(labels, categories);
+    final supported =
+        [
+          for (final entry in targets.entries)
+            FirmwareBoard(
+              name: boards[entry.key]['name'] as String,
+              artwork: boards[entry.key]['image'] as String,
+              manufacturer: boards[entry.key]['manufacturer'] as String,
+              aliases: (boards[entry.key]['aliases'] as List).cast<String>(),
+              targets: entry.value,
+            ),
+        ]..sort((a, b) {
+          final vendor = a.manufacturer.toLowerCase().compareTo(
+            b.manufacturer.toLowerCase(),
+          );
+          return vendor != 0
+              ? vendor
+              : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+    return FirmwareCatalog(supported);
   }
 }

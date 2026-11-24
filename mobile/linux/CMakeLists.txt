@@ -126,3 +126,10 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../tool/desktop_flasher.cmake")
+if(FLUTTER_TARGET_PLATFORM STREQUAL "linux-arm64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  meshgram_bundle_esptool(linux-aarch64)
+else()
+  meshgram_bundle_esptool(linux-amd64)
+endif()

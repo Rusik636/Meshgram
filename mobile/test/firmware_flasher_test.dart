@@ -20,6 +20,7 @@ const target = FirmwareTarget(
   chip: FirmwareChip.nrf52840,
   releasePrefix: 'companion-v',
   pattern: r'RAK_4631_companion_radio_usb.*\.uf2',
+  eraser: 'FLASH_ERASE_nrf52_softdevice_v6.uf2',
 );
 
 Uint8List uf2(int family) {
@@ -48,10 +49,13 @@ void main() {
     'catalog provides artwork and searchable targets for both networks',
     () async {
       final catalog = await FirmwareCatalog.read(rootBundle);
-      expect(catalog.boards['meshtastic']!.length, greaterThan(50));
-      final board = catalog.boards['meshcore']!.singleWhere(
-        (board) => board.matches('Heltec V3'),
+      expect(catalog.boards.length, greaterThan(50));
+      final board = catalog.boards.singleWhere(
+        (board) => board.name == 'Heltec V3',
       );
+      expect(board.manufacturer, 'Heltec');
+      expect(board.matches('heltec v3'), isTrue);
+      expect(board.protocols, containsAll(['Meshtastic', 'MeshCore']));
       expect(
         board.targets.any((target) => target.role == 'Companion USB'),
         isTrue,
@@ -113,6 +117,55 @@ void main() {
     );
   });
 
+  test('update selects the application asset from the same release', () {
+    const target = FirmwareTarget(
+      project: 'MeshCore',
+      repository: 'meshcore-dev/MeshCore',
+      role: 'Companion USB',
+      chip: FirmwareChip.esp32s3,
+      releasePrefix: 'companion-v',
+      pattern: r'Heltec_v3_companion_radio_usb.*-merged\.bin',
+    );
+    const tag = 'companion-v1.18.0';
+    const stem = 'Heltec_v3_companion_radio_usb-v1.18.0';
+    final releases = firmwareReleases(target, [
+      {
+        'tag_name': tag,
+        'assets': [
+          for (final name in [
+            '$stem-merged.bin',
+            '$stem.bin',
+            '$stem-bootloader.bin',
+          ])
+            {
+              'name': name,
+              'size': 512,
+              'browser_download_url':
+                  'https://github.com/meshcore-dev/MeshCore/releases/download/$tag/$name',
+            },
+        ],
+      },
+    ]);
+    expect(releases.single.factory.name, '$stem-merged.bin');
+    expect(releases.single.update?.name, '$stem.bin');
+  });
+
+  test(
+    'bundled UF2 erase images match the chip for every supported target',
+    () async {
+      final catalog = await FirmwareCatalog.read(rootBundle);
+      final erasers = {
+        for (final board in catalog.boards)
+          for (final target in board.targets) ?target.eraser: target.chip,
+      };
+      expect(erasers.length, 7);
+      for (final MapEntry(key: name, value: chip) in erasers.entries) {
+        final data = await rootBundle.load('assets/firmware_tools/$name');
+        validateFirmwareImage(data.buffer.asUint8List(), chip);
+      }
+    },
+  );
+
   test(
     'UF2 is only written to a bootloader folder and is never overwritten',
     () async {
@@ -155,8 +208,6 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 75));
       });
       await tester.pumpAndSettle();
-      await tester.tap(find.text('MeshCore'));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Heltec V3');
       await tester.pumpAndSettle();
       final board = find.descendant(
@@ -166,8 +217,61 @@ void main() {
       expect(board, findsOneWidget);
       await tester.tap(board);
       await tester.pumpAndSettle();
-      expect(find.text('Download official'), findsOneWidget);
+      expect(find.text('Protocol'), findsOneWidget);
+      await tester.tap(find.text('Meshtastic'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MeshCore').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Firmware variant'), findsOneWidget);
+      expect(find.text('Firmware version'), findsOneWidget);
+      expect(find.text('Download image'), findsOneWidget);
       expect(find.text('Choose file'), findsOneWidget);
+    },
+  );
+
+  test(
+    'clean UF2 install resumes on the same board after the erase stage',
+    () async {
+      final temporary = await Directory.systemTemp.createTemp(
+        'meshgram-clean-uf2-',
+      );
+      addTearDown(() => temporary.delete(recursive: true));
+      final volume = await Directory.fromUri(temporary.uri.resolve('drive/'))
+          .create();
+      final marker = File.fromUri(volume.uri.resolve('INFO_UF2.TXT'));
+      final image = await File.fromUri(temporary.uri.resolve('firmware.uf2'))
+          .writeAsBytes(uf2(0xada52840));
+      final prepared = PreparedFirmware(
+        file: image,
+        name: 'firmware.uf2',
+        version: '',
+        target: target,
+        temporary: temporary,
+        mode: FirmwareInstallMode.clean,
+      );
+      await marker.writeAsString('Board-ID: Test-RAK\n');
+      await expectLater(
+        FirmwareFlasher.flashUf2(prepared, volume),
+        throwsFormatException,
+      );
+      final erased = await FirmwareFlasher.eraseUf2(
+        prepared,
+        volume,
+        rootBundle,
+      );
+      expect(erased, 'Test-RAK');
+      final written = File.fromUri(volume.uri.resolve('MESHGRAM.UF2'));
+      expect(await written.length(), greaterThan(await image.length()));
+      await written.delete();
+      await marker.writeAsString('Board-ID: Other\n');
+      await expectLater(
+        FirmwareFlasher.flashUf2(prepared, volume, erasedBoard: erased),
+        throwsFormatException,
+      );
+      expect(await written.exists(), isFalse);
+      await marker.writeAsString('Board-ID: Test-RAK\n');
+      await FirmwareFlasher.flashUf2(prepared, volume, erasedBoard: erased);
+      expect(await written.readAsBytes(), await image.readAsBytes());
     },
   );
 }

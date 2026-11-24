@@ -23,14 +23,16 @@
         "role": "t-echo",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-t-echo-{version}\\.uf2"
+        "pattern": "firmware-t-echo-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "9",
         "role": "rak4631",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak4631-{version}\\.uf2"
+        "pattern": "firmware-rak4631-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "12",
@@ -65,21 +67,24 @@
         "role": "nano-g2-ultra",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-nano-g2-ultra-{version}\\.uf2"
+        "pattern": "firmware-nano-g2-ultra-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "21",
         "role": "wio-tracker-wm1110",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-wio-tracker-wm1110-{version}\\.uf2"
+        "pattern": "firmware-wio-tracker-wm1110-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "26",
         "role": "rak11310",
         "chip": "rp2040",
         "archive": "firmware-rp2040-{version}.zip",
-        "pattern": "firmware-rak11310-{version}\\.uf2"
+        "pattern": "firmware-rak11310-{version}\\.uf2",
+        "eraser": "pico_erase.uf2"
       },
       {
         "board": "31",
@@ -93,7 +98,8 @@
         "role": "t-echo-plus",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-t-echo-plus-{version}\\.uf2"
+        "pattern": "firmware-t-echo-plus-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "39",
@@ -121,14 +127,16 @@
         "role": "pico",
         "chip": "rp2040",
         "archive": "firmware-rp2040-{version}.zip",
-        "pattern": "firmware-pico-{version}\\.uf2"
+        "pattern": "firmware-pico-{version}\\.uf2",
+        "eraser": "pico_erase.uf2"
       },
       {
         "board": "47",
         "role": "picow",
         "chip": "rp2040",
         "archive": "firmware-rp2040-{version}.zip",
-        "pattern": "firmware-picow-{version}\\.uf2"
+        "pattern": "firmware-picow-{version}\\.uf2",
+        "eraser": "pico_erase.uf2"
       },
       {
         "board": "48",
@@ -198,7 +206,8 @@
         "role": "heltec-mesh-node-t114",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-node-t114-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-node-t114-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "70",
@@ -212,7 +221,8 @@
         "role": "tracker-t1000-e",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-tracker-t1000-e-{version}\\.uf2"
+        "pattern": "firmware-tracker-t1000-e-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "81",
@@ -226,42 +236,48 @@
         "role": "rak_wismeshtag",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak_wismeshtag-{version}\\.uf2"
+        "pattern": "firmware-rak_wismeshtag-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "84",
         "role": "rak_wismeshtap",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak_wismeshtap-{version}\\.uf2"
+        "pattern": "firmware-rak_wismeshtap-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "22",
         "role": "rak2560",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak2560-{version}\\.uf2"
+        "pattern": "firmware-rak2560-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "63",
         "role": "nrf52_promicro_diy_tcxo",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-nrf52_promicro_diy_tcxo-{version}\\.uf2"
+        "pattern": "firmware-nrf52_promicro_diy_tcxo-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "88",
         "role": "seeed_xiao_nrf52840_kit",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-seeed_xiao_nrf52840_kit-{version}\\.uf2"
+        "pattern": "firmware-seeed_xiao_nrf52840_kit-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "89",
         "role": "thinknode_m1",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-thinknode_m1-{version}\\.uf2"
+        "pattern": "firmware-thinknode_m1-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "107",
@@ -275,7 +291,8 @@
         "role": "thinknode_m1",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-thinknode_m1-{version}\\.uf2"
+        "pattern": "firmware-thinknode_m1-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "90",
@@ -289,49 +306,56 @@
         "role": "muzi-base",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-muzi-base-{version}\\.uf2"
+        "pattern": "firmware-muzi-base-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "94",
         "role": "heltec-mesh-pocket-10000",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-pocket-10000-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-pocket-10000-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "94",
         "role": "heltec-mesh-pocket-5000",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-pocket-5000-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-pocket-5000-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "95",
         "role": "seeed_solar_node",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-seeed_solar_node-{version}\\.uf2"
+        "pattern": "firmware-seeed_solar_node-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "99",
         "role": "seeed_wio_tracker_L1",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-seeed_wio_tracker_L1-{version}\\.uf2"
+        "pattern": "firmware-seeed_wio_tracker_L1-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "100",
         "role": "seeed_wio_tracker_L1_eink",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-seeed_wio_tracker_L1_eink-{version}\\.uf2"
+        "pattern": "firmware-seeed_wio_tracker_L1_eink-{version}\\.uf2",
+        "eraser": "nrf_erase_sd7_3.uf2"
       },
       {
         "board": "96",
         "role": "rak4631_nomadstar_meteor_pro",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak4631_nomadstar_meteor_pro-{version}\\.uf2"
+        "pattern": "firmware-rak4631_nomadstar_meteor_pro-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "97",
@@ -359,7 +383,8 @@
         "role": "r1-neo",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-r1-neo-{version}\\.uf2"
+        "pattern": "firmware-r1-neo-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "102",
@@ -380,14 +405,16 @@
         "role": "heltec-mesh-solar",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-solar-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-solar-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "109",
         "role": "t-echo-lite",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-t-echo-lite-{version}\\.uf2"
+        "pattern": "firmware-t-echo-lite-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "111",
@@ -436,7 +463,8 @@
         "role": "thinknode_m3",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-thinknode_m3-{version}\\.uf2"
+        "pattern": "firmware-thinknode_m3-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "116",
@@ -450,21 +478,24 @@
         "role": "rak3401-1watt",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-rak3401-1watt-{version}\\.uf2"
+        "pattern": "firmware-rak3401-1watt-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "119",
         "role": "thinknode_m4",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-thinknode_m4-{version}\\.uf2"
+        "pattern": "firmware-thinknode_m4-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "120",
         "role": "thinknode_m6",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-thinknode_m6-{version}\\.uf2"
+        "pattern": "firmware-thinknode_m6-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "122",
@@ -499,7 +530,8 @@
         "role": "heltec-mesh-node-t096",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-node-t096-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-node-t096-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       },
       {
         "board": "129",
@@ -527,7 +559,8 @@
         "role": "heltec-mesh-node-t1",
         "chip": "nrf52840",
         "archive": "firmware-nrf52840-{version}.zip",
-        "pattern": "firmware-heltec-mesh-node-t1-{version}\\.uf2"
+        "pattern": "firmware-heltec-mesh-node-t1-{version}\\.uf2",
+        "eraser": "nrf_erase2.uf2"
       }
     ]
   },
@@ -597,56 +630,64 @@
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "LilyGo_T-Echo_companion_radio_ble.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo_companion_radio_ble.*?\\.uf2",
+        "eraser": "LilyGo_T-Echo_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "7",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "LilyGo_T-Echo_companion_radio_usb.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo_companion_radio_usb.*?\\.uf2",
+        "eraser": "LilyGo_T-Echo_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "7",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "LilyGo_T-Echo_[rR]epeater.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo_[rR]epeater.*?\\.uf2",
+        "eraser": "LilyGo_T-Echo_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "7",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "LilyGo_T-Echo_room_server.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo_room_server.*?\\.uf2",
+        "eraser": "LilyGo_T-Echo_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "9",
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "RAK_4631_companion_radio_ble.*?\\.uf2"
+        "pattern": "RAK_4631_companion_radio_ble.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "9",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "RAK_4631_companion_radio_usb.*?\\.uf2"
+        "pattern": "RAK_4631_companion_radio_usb.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "9",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "RAK_4631_[rR]epeater.*?\\.uf2"
+        "pattern": "RAK_4631_[rR]epeater.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "9",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "RAK_4631_room_server.*?\\.uf2"
+        "pattern": "RAK_4631_room_server.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "12",
@@ -709,56 +750,64 @@
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "Heltec_t114_companion_radio_ble.*?\\.uf2"
+        "pattern": "Heltec_t114_companion_radio_ble.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "Heltec_t114_companion_radio_usb.*?\\.uf2"
+        "pattern": "Heltec_t114_companion_radio_usb.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "Heltec_t114_[rR]epeater.*?\\.uf2"
+        "pattern": "Heltec_t114_[rR]epeater.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "Heltec_t114_room_server.*?\\.uf2"
+        "pattern": "Heltec_t114_room_server.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Companion Bluetooth · No display",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "Heltec_t114_without_display_companion_radio_ble.*?\\.uf2"
+        "pattern": "Heltec_t114_without_display_companion_radio_ble.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Companion USB · No display",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "Heltec_t114_without_display_companion_radio_usb.*?\\.uf2"
+        "pattern": "Heltec_t114_without_display_companion_radio_usb.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Repeater · No display",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "Heltec_t114_without_display_[rR]epeater.*?\\.uf2"
+        "pattern": "Heltec_t114_without_display_[rR]epeater.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "69",
         "role": "Room Server · No display",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "Heltec_t114_without_display_room_server.*?\\.uf2"
+        "pattern": "Heltec_t114_without_display_room_server.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "71",
@@ -766,7 +815,8 @@
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
         "pattern": "t1000e_companion_radio_ble.*?\\.uf2",
-        "warning": "t1000e"
+        "warning": "t1000e",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v7.uf2"
       },
       {
         "board": "71",
@@ -774,7 +824,8 @@
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
         "pattern": "t1000e_companion_radio_usb.*?\\.uf2",
-        "warning": "t1000e"
+        "warning": "t1000e",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v7.uf2"
       },
       {
         "board": "71",
@@ -782,7 +833,8 @@
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
         "pattern": "t1000e_[rR]epeater.*?\\.uf2",
-        "warning": "t1000e"
+        "warning": "t1000e",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v7.uf2"
       },
       {
         "board": "71",
@@ -790,91 +842,104 @@
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
         "pattern": "t1000e_room_server.*?\\.uf2",
-        "warning": "t1000e"
+        "warning": "t1000e",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v7.uf2"
       },
       {
         "board": "99",
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "WioTrackerL1_companion_radio_ble.*?\\.uf2"
+        "pattern": "WioTrackerL1_companion_radio_ble.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "99",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "WioTrackerL1_companion_radio_usb.*?\\.uf2"
+        "pattern": "WioTrackerL1_companion_radio_usb.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "99",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "WioTrackerL1_[rR]epeater.*?\\.uf2"
+        "pattern": "WioTrackerL1_[rR]epeater.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "99",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "WioTrackerL1_room_server.*?\\.uf2"
+        "pattern": "WioTrackerL1_room_server.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "100",
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "WioTrackerL1Eink_companion_radio_ble.*?\\.uf2"
+        "pattern": "WioTrackerL1Eink_companion_radio_ble.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "100",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "WioTrackerL1Eink_companion_radio_usb.*?\\.uf2"
+        "pattern": "WioTrackerL1Eink_companion_radio_usb.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "100",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "WioTrackerL1Eink_[rR]epeater.*?\\.uf2"
+        "pattern": "WioTrackerL1Eink_[rR]epeater.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "100",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "WioTrackerL1Eink_room_server.*?\\.uf2"
+        "pattern": "WioTrackerL1Eink_room_server.*?\\.uf2",
+        "eraser": "WioTrackerL1_QSPIFlash_Format-v1.2.uf2"
       },
       {
         "board": "109",
         "role": "Companion Bluetooth",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "LilyGo_T-Echo-Lite_companion_radio_ble.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo-Lite_companion_radio_ble.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "109",
         "role": "Companion USB",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
-        "pattern": "LilyGo_T-Echo-Lite_companion_radio_usb.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo-Lite_companion_radio_usb.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "109",
         "role": "Repeater",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
-        "pattern": "LilyGo_T-Echo-Lite_[rR]epeater.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo-Lite_[rR]epeater.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "109",
         "role": "Room Server",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
-        "pattern": "LilyGo_T-Echo-Lite_room_server.*?\\.uf2"
+        "pattern": "LilyGo_T-Echo-Lite_room_server.*?\\.uf2",
+        "eraser": "FLASH_ERASE_nrf52_softdevice_v6.uf2"
       },
       {
         "board": "110",

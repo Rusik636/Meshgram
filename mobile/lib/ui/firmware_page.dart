@@ -28,7 +28,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
   late final Future<FirmwareCatalog> _catalog = FirmwareCatalog.read(
     DefaultAssetBundle.of(context),
   );
-  String? _project;
+  String _manufacturer = '';
   String _query = '';
 
   @override
@@ -56,26 +56,51 @@ class _FirmwarePageState extends State<FirmwarePage> {
                 if (catalog == null) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final project = _project ?? catalog.projects.keys.first;
-                final boards = catalog.boards[project]!
-                    .where((board) => board.matches(_query))
+                final manufacturers = catalog.boards
+                    .map((board) => board.manufacturer)
+                    .toSet();
+                final boards = catalog.boards
+                    .where(
+                      (board) =>
+                          (_manufacturer.isEmpty ||
+                              board.manufacturer == _manufacturer) &&
+                          board.matches(_query),
+                    )
                     .toList();
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final entry in catalog.projects.entries)
-                            ChoiceChip(
-                              label: Text(entry.value),
-                              selected: project == entry.key,
-                              onSelected: (_) =>
-                                  setState(() => _project = entry.key),
+                      DropdownButtonFormField<String>(
+                        initialValue: _manufacturer,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: tr(
+                            context,
+                            'Производитель',
+                            'Manufacturer',
+                          ),
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: '',
+                            child: Text(
+                              tr(
+                                context,
+                                'Все производители',
+                                'All manufacturers',
+                              ),
+                            ),
+                          ),
+                          for (final manufacturer in manufacturers)
+                            DropdownMenuItem(
+                              value: manufacturer,
+                              child: Text(manufacturer),
                             ),
                         ],
+                        onChanged: (value) =>
+                            setState(() => _manufacturer = value ?? ''),
                       ),
                       const SizedBox(height: 8),
                       TextField(
@@ -106,7 +131,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
                                 gridDelegate:
                                     const SliverGridDelegateWithMaxCrossAxisExtent(
                                       maxCrossAxisExtent: 225,
-                                      mainAxisExtent: 146,
+                                      mainAxisExtent: 166,
                                       mainAxisSpacing: 8,
                                       crossAxisSpacing: 8,
                                     ),
@@ -141,6 +166,14 @@ class _FirmwarePageState extends State<FirmwarePage> {
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                               textAlign: TextAlign.center,
+                                            ),
+                                            Text(
+                                              board.manufacturer,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall,
                                             ),
                                           ],
                                         ),
@@ -186,19 +219,29 @@ class _FlashBoardPage extends StatefulWidget {
 
 class _FlashBoardPageState extends State<_FlashBoardPage> {
   late FirmwareTarget _target = widget.board.targets.first;
+  FirmwareInstallMode _mode = FirmwareInstallMode.update;
+  List<FirmwareRelease> _versions = const [];
+  FirmwareRelease? _release;
   PreparedFirmware? _prepared;
-  String? _port, _volume, _error, _tool;
+  String? _port, _volume, _error, _erasedBoard;
   double? _progress;
   List<UsbPort> _ports = const [];
   final List<String> _log = [];
   bool _loading = false, _writing = false, _complete = false;
+  bool _versionsLoading = false, _versionsFailed = false;
   bool get _busy => _loading || _writing;
+  bool get _changingBlocked => _busy || _erasedBoard != null;
+  bool get _canClean => !_target.chip.usesUf2 || _target.eraser != null;
+  List<FirmwareTarget> get _variants => [
+    for (final target in widget.board.targets)
+      if (target.project == _target.project) target,
+  ];
 
   @override
   void initState() {
     super.initState();
-    _tool = FirmwareFlasher.findEsptool();
     if (!_target.chip.usesUf2) _refreshPorts();
+    unawaited(_loadVersions(_target));
   }
 
   @override
@@ -209,12 +252,36 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
     super.dispose();
   }
 
+  Future<void> _loadVersions(FirmwareTarget target) async {
+    setState(() {
+      _versionsLoading = true;
+      _versionsFailed = false;
+    });
+    try {
+      final versions = await widget.tool.versions(target);
+      if (!mounted || _target != target) return;
+      setState(() {
+        _versions = versions;
+        _release =
+            versions.where((version) => !version.prerelease).firstOrNull ??
+            versions.firstOrNull;
+      });
+    } on Object {
+      if (mounted && _target == target) setState(() => _versionsFailed = true);
+    } finally {
+      if (mounted && _target == target) {
+        setState(() => _versionsLoading = false);
+      }
+    }
+  }
+
   void _refreshPorts() {
     try {
       final ports = widget.tool.usb.ports();
       setState(() {
         _ports = ports;
         if (!ports.any((port) => port.path == _port)) _port = null;
+        if (_port == null && ports.length == 1) _port = ports.single.path;
         _error = null;
       });
     } on Object catch (error) {
@@ -222,34 +289,35 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
     }
   }
 
+  void _clearPrepared() {
+    final previous = _prepared;
+    _prepared = null;
+    _complete = false;
+    _error = null;
+    _progress = null;
+    _log.clear();
+    if (previous != null) unawaited(previous.dispose());
+  }
+
   void _selectTarget(FirmwareTarget target) {
-    final old = _prepared;
+    if (target == _target || _changingBlocked) return;
     setState(() {
       _target = target;
-      _prepared = null;
-      _complete = false;
-      _error = null;
-      _log.clear();
+      if (!_canClean) _mode = FirmwareInstallMode.update;
+      _versions = const [];
+      _release = null;
+      _volume = null;
+      _clearPrepared();
     });
-    if (old != null) unawaited(old.dispose());
     if (!target.chip.usesUf2) _refreshPorts();
+    unawaited(_loadVersions(target));
   }
 
   Future<void> _prepare({bool fromFile = false}) async {
-    if (_busy) return;
-    final target = _target;
-    final XFile? file;
-    if (fromFile) {
-      file = await openFile(
-        acceptedTypeGroups: [
-          XTypeGroup(label: 'Firmware', extensions: [target.chip.extension]),
-        ],
-      );
-      if (file == null || !mounted || _target != target) return;
-    } else {
-      file = null;
-    }
-    final previous = _prepared;
+    if (_changingBlocked) return;
+    final target = _target, mode = _mode;
+    final release = _release;
+    if (!fromFile && release == null) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -258,21 +326,32 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
       _log.clear();
     });
     try {
-      final ready = file == null
-          ? await widget.tool.download(
-              target,
-              onProgress: (value) {
-                if (mounted &&
-                    (value == 1 || value - (_progress ?? 0) >= .015)) {
-                  setState(() => _progress = value);
-                }
-              },
-            )
-          : await widget.tool.local(target, File(file.path));
+      final PreparedFirmware ready;
+      if (fromFile) {
+        final file = await openFile(
+          acceptedTypeGroups: [
+            XTypeGroup(label: 'Firmware', extensions: [target.chip.extension]),
+          ],
+        );
+        if (file == null || !mounted) return;
+        ready = await widget.tool.local(target, File(file.path), mode: mode);
+      } else {
+        ready = await widget.tool.download(
+          target,
+          release: release!,
+          mode: mode,
+          onProgress: (value) {
+            if (mounted && (value == 1 || value - (_progress ?? 0) >= .015)) {
+              setState(() => _progress = value);
+            }
+          },
+        );
+      }
       if (!mounted) {
         await ready.dispose();
         return;
       }
+      final previous = _prepared;
       setState(() => _prepared = ready);
       if (previous != null) await previous.dispose();
     } on Object catch (error) {
@@ -284,25 +363,32 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
 
   Future<void> _flash() async {
     final firmware = _prepared;
-    final port = _port, executable = _tool, volume = _volume;
     if (_busy || firmware == null) return;
     final uf2 = firmware.target.chip.usesUf2;
-    if (uf2 ? volume == null : port == null || executable == null) return;
-    final destination = uf2 ? volume! : port!;
+    final destination = uf2 ? _volume : _port;
+    if (destination == null) return;
+    final clean = firmware.mode == FirmwareInstallMode.clean;
+    final eraseStage = uf2 && clean && _erasedBoard == null;
+    final destructive = clean && (!uf2 || eraseStage);
     final confirm = await showMeshDialog<bool>(
       context: context,
       builder: (context) => MeshDialog(
-        title: Text(tr(context, 'Записать прошивку?', 'Write firmware?')),
+        title: Text(
+          destructive
+              ? tr(context, 'Очистить плату?', 'Erase the board?')
+              : tr(context, 'Записать прошивку?', 'Write firmware?'),
+        ),
         content: Text(
           [
             widget.board.name,
             firmware.name,
             destination,
-            tr(
-              context,
-              'Проверьте модель платы. Полный образ может сбросить настройки рации.',
-              'Check the board model. A full image may reset the radio configuration.',
-            ),
+            if (destructive)
+              tr(
+                context,
+                'Очистка удалит настройки, ключи и сохранённые данные с платы.',
+                'Erasing removes settings, keys, and saved data from the board.',
+              ),
           ].join('\n'),
         ),
         actions: [
@@ -311,13 +397,23 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
             child: Text(tr(context, 'Отмена', 'Cancel')),
           ),
           FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  )
+                : null,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(tr(context, 'Записать', 'Write')),
+            child: Text(
+              destructive
+                  ? tr(context, 'Очистить', 'Erase')
+                  : tr(context, 'Записать', 'Write'),
+            ),
           ),
         ],
       ),
     );
     if (confirm != true || !mounted || firmware != _prepared || _busy) return;
+    final assets = DefaultAssetBundle.of(context);
     setState(() {
       _writing = true;
       _complete = false;
@@ -325,13 +421,30 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
       _log.clear();
     });
     try {
+      if (eraseStage) {
+        final board = await FirmwareFlasher.eraseUf2(
+          firmware,
+          Directory(destination),
+          assets,
+        );
+        if (mounted) {
+          setState(() {
+            _erasedBoard = board;
+            _volume = null;
+          });
+        }
+        return;
+      }
       if (uf2) {
-        await FirmwareFlasher.flashUf2(firmware, Directory(destination));
+        await FirmwareFlasher.flashUf2(
+          firmware,
+          Directory(destination),
+          erasedBoard: _erasedBoard,
+        );
       } else {
         await widget.tool.flashEsp(
           firmware,
           destination,
-          executable!,
           onOutput: (line) {
             if (!mounted || line.trim().isEmpty) return;
             setState(() {
@@ -341,7 +454,13 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
           },
         );
       }
-      if (mounted) setState(() => _complete = true);
+      if (mounted) {
+        setState(() {
+          _complete = true;
+          _erasedBoard = null;
+          if (uf2) _volume = null;
+        });
+      }
     } on Object catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -358,18 +477,17 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
     if (path != null && mounted && !_busy) setState(() => _volume = path);
   }
 
-  Future<void> _chooseTool() async {
-    final file = await openFile();
-    if (file != null && mounted && !_busy) setState(() => _tool = file.path);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final chip = _target.chip;
     final style = MeshStyle.of(context);
-    final destinationReady = chip.usesUf2
-        ? _volume != null
-        : _port != null && _tool != null;
+    final protocols = widget.board.protocols;
+    final variants = _variants;
+    final chip = _target.chip;
+    final clean = _mode == FirmwareInstallMode.clean;
+    final destinationReady = chip.usesUf2 ? _volume != null : _port != null;
+    final downloadReady =
+        _release != null && (clean || _release?.update != null);
+    final erasing = chip.usesUf2 && clean && _erasedBoard == null;
     return PopScope(
       canPop: !_writing,
       child: Scaffold(
@@ -383,8 +501,32 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                   children: [
                     SizedBox(height: 105, child: _BoardArtwork(widget.board)),
                     const SizedBox(height: 10),
-                    if (widget.board.targets.length > 1)
+                    DropdownButtonFormField<String>(
+                      initialValue: _target.project,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: tr(context, 'Протокол', 'Protocol'),
+                      ),
+                      items: [
+                        for (final protocol in protocols)
+                          DropdownMenuItem(
+                            value: protocol,
+                            child: Text(protocol),
+                          ),
+                      ],
+                      onChanged: _changingBlocked || protocols.length == 1
+                          ? null
+                          : (protocol) {
+                              _selectTarget(
+                                widget.board.targets.firstWhere(
+                                  (target) => target.project == protocol,
+                                ),
+                              );
+                            },
+                    ),
+                    if (variants.length > 1 || _target.releasePrefix != null)
                       DropdownButtonFormField<FirmwareTarget>(
+                        key: ValueKey(_target.project),
                         initialValue: _target,
                         isExpanded: true,
                         decoration: InputDecoration(
@@ -395,7 +537,7 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                           ),
                         ),
                         items: [
-                          for (final target in widget.board.targets)
+                          for (final target in variants)
                             DropdownMenuItem(
                               value: target,
                               child: Text(
@@ -404,7 +546,7 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                               ),
                             ),
                         ],
-                        onChanged: _busy
+                        onChanged: _changingBlocked || variants.length == 1
                             ? null
                             : (value) {
                                 if (value != null) _selectTarget(value);
@@ -422,24 +564,123 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                           style: TextStyle(color: style.warning),
                         ),
                       ),
+                    DropdownButtonFormField<FirmwareRelease>(
+                      key: ObjectKey(_versions),
+                      initialValue: _release,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: tr(
+                          context,
+                          'Версия прошивки',
+                          'Firmware version',
+                        ),
+                        helperText: _versionsLoading
+                            ? tr(
+                                context,
+                                'Загружаем список релизов…',
+                                'Loading releases…',
+                              )
+                            : _versions.isEmpty && !_versionsFailed
+                            ? tr(
+                                context,
+                                'Для этой платы можно выбрать локальный образ.',
+                                'You can choose a local image for this board.',
+                              )
+                            : null,
+                        suffixIcon: _versionsFailed
+                            ? MeshIconButton(
+                                label: tr(
+                                  context,
+                                  'Повторить загрузку релизов',
+                                  'Retry loading releases',
+                                ),
+                                icon: const Icon(Icons.refresh_rounded),
+                                onPressed: _busy
+                                    ? null
+                                    : () => unawaited(_loadVersions(_target)),
+                              )
+                            : null,
+                      ),
+                      items: [
+                        for (final release in _versions)
+                          DropdownMenuItem(
+                            value: release,
+                            child: Text(
+                              release.prerelease
+                                  ? '${release.version} · ${tr(context, 'Тестовая', 'Preview')}'
+                                  : release.version,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _changingBlocked || _versions.isEmpty
+                          ? null
+                          : (version) {
+                              setState(() {
+                                _release = version;
+                                _clearPrepared();
+                              });
+                            },
+                    ),
+                    if (_versionsFailed)
+                      Text(
+                        tr(
+                          context,
+                          'Список релизов недоступен.',
+                          'Releases are unavailable.',
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          selected: !clean,
+                          label: Text(tr(context, 'Обновление', 'Update')),
+                          onSelected: _changingBlocked
+                              ? null
+                              : (_) => _setMode(FirmwareInstallMode.update),
+                        ),
+                        ChoiceChip(
+                          selected: clean,
+                          label: Text(
+                            tr(
+                              context,
+                              'Полная установка с очисткой',
+                              'Erase and install',
+                            ),
+                          ),
+                          onSelected: _changingBlocked || !_canClean
+                              ? null
+                              : (_) => _setMode(FirmwareInstallMode.clean),
+                        ),
+                      ],
+                    ),
+                    if (_release != null && !downloadReady)
+                      Text(
+                        tr(
+                          context,
+                          'Для этой версии нет образа обновления.',
+                          'This version has no update image.',
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         FilledButton.tonalIcon(
-                          onPressed: _busy ? null : () => unawaited(_prepare()),
+                          onPressed: _changingBlocked || !downloadReady
+                              ? null
+                              : () => unawaited(_prepare()),
                           icon: const Icon(Icons.download_rounded),
                           label: Text(
-                            tr(
-                              context,
-                              'Загрузить официальную',
-                              'Download official',
-                            ),
+                            tr(context, 'Загрузить образ', 'Download image'),
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: _busy
+                          onPressed: _changingBlocked
                               ? null
                               : () => unawaited(_prepare(fromFile: true)),
                           icon: const Icon(Icons.folder_open_rounded),
@@ -460,11 +701,17 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                     const Divider(height: 22),
                     if (chip.usesUf2) ...[
                       Text(
-                        tr(
-                          context,
-                          'Переведите плату в режим загрузчика UF2 и выберите появившийся диск.',
-                          'Enter UF2 bootloader mode and choose the mounted drive.',
-                        ),
+                        _erasedBoard != null
+                            ? tr(
+                                context,
+                                'Дождитесь завершения очистки, снова переведите ту же плату в режим UF2 и выберите диск.',
+                                'Wait for erasing to finish, put the same board back into UF2 mode and choose its drive.',
+                              )
+                            : tr(
+                                context,
+                                'Переведите плату в режим загрузчика UF2 и выберите появившийся диск.',
+                                'Enter UF2 bootloader mode and choose the mounted drive.',
+                              ),
                       ),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -476,11 +723,12 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                         ),
                       ),
                       if (_volume case final volume?) SelectableText(volume),
-                    ] else ...[
+                    ] else
                       DropdownButtonFormField<String>(
-                        key: ValueKey(
+                        key: ValueKey((
                           _ports.map((item) => item.path).join(';'),
-                        ),
+                          _port,
+                        )),
                         initialValue: _port,
                         isExpanded: true,
                         decoration: InputDecoration(
@@ -489,10 +737,10 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                             'Последовательный порт USB',
                             'USB serial port',
                           ),
-                          suffixIcon: IconButton(
+                          suffixIcon: MeshIconButton(
                             onPressed: _busy ? null : _refreshPorts,
                             icon: const Icon(Icons.refresh_rounded),
-                            tooltip: tr(
+                            label: tr(
                               context,
                               'Обновить порты',
                               'Refresh ports',
@@ -513,25 +761,6 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                             ? null
                             : (port) => setState(() => _port = port),
                       ),
-                      if (_tool == null) ...[
-                        Text(
-                          tr(
-                            context,
-                            'Для ESP32 нужен установленный esptool 5 или новее.',
-                            'ESP32 requires an installed esptool 5 or newer.',
-                          ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: _busy ? null : _chooseTool,
-                            child: Text(
-                              tr(context, 'Указать esptool', 'Locate esptool'),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
                     if (_busy)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -562,8 +791,14 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
                 child: GlassActionButton(
                   label: _writing
                       ? tr(context, 'Запись…', 'Writing…')
+                      : erasing
+                      ? tr(context, 'Очистить плату', 'Erase board')
                       : tr(context, 'Прошить', 'Flash'),
-                  onTap: !_busy && _prepared != null && destinationReady
+                  onTap:
+                      !_busy &&
+                          !_complete &&
+                          _prepared != null &&
+                          destinationReady
                       ? _flash
                       : null,
                 ),
@@ -573,6 +808,14 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
         ),
       ),
     );
+  }
+
+  void _setMode(FirmwareInstallMode mode) {
+    if (mode == _mode || _changingBlocked) return;
+    setState(() {
+      _mode = mode;
+      _clearPrepared();
+    });
   }
 }
 
