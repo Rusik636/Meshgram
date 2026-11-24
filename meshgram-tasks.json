@@ -840,7 +840,7 @@
       "depends_on": [
         "08"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -859,12 +859,45 @@
       "depends_on": [
         "08"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Удержание стрелки сохраняет черновик для выбранного профиля и чата. Есть просмотр, редактирование и отмена.",
         "Очередь сохраняется после перезапуска и разделена по профилям."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/Chat/ChatMessageDisplaySendMessageOptions.swift#L247-L285",
+          "behavior": "Действие вызывается из контекстного меню стрелки и открывает список ожидающих сообщений."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatSendMessageActionUI/Sources/ChatSendMessageContextScreen.swift#L1167-L1219",
+          "behavior": "Меню iOS показывает предпросмотр сообщения над действиями. Позиция вычисляется относительно стрелки отправки и клавиатуры."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java#L4944-L4964",
+          "behavior": "Меню Android привязано к стрелке и открывается рядом с редактором."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L10903-L10921",
+          "behavior": "Ожидающие сообщения открываются как отдельный режим чата. В Meshgram используются обычные пузыри и меню по удержанию."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Нативное удержание неактивной стрелки открыло контекстное меню с предпросмотром. Выбор сохранил очередь при выключенном демонстрационном профиле.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-radio-send-menu.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Меню стрелки, сохранение в очередь без рации, пузырь с часами, меню редактирования по удержанию. Повторное подключение профиля в демонстрационном режиме отправило одно сообщение.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-radio-outbox.png"
+        }
+      ]
     },
     {
       "id": "09.send",
@@ -877,13 +910,18 @@
       "depends_on": [
         "08"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Очередь обрабатывается при подключении правильного профиля в открытом приложении.",
         "Потеря связи и смена профиля не вызывают повтора сообщения, которое могло уйти в эфир. Повтор решает пользователь.",
         "Подключение и подтверждение передачи отображаются по отдельным фактическим событиям."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Подменный транспорт проверил фон, смену профиля, восстановление незавершённой попытки после перезапуска, потерю связи после передачи и повтор только после явного действия. Телеметрия соединения и статус сообщения обновляются отдельно."
+        }
+      ]
     },
     {
       "id": "10",

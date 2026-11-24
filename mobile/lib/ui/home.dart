@@ -84,6 +84,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _lifecycle = AppLifecycleListener(
       onResume: () {
         controller.refreshNodePresence();
+        unawaited(controller.flushOutbox());
         if (widget.notifications == null) {
           unawaited(controller.restoreConnection());
         }

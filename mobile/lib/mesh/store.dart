@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'network.dart';
+import 'radio_outbox.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
 
@@ -652,6 +653,25 @@ class MeshStore {
       preferences.getStringList('${_key}quickPhrases');
   Future<bool> setQuickPhrases(List<String> phrases) =>
       preferences.setStringList('${_key}quickPhrases', phrases);
+
+  List<OutboxMessage> loadOutbox() {
+    final raw = preferences.getString('${_key}outbox');
+    if (raw == null) return [];
+    try {
+      final values = jsonDecode(raw) as List;
+      return [for (final value in values) ?OutboxMessage.decode(value)];
+    } on FormatException {
+      return [];
+    } on TypeError {
+      return [];
+    }
+  }
+
+  Future<bool> saveOutbox(List<OutboxMessage> messages) =>
+      preferences.setString(
+        '${_key}outbox',
+        jsonEncode(messages.map((message) => message.toJson()).toList()),
+      );
 
   String? nodeSort(String network) =>
       preferences.getString('${_key}nodeSort.$network');

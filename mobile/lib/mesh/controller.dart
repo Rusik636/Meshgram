@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 
 import 'contact_attachment.dart';
 import 'network.dart';
+import 'radio_outbox.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
 import 'store.dart';
@@ -73,6 +74,9 @@ class MeshController extends ChangeNotifier {
   }
 
   final MeshStore store;
+  late List<OutboxMessage> _outbox = store.loadOutbox();
+  Future<void> _outboxWrites = Future.value();
+  bool _flushingOutbox = false;
   final RadioTransport transport;
   final RadioLanTransport? lanTransport;
   final Map<String, NetworkAdapter> adapters;
@@ -742,6 +746,194 @@ class MeshController extends ChangeNotifier {
       _scheduleNodeRefresh();
     }
     notifyListeners();
+    if (connected && !_flushingOutbox && _outbox.isNotEmpty) {
+      unawaited(flushOutbox());
+    }
+  }
+
+  List<OutboxMessage> outboxFor(String chat) {
+    final radio = active;
+    if (radio == null) return const [];
+    final profile = radioKey(radio);
+    return _outbox
+        .where((item) => item.profile == profile && item.chat == chat)
+        .toList();
+  }
+
+  Delivery? outboxDelivery(OutboxMessage item) {
+    final attempt = item.attemptId;
+    if (attempt == null) return null;
+    return cache?.messages
+        .where((message) => message.id == attempt)
+        .firstOrNull
+        ?.delivery;
+  }
+
+  bool isOutboxAttempt(String id) =>
+      _outbox.any((item) => item.attemptId == id);
+
+  Future<bool> _replaceOutbox({OutboxMessage? prior, OutboxMessage? next}) {
+    final result = _outboxWrites.then((_) async {
+      if (_closed) return false;
+      final messages = [..._outbox];
+      if (prior == null) {
+        messages.add(next!);
+      } else {
+        final index = messages.indexOf(prior);
+        if (index < 0) return false;
+        if (next == null) {
+          messages.removeAt(index);
+        } else {
+          messages[index] = next;
+        }
+      }
+      try {
+        if (!await store.saveOutbox(messages)) return false;
+      } on Exception {
+        return false;
+      }
+      _outbox = messages;
+      _changed();
+      return true;
+    });
+    _outboxWrites = result.then<void>((_) {});
+    return result;
+  }
+
+  bool _fitsOutbox(Peer peer, String text) =>
+      canSendTo(peer) &&
+      text.trim().isNotEmpty &&
+      utf8.encode(text).length <= (limit(peer) ?? 0);
+
+  Future<bool> enqueueRadioMessage(
+    Peer peer,
+    String text, {
+    MeshMessage? reply,
+    MessageExcerpt? excerpt,
+    bool suppressLinkPreview = false,
+  }) {
+    final radio = active;
+    final outgoing = text.trim();
+    if (radio == null ||
+        !_fitsOutbox(peer, outgoing) ||
+        (reply != null && !canDraftMessageReply(peer, reply))) {
+      return Future.value(false);
+    }
+    final now = DateTime.now();
+    final id =
+        'outbox:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+    return _replaceOutbox(
+      next: OutboxMessage(
+        id: id,
+        profile: radioKey(radio),
+        chat: peer.id,
+        text: outgoing,
+        createdAt: now,
+        replyTo: reply == null ? null : referenceFor(reply),
+        replyExcerpt: excerpt,
+        suppressLinkPreview: suppressLinkPreview,
+      ),
+    );
+  }
+
+  Future<bool> updateOutbox(
+    OutboxMessage item,
+    Peer peer, {
+    String? text,
+    bool retry = false,
+  }) {
+    final value = text?.trim() ?? item.text;
+    if (item.status == OutboxStatus.sending ||
+        !outboxFor(peer.id).contains(item) ||
+        !_fitsOutbox(peer, value) ||
+        (retry && outboxDelivery(item) == Delivery.acknowledged)) {
+      return Future.value(false);
+    }
+    return _replaceOutbox(
+      prior: item,
+      next: item.withChanges(
+        text: value,
+        status: retry ? OutboxStatus.waiting : item.status,
+      ),
+    );
+  }
+
+  Future<bool> cancelOutbox(OutboxMessage item) =>
+      item.status == OutboxStatus.sending ||
+          !outboxFor(item.chat).contains(item)
+      ? Future.value(false)
+      : _replaceOutbox(prior: item);
+
+  Future<void> flushOutbox() async {
+    if (_flushingOutbox || _closed) return;
+    _flushingOutbox = true;
+    try {
+      while (!_closed && connected && isChatForeground?.call() != false) {
+        final radio = active;
+        if (radio == null) return;
+        final profile = radioKey(radio);
+        final item = _outbox.where((item) {
+          if (item.status != OutboxStatus.waiting || item.profile != profile) {
+            return false;
+          }
+          final peer = cache?.peers[item.chat];
+          return peer != null && _fitsOutbox(peer, item.text);
+        }).firstOrNull;
+        if (item == null) return;
+        final attempt =
+            '${item.id}:${DateTime.now().microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+        final sending = item.withChanges(
+          status: OutboxStatus.sending,
+          attemptId: attempt,
+        );
+        // Save the attempt before handing anything to the transport.
+        if (!await _replaceOutbox(prior: item, next: sending)) return;
+        if (_closed) return;
+        final peer = cache?.peers[sending.chat];
+        if (active != radio ||
+            !connected ||
+            peer == null ||
+            isChatForeground?.call() == false ||
+            !_fitsOutbox(peer, item.text)) {
+          if (!await _replaceOutbox(prior: sending, next: item)) return;
+          continue;
+        }
+        final sent = await _sendMessage(
+          peer,
+          item.text,
+          outgoingId: attempt,
+          retryId: item.attemptId,
+          preserveDraft: true,
+          replyTo: item.replyTo,
+          replyExcerpt: item.replyExcerpt,
+          suppressLinkPreview: item.suppressLinkPreview,
+        );
+        final delivery = _cacheFor(radio).messages
+            .where((message) => message.id == attempt)
+            .firstOrNull
+            ?.delivery;
+        final needsReview =
+            !sent ||
+            delivery == Delivery.unconfirmed ||
+            delivery == Delivery.failed;
+        final uncertain = sending.withChanges(status: OutboxStatus.uncertain);
+        if (!await _replaceOutbox(
+          prior: sending,
+          next: needsReview ? uncertain : null,
+        )) {
+          if (!_closed) {
+            _outbox = [
+              for (final entry in _outbox)
+                identical(entry, sending) ? uncertain : entry,
+            ];
+            notifyListeners();
+          }
+          return;
+        }
+      }
+    } finally {
+      _flushingOutbox = false;
+    }
   }
 
   Future<void> restoreConnection({bool Function(Radio)? eligible}) async {
@@ -2284,6 +2476,7 @@ class MeshController extends ChangeNotifier {
       _sendMessage(peer, text, isAttachment: true);
 
   Future<bool> retryMessage(Peer peer, String messageId) async {
+    if (isOutboxAttempt(messageId)) return false;
     final failed = cache?.messages
         .where(
           (message) =>
@@ -2310,6 +2503,8 @@ class MeshController extends ChangeNotifier {
     String? replyTo,
     MessageExcerpt? replyExcerpt,
     String? retryId,
+    String? outgoingId,
+    bool preserveDraft = false,
     bool isAttachment = false,
     bool suppressLinkPreview = false,
   }) async {
@@ -2326,7 +2521,9 @@ class MeshController extends ChangeNotifier {
     final current = _cacheFor(radio);
     final previousDraft = current.drafts[peer.id];
     final now = DateTime.now();
-    final id = 'out:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+    final id =
+        outgoingId ??
+        'out:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
     final outgoing = MeshMessage(
       id: id,
       chat: peer.id,
@@ -2345,7 +2542,7 @@ class MeshController extends ChangeNotifier {
           : null,
     );
     if (retryId == null) {
-      if (!isAttachment) current.drafts.remove(peer.id);
+      if (!isAttachment && !preserveDraft) current.drafts.remove(peer.id);
     } else {
       _receipts.remove(retryId)?.timer.cancel();
       current.messages.removeWhere((message) => message.id == retryId);
@@ -2381,6 +2578,7 @@ class MeshController extends ChangeNotifier {
     }
     if (index >= 0 &&
         !isAttachment &&
+        !preserveDraft &&
         retryId == null &&
         result == Delivery.failed &&
         (current.drafts[peer.id] ?? '').isEmpty) {
