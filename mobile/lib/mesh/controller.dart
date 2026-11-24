@@ -592,6 +592,17 @@ class MeshController extends ChangeNotifier {
     _changed();
   }
 
+  void toggleChatPin(String chat) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (!current.peers.containsKey(chat)) return;
+    final pins = current.pinnedChats;
+    if (!pins.remove(chat)) pins.insert(0, chat);
+    _save(radio);
+    _changed();
+  }
+
   String? pinnedMessageId(String chat) => cache?.pinnedMessages[chat];
 
   void setPinnedMessage(String chat, String? messageId) {
@@ -621,12 +632,19 @@ class MeshController extends ChangeNotifier {
     if (!changes.every((id) => screen.any((peer) => peer.id == id))) return;
     var next = 0;
     final all = [...screen, ..._conversations(hidden: !hidden)];
-    _cacheFor(radio).chatOrder
+    final current = _cacheFor(radio);
+    current.chatOrder
       ..clear()
       ..addAll([
         for (final peer in all)
           changes.contains(peer.id) ? reordered[next++] : peer.id,
       ]);
+    final pins = current.pinnedChats;
+    final visiblePins = reordered.where(pins.contains).toList();
+    var pin = 0;
+    for (var index = 0; index < pins.length; index++) {
+      if (changes.contains(pins[index])) pins[index] = visiblePins[pin++];
+    }
     _save(radio);
     _changed();
   }
@@ -679,6 +697,7 @@ class MeshController extends ChangeNotifier {
     current.hiddenChats.remove(peer.id);
     current.keptChats.remove(peer.id);
     current.chatOrder.remove(peer.id);
+    current.pinnedChats.remove(peer.id);
     current.pinnedMessages.remove(peer.id);
     current.folders.updateAll(
       (_, folder) => folder.chats.contains(peer.id)
@@ -1989,6 +2008,7 @@ class MeshController extends ChangeNotifier {
         }
         if (!message.outgoing) current.addUnread(message);
         current.messages.add(message);
+        current.promoteChat(message.chat);
         if (!buffered &&
             !message.outgoing &&
             !current.muted.contains(message.chat)) {
@@ -2551,6 +2571,7 @@ class MeshController extends ChangeNotifier {
       current.messages.removeWhere((message) => message.id == retryId);
     }
     current.messages.add(outgoing);
+    if (retryId == null) current.promoteChat(peer.id);
     _save(radio);
     onQueued?.call(outgoing);
     _changed();

@@ -7288,7 +7288,7 @@ void main() {
       final expanded = tester.getRect(card);
       expect(expanded.height, 480);
       expect(find.text('Row snapshot'), findsNothing);
-      await tester.tap(find.byTooltip('Close'));
+      await tester.tapAt(const Offset(4, 4));
       await tester.pump();
       expect(tester.getRect(card), expanded);
       await tester.pump(const Duration(milliseconds: 120));
@@ -7303,6 +7303,90 @@ void main() {
       controller.dispose();
     });
   }
+
+  testWidgets('new messages promote chats below persistent chat pins', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final adapter = _FakeAdapter('meshtastic');
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: [adapter],
+    );
+    await controller.connect((
+      device: 'pin-order-radio',
+      name: 'Radio',
+      network: adapter.id,
+    ));
+    final session = adapter.sessions.single;
+    const first = (
+      id: 'node:first',
+      name: 'First',
+      writable: true,
+      channel: false,
+    );
+    const second = (
+      id: 'node:second',
+      name: 'Second',
+      writable: true,
+      channel: false,
+    );
+    const third = (
+      id: 'node:third',
+      name: 'Third',
+      writable: true,
+      channel: false,
+    );
+    void receive(Peer peer, int index) {
+      session.stream.add(
+        TextReceived(
+          MeshMessage(
+            id: '${peer.id}-$index',
+            chat: peer.id,
+            author: peer.name,
+            text: 'Packet $index',
+            // A radio's clock may lag behind even though the message arrived last.
+            time: DateTime(2026, 11, 24, 12, 30 - index),
+            delivery: Delivery.received,
+          ),
+          peer,
+        ),
+      );
+    }
+
+    receive(first, 1);
+    receive(second, 2);
+    receive(third, 3);
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    double top(Peer peer) => tester.getTopLeft(find.text(peer.name)).dy;
+    expect(top(third), lessThan(top(second)));
+    Finder action(String label) => find.descendant(
+      of: find.byKey(const ValueKey('chat-preview-actions')),
+      matching: find.text(label),
+    );
+    await tester.longPress(find.text(first.name));
+    await tester.pumpAndSettle();
+    await tester.tap(action('Pin chat'));
+    await tester.pumpAndSettle();
+    expect(top(first), lessThan(top(third)));
+    receive(second, 4);
+    await tester.pumpAndSettle();
+    expect(top(first), lessThan(top(second)));
+    expect(top(second), lessThan(top(third)));
+    final restored = ChatCache.fromJson(controller.cache!.toJson());
+    expect(restored.pinnedChats, [first.id]);
+    await tester.longPress(find.text(first.name));
+    await tester.pumpAndSettle();
+    await tester.tap(action('Unpin chat'));
+    await tester.pumpAndSettle();
+    expect(top(second), lessThan(top(first)));
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
 
   testWidgets('chat preview leaves unread messages and row swipes intact', (
     tester,
@@ -7324,21 +7408,29 @@ void main() {
     );
     await tester.pumpAndSettle();
     final row = find.text(peer.name);
+    final preview = find.byKey(const ValueKey('open-chat-preview'));
     await tester.longPress(row);
     await tester.pumpAndSettle();
-    expect(find.text('Open chat'), findsOneWidget);
+    expect(preview, findsOneWidget);
     expect(find.byKey(ValueKey(('bubble', latest.id))), findsOneWidget);
     expect(find.byType(MeshChatPage), findsNothing);
     expect(controller.cache!.unread[peer.id], unread);
     expect(transport.links, isEmpty);
-    await tester.tap(find.byTooltip('Close'));
+    await tester.tapAt(const Offset(4, 4));
     await tester.pumpAndSettle();
-    expect(find.text('Open chat'), findsNothing);
+    expect(preview, findsNothing);
     expect(controller.cache!.unread[peer.id], unread);
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    await tester.tap(preview);
+    await tester.pumpAndSettle();
+    expect(find.byType(MeshChatPage), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
     await tester.drag(row, const Offset(-160, 0));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Delete').hitTestable(), findsOneWidget);
-    expect(find.text('Open chat'), findsNothing);
+    expect(preview, findsNothing);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
