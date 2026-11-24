@@ -1146,7 +1146,7 @@
         "05",
         "11"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -1167,12 +1167,43 @@
         "05",
         "11"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Карточка раскрывается из удерживаемой строки и возвращается в неё. Траектория, время и порядок сверены по платформам.",
         "Сокращение движения учитывается. Поиск, «Избранное» и закрепления используют общий переход."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1573-L1585",
+          "behavior": "Пружина открытия iOS длится 420 мс с демпфированием 104."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1736-L1767",
+          "behavior": "Карточка движется от центра строки, наполнение проявляется за 150 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1873-L1892",
+          "behavior": "Закрытие предпросмотра iOS длится 200 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarLayout.java#L1924-L2017",
+          "behavior": "Android открывает предпросмотр за 190 мс с небольшим превышением размера и закрывает за 150 мс с кривой EaseOutQuint."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Покадровая запись раскрытия и возврата из фактической строки. На обоих виртуальных устройствах счётчик непрочитанного сохранился. На Android после закрытия проверен горизонтальный свайп.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/chat-preview-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "229 тестов Flutter. Два теста движения измеряют границы строки, промежуточный размер и возврат. Существующие сценарии проверяют мгновенный переход при уменьшении движения и общий переход из локального поиска, Избранного и закреплений."
+        }
+      ]
     },
     {
       "id": "13",

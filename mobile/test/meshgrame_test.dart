@@ -7232,6 +7232,78 @@ void main() {
     controller.dispose();
   });
 
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('chat preview expands from the row on ${platform.name}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 760);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      final peer = controller.cache!.peers['node:a']!;
+      const row = Rect.fromLTWH(0, 125, 390, 68);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fromRect(
+                    rect: row,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onLongPress: () => unawaited(
+                        showMeshChatPreview(
+                          context,
+                          controller,
+                          peer,
+                          row,
+                          sourceRow: const Text('Row snapshot'),
+                        ),
+                      ),
+                      child: const Center(child: Text('Source chat')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final card = find.byKey(const ValueKey('chat-preview-card'));
+      await tester.longPress(find.text('Source chat'));
+      await tester.pump();
+      expect(tester.getRect(card), row);
+      expect(find.text('Row snapshot'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 65));
+      expect(tester.getRect(card).height, inExclusiveRange(row.height, 480));
+      await tester.pumpAndSettle();
+      final expanded = tester.getRect(card);
+      expect(expanded.height, 480);
+      expect(find.text('Row snapshot'), findsNothing);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pump();
+      expect(tester.getRect(card), expanded);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.getRect(card).height,
+        inExclusiveRange(row.height, expanded.height),
+      );
+      await tester.pumpAndSettle();
+      expect(card, findsNothing);
+      expect(tester.getCenter(find.text('Source chat')), row.center);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
   testWidgets('chat preview leaves unread messages and row swipes intact', (
     tester,
   ) async {
