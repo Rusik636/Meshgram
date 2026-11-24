@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart' hide Radio;
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 
 import '../app_name.dart';
@@ -70,6 +71,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   GlobalKey<IosControlState> _iosSearch = GlobalKey();
   bool _searchActive = false;
   bool _editingChats = false, _showHidden = false, _removingChats = false;
+  bool _archiveRevealed = false;
+  double _archivePull = 0;
   String? _revealedChat;
   String? _chatFolderView;
   final _selectedChats = <String>{};
@@ -268,11 +271,47 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     });
   }
 
-  void _showChats(bool hidden) => setState(() {
-    _showHidden = hidden;
-    _revealedChat = null;
-    _selectedChats.clear();
-  });
+  void _showChats(bool hidden) {
+    if (_chatScroll.hasClients) _chatScroll.jumpTo(0);
+    setState(() {
+      _showHidden = hidden;
+      _archiveRevealed = false;
+      _archivePull = 0;
+      _revealedChat = null;
+      _selectedChats.clear();
+    });
+  }
+
+  bool _trackArchivePull(ScrollNotification event) {
+    if (event.depth != 0 ||
+        _showHidden ||
+        _editingChats ||
+        _searchActive ||
+        controller.hiddenConversations.isEmpty) {
+      return false;
+    }
+    if (event is ScrollStartNotification) {
+      _archivePull = 0;
+    } else if (event is OverscrollNotification &&
+        event.dragDetails != null &&
+        event.overscroll < 0) {
+      _archivePull -= event.overscroll;
+    } else if (event is ScrollEndNotification) {
+      final threshold = Theme.of(context).platform == TargetPlatform.iOS
+          ? 60.0
+          : 72.0;
+      final reveal = !_archiveRevealed && _archivePull >= threshold;
+      final hide = _archiveRevealed && event.metrics.extentBefore >= 72;
+      if (reveal || hide) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_showHidden)
+            setState(() => _archiveRevealed = reveal);
+        });
+      }
+      _archivePull = 0;
+    }
+    return false;
+  }
 
   static bool _inCategory(Peer peer, int filter) => switch (filter) {
     1 => !peer.channel,
@@ -702,7 +741,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final safe = MediaQuery.paddingOf(context);
       final scaler = MediaQuery.textScalerOf(context);
       final caption = _showHidden
-          ? tr(context, 'Скрытые чаты', 'Hidden chats')
+          ? tr(context, 'Архив', 'Archive')
           : tr(context, 'Чаты', 'Chats');
       final headingText = TextPainter(
         text: TextSpan(
@@ -745,17 +784,30 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final heading = PageHeading(
         caption,
         sideWidth: _editingChats || _showHidden ? 92 : 104,
-        leading: GlassActionButton(
-          primary: false,
-          width: _editingChats ? 84 : 68,
-          label: _editingChats
-              ? tr(context, 'Готово', 'Done')
-              : tr(context, 'Изм.', 'Edit'),
-          onTap: _removingChats || (!categoriesInChats && !_editingChats)
-              ? null
-              : _toggleChatEditing,
-        ),
-        trailing: _editingChats || _showHidden
+        leading: _showHidden && !_editingChats
+            ? GlassButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                label: tr(context, 'Назад', 'Back'),
+                onTap: () => _showChats(false),
+              )
+            : GlassActionButton(
+                primary: false,
+                width: _editingChats ? 84 : 68,
+                label: _editingChats
+                    ? tr(context, 'Готово', 'Done')
+                    : tr(context, 'Изм.', 'Edit'),
+                onTap: _removingChats || (!categoriesInChats && !_editingChats)
+                    ? null
+                    : _toggleChatEditing,
+              ),
+        trailing: _showHidden && !_editingChats
+            ? GlassActionButton(
+                primary: false,
+                width: 68,
+                label: tr(context, 'Изм.', 'Edit'),
+                onTap: categoriesInChats ? _toggleChatEditing : null,
+              )
+            : _editingChats
             ? null
             : Row(
                 mainAxisSize: MainAxisSize.min,
@@ -988,13 +1040,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       );
     }
 
-    return MeshScrollViewport(
+    final viewport = MeshScrollViewport(
       tint: style.canvas,
       fadeTop: false,
       edgeExtent: _scrollBottom,
       child: CustomScrollView(
         key: const PageStorageKey('chats'),
         controller: _chatScroll,
+        physics: const ClampingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
@@ -1005,28 +1060,26 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 child: _folderPicker(),
               ),
             ),
-          if (_showHidden || hiddenCount > 0)
+          if (!_showHidden && hiddenCount > 0)
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: GlassActionButton(
-                    width: 166,
-                    height: 38,
-                    primary: false,
-                    label: _showHidden
-                        ? tr(context, 'Все чаты', 'All chats')
-                        : tr(
-                            context,
-                            'Скрытые ($hiddenCount)',
-                            'Hidden ($hiddenCount)',
-                          ),
-                    onTap: _editingChats
-                        ? null
-                        : () => _showChats(!_showHidden),
-                  ),
-                ),
+              child: AnimatedSize(
+                duration: meshMotion(context),
+                alignment: Alignment.topCenter,
+                curve: Curves.easeOutCubic,
+                child: _archiveRevealed && !_editingChats
+                    ? ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ),
+                        leading: Icon(
+                          Icons.archive_outlined,
+                          color: style.accent,
+                        ),
+                        title: Text(tr(context, 'Архив', 'Archive')),
+                        trailing: Text('$hiddenCount'),
+                        onTap: () => _showChats(true),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ),
           if (visible.isNotEmpty) ...[
@@ -1151,6 +1204,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               ),
             ),
         ],
+      ),
+    );
+    return Semantics(
+      customSemanticsActions: {
+        if (!_showHidden && hiddenCount > 0)
+          CustomSemanticsAction(label: tr(context, 'Архив', 'Archive')): () =>
+              _showChats(true),
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _trackArchivePull,
+        child: viewport,
       ),
     );
   }
