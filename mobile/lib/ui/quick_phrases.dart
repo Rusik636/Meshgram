@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../mesh/store.dart';
+import 'ios_control.dart';
 import 'style.dart';
 
 List<String> _phrases(BuildContext context, MeshStore store) =>
@@ -135,6 +136,12 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
     return GlassSurface(
       modal: true,
       radius: height / 2,
+      outline: useIosControls
+          ? BorderSide(
+              color: style.secondary.withValues(alpha: style.dark ? .36 : .44),
+              width: .7,
+            )
+          : null,
       child: SizedBox(
         height: height,
         child: Stack(
