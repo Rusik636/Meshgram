@@ -47,6 +47,7 @@ import 'search_field.dart';
 import '../mesh/store.dart';
 
 part 'radio_outbox.dart';
+part 'saved_messages.dart';
 
 /// Opens a chat at an exact entry in the active radio profile's local history.
 Future<void> openMeshMessage(
@@ -56,6 +57,9 @@ Future<void> openMeshMessage(
   required String messageId,
 }) async {
   final peer = controller.cache?.peers[chatId];
+  if (peer != null && !peer.channel && controller.isOwnChat(peer.id)) {
+    return showSavedChat(context, controller);
+  }
   if (peer == null ||
       !controller.messages(chatId).any((message) => message.id == messageId)) {
     _showMessageUnavailable(context);
@@ -1408,6 +1412,14 @@ class _ChatState extends State<MeshChatPage>
     _openingContact = true;
     try {
       final controller = widget.controller;
+      final contact = controller.contactAttachment(link);
+      if (contact != null &&
+          contact.network == controller.active?.network &&
+          controller.isOwnChat(contact.id, publicKey: contact.publicKey)) {
+        _dismissKeyboard();
+        await showSavedChat(context, controller);
+        return;
+      }
       final wasKnown = controller.findContactCode(link) != null;
       final peer = await controller.importContactAttachment(link);
       if (!mounted || !_contactContextIsCurrent) return;
@@ -2989,6 +3001,7 @@ class _MessageHoldState extends State<_MessageHold> {
 
 class _Bubble extends StatelessWidget {
   const _Bubble({
+    super.key,
     required this.item,
     required this.emoji,
     required this.channel,
@@ -3010,6 +3023,7 @@ class _Bubble extends StatelessWidget {
     this.waitingForRadio = false,
     this.flightTarget,
     this.reactionTarget,
+    this.localOnly = false,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -3030,6 +3044,7 @@ class _Bubble extends StatelessWidget {
   final bool waitingForRadio;
   final Key? flightTarget;
   final ReactionGlyphTarget? reactionTarget;
+  final bool localOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -3114,6 +3129,7 @@ class _Bubble extends StatelessWidget {
                         excerptAnimation: excerptAnimation,
                         waitingForRadio: waitingForRadio,
                         textKey: flightTarget,
+                        localOnly: localOnly,
                         reactions: reactions,
                         reactionTarget: reactionTarget,
                         onTap: tap,
@@ -3314,6 +3330,7 @@ class _MessageContent extends StatelessWidget {
     required this.waitingForRadio,
     this.textKey,
     this.reactionTarget,
+    this.localOnly = false,
   });
 
   final VoidCallback? onAuthor;
@@ -3333,6 +3350,7 @@ class _MessageContent extends StatelessWidget {
   final Animation<double>? excerptAnimation;
   final bool waitingForRadio;
   final Key? textKey;
+  final bool localOnly;
   final ReactionGlyphTarget? reactionTarget;
 
   Widget _text(MeshStyle style, TextStyle textStyle) {
@@ -3406,7 +3424,7 @@ class _MessageContent extends StatelessWidget {
         final timePainter = measure(time, timeStyle, double.infinity);
         final stampSize = item.outgoing
             ? Size(
-                timePainter.width + _MessageStamp.statusWidth,
+                timePainter.width + (localOnly ? 0 : _MessageStamp.statusWidth),
                 math.max(timePainter.height, _MessageStamp.iconSize),
               )
             : timePainter.size;
@@ -3528,6 +3546,7 @@ class _MessageContent extends StatelessWidget {
                   stateLabel: stateLabel,
                   onRetry: onRetry,
                   waitingForRadio: waitingForRadio,
+                  showReceipt: !localOnly,
                 ),
               ),
             ),
@@ -3686,6 +3705,7 @@ class _MessageStamp extends StatelessWidget {
     this.onRetry,
     this.receiptColor,
     this.waitingForRadio = false,
+    this.showReceipt = true,
   });
 
   static const iconSize = 15.0;
@@ -3697,6 +3717,7 @@ class _MessageStamp extends StatelessWidget {
   final VoidCallback? onRetry;
   final Color? receiptColor;
   final bool waitingForRadio;
+  final bool showReceipt;
 
   @override
   Widget build(BuildContext context) {
@@ -3705,7 +3726,7 @@ class _MessageStamp extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(time, style: timeStyle),
-        if (item.outgoing) ...[
+        if (item.outgoing && showReceipt) ...[
           const SizedBox(width: _gap),
           Tooltip(
             message: onRetry == null
@@ -4156,13 +4177,18 @@ Future<void> showMeshChat(
   MeshController controller,
   Peer peer, {
   bool search = false,
-}) => Navigator.of(context).push<void>(
-  meshPageRoute(
-    context,
-    builder: (_) =>
-        MeshChatPage(controller: controller, peer: peer, initialSearch: search),
-  ),
-);
+}) => !peer.channel && controller.isOwnChat(peer.id)
+    ? showSavedChat(context, controller)
+    : Navigator.of(context).push<void>(
+        meshPageRoute(
+          context,
+          builder: (_) => MeshChatPage(
+            controller: controller,
+            peer: peer,
+            initialSearch: search,
+          ),
+        ),
+      );
 
 class MeshChatProfile extends StatelessWidget {
   const MeshChatProfile({
@@ -4178,7 +4204,7 @@ class MeshChatProfile extends StatelessWidget {
   final bool allowReadOnlyChat;
 
   void _chat(BuildContext context, {bool search = false}) {
-    if (openNewChat) {
+    if (openNewChat || (!peer.channel && controller.isOwnChat(peer.id))) {
       unawaited(showMeshChat(context, controller, peer, search: search));
     } else {
       Navigator.pop(context, search);
@@ -4253,7 +4279,10 @@ class MeshChatProfile extends StatelessWidget {
       final detail = peer.id;
       final role = controller.nodeObservation(peer.id)?.role;
       final hasChat =
-          !openNewChat || allowReadOnlyChat || controller.canOpenChat(peer);
+          !openNewChat ||
+          allowReadOnlyChat ||
+          (!peer.channel && controller.isOwnChat(peer.id)) ||
+          controller.canOpenChat(peer);
       final code = controller.contactCode(peer);
       final admin = controller.adminFor(peer);
       final heroTag = ('node-qr', peer.id);

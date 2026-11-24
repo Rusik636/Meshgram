@@ -1547,6 +1547,19 @@ class MeshController extends ChangeNotifier {
     return current.peers[target.id];
   }
 
+  bool isOwnChat(String peerId, {String? publicKey}) {
+    final data = cache;
+    if (data == null) return false;
+    final number = data.radioNodeNumber;
+    if (number != null && peerId == 'node:$number') return true;
+    final ownKey = data.radioPublicKey;
+    return ownKey != null &&
+        (ownKey == (publicKey ?? data.identities[peerId]?.publicKey) ||
+            (active?.network == 'meshcore' &&
+                ownKey.length >= 12 &&
+                peerId == 'node:${ownKey.substring(0, 12)}'));
+  }
+
   String? shareContactAttachment(Peer peer, int maxBytes) {
     final link = contactCode(peer)?.toString();
     if (link == null) return null;
@@ -2315,11 +2328,39 @@ class MeshController extends ChangeNotifier {
     });
   }
 
+  Future<bool> saveOwnNote(String text) {
+    final note = text.trim();
+    if (note.isEmpty) return Future.value(false);
+    final now = DateTime.now();
+    return _editSavedMessages((items) {
+      items.insert(
+        0,
+        SavedMessage(
+          message: MeshMessage(
+            id: 'note:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}',
+            chat: 'self:saved',
+            author: '',
+            text: note,
+            time: now,
+            delivery: Delivery.acknowledged,
+          ),
+          profile: '',
+          radioName: '',
+          chatName: '',
+          author: profileName,
+          savedAt: now,
+          isNote: true,
+        ),
+      );
+    });
+  }
+
   Future<bool> removeSavedMessage(SavedMessage item) => _editSavedMessages(
     (items) => items.removeWhere((other) => other.key == item.key),
   );
 
   bool selectSavedMessageSource(SavedMessage item) {
+    if (item.isNote) return false;
     final radio = _savedRadio(item.profile);
     if (radio == null) return false;
     final cache = _cacheFor(radio);

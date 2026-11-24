@@ -1,22 +1,61 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
-import 'dart:async';
+part of 'chat.dart';
 
-import 'package:flutter/material.dart';
+Future<void> showSavedChat(BuildContext context, MeshController controller) =>
+    Navigator.of(context).push<void>(
+      meshPageRoute(
+        context,
+        builder: (_) => SavedMessagesPage(controller: controller),
+      ),
+    );
 
-import '../mesh/chat_position.dart';
-import '../mesh/controller.dart';
-import '../mesh/store.dart';
-import 'chat.dart';
-import 'mesh_map.dart';
-import 'message_links.dart';
-import 'style.dart';
-
-class SavedMessagesPage extends StatelessWidget {
+class SavedMessagesPage extends StatefulWidget {
   const SavedMessagesPage({super.key, required this.controller});
 
   final MeshController controller;
+
+  @override
+  State<SavedMessagesPage> createState() => _SavedMessagesPageState();
+}
+
+class _SavedMessagesPageState extends State<SavedMessagesPage> {
+  MeshController get controller => widget.controller;
+  late final _draft = EmojiEditingController(
+    text: controller.store.savedChatDraft,
+  );
+  final _scroll = ScrollController();
+  final _input = GlobalKey<MessageInputState>();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _draft.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveNote() async {
+    final draft = _draft.text;
+    if (_saving || draft.trim().isEmpty) return;
+    setState(() => _saving = true);
+    final saved = await controller.saveOwnNote(draft);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!saved) {
+      _notice(
+        context,
+        tr(context, 'Не удалось сохранить заметку', 'Could not save the note'),
+      );
+      return;
+    }
+    if (_draft.text == draft) {
+      _draft.clear();
+      unawaited(controller.store.setSavedChatDraft(''));
+    }
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
 
   void _notice(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
@@ -97,170 +136,259 @@ class SavedMessagesPage extends StatelessWidget {
     }
   }
 
+  Future<void> _messageActions(SavedMessage item, Rect anchor) async {
+    final box = Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final action = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromSize(
+        box.globalToLocal(anchor.topLeft) & anchor.size,
+        box.size,
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'copy',
+          child: Text(tr(context, 'Копировать', 'Copy')),
+        ),
+        if (!item.isNote)
+          PopupMenuItem(
+            value: 'source',
+            child: Text(tr(context, 'К оригиналу', 'Go to original')),
+          ),
+        PopupMenuItem(
+          value: 'labels',
+          child: Text(tr(context, 'Метки', 'Labels')),
+        ),
+        PopupMenuItem(
+          value: 'remove',
+          child: Text(tr(context, 'Удалить', 'Delete')),
+        ),
+      ],
+    );
+    if (!mounted) return;
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: item.message.text));
+      case 'source':
+        await _openSource(context, item);
+      case 'labels':
+        await _editLabels(context, item);
+      case 'remove':
+        await _remove(context, item);
+    }
+  }
+
+  Widget _bubble(SavedMessage item, BuildContext context) {
+    final position = chatPosition(item.message.text);
+    final source = item.isNote
+        ? null
+        : _SavedSource(
+            item: item,
+            onTap: () => unawaited(_openSource(context, item)),
+          );
+    final content = [
+      if (source != null) source,
+      if (position != null)
+        MeshLocationPreview(position: position.point, loadTiles: false),
+      if (item.labels.isNotEmpty)
+        Wrap(
+          spacing: 6,
+          runSpacing: 2,
+          children: [for (final label in item.labels) Chip(label: Text(label))],
+        ),
+    ];
+    return _Bubble(
+      key: ValueKey(item.key),
+      item: MeshMessage(
+        id: item.message.id,
+        chat: 'self:saved',
+        author: '',
+        text: item.message.text,
+        time: item.savedAt,
+        delivery: Delivery.acknowledged,
+      ),
+      emoji: null,
+      channel: false,
+      joinsPrevious: false,
+      joinsNext: false,
+      quoted: null,
+      reactions: const [],
+      hideText: position?.standalone == true,
+      localOnly: true,
+      link: firstMessageLink(item.message.text),
+      preview: content.isEmpty
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: content,
+            ),
+      onMenu: (anchor) => unawaited(_messageActions(item, anchor)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final covered = ModalRoute.isCurrentOf(context) == false;
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            PageHeading(
-              tr(context, 'Избранное', 'Saved Messages'),
-              leading: GlassButton(
-                icon: Icons.arrow_back_ios_new_rounded,
-                label: tr(context, 'Назад', 'Back'),
-                onTap: () => Navigator.pop(context),
-              ),
-            ),
-            Expanded(
-              child: ListenableBuilder(
-                listenable: controller,
-                builder: (context, _) {
-                  final items = controller.savedMessages;
-                  if (items.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          tr(
-                            context,
-                            'Чтобы сохранить сообщение, удерживайте его и выберите «В Избранное».',
-                            'To save a message, hold it and choose Save message.',
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(painter: _ContourPaper(style)),
+          SafeArea(
+            child: Column(
+              children: [
+                PageHeading(
+                  tr(context, 'Избранное', 'Saved Messages'),
+                  leading: GlassButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    label: tr(context, 'Назад', 'Back'),
+                    onTap: () => Navigator.pop(context),
+                    coveredByModal: covered,
+                  ),
+                ),
+                Expanded(
+                  child: ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) {
+                      final items = controller.savedMessages;
+                      if (items.isEmpty) {
+                        return Center(
+                          child: GlassSurface(
+                            radius: 15,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 7,
+                              ),
+                              child: Text(
+                                tr(
+                                  context,
+                                  'Начало переписки',
+                                  'Start of conversation',
+                                ),
+                              ),
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: style.secondary),
-                        ),
-                      ),
-                    );
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                    itemCount: items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      return _SavedMessageCard(
-                        key: ValueKey(item.key),
-                        item: item,
-                        onOpenSource: () =>
-                            unawaited(_openSource(context, item)),
-                        onEditLabels: () =>
-                            unawaited(_editLabels(context, item)),
-                        onRemove: () => unawaited(_remove(context, item)),
+                        );
+                      }
+                      return ListView.builder(
+                        reverse: true,
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(11, 5, 11, 8),
+                        itemCount: items.length,
+                        itemBuilder: (context, index) =>
+                            _bubble(items[index], context),
                       );
                     },
-                  );
-                },
-              ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                  child: TextFieldTapRegion(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: MessageInput(
+                            key: _input,
+                            controller: _draft,
+                            onChanged: (value) => unawaited(
+                              controller.store.setSavedChatDraft(value),
+                            ),
+                            coveredByModal: covered,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ValueListenableBuilder(
+                          valueListenable: _draft,
+                          builder: (context, value, _) {
+                            final enabled =
+                                !_saving && value.text.trim().isNotEmpty;
+                            return GlassButton(
+                              icon: Icons.arrow_upward_rounded,
+                              label: tr(
+                                context,
+                                'Сохранить заметку',
+                                'Save note',
+                              ),
+                              primary: enabled,
+                              onTap: enabled
+                                  ? () => unawaited(_saveNote())
+                                  : null,
+                              coveredByModal: covered,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SavedMessageCard extends StatelessWidget {
-  const _SavedMessageCard({
-    super.key,
-    required this.item,
-    required this.onOpenSource,
-    required this.onEditLabels,
-    required this.onRemove,
-  });
+class _SavedSource extends StatelessWidget {
+  const _SavedSource({required this.item, required this.onTap});
 
   final SavedMessage item;
-  final VoidCallback onOpenSource, onEditLabels, onRemove;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final localizations = MaterialLocalizations.of(context);
-    final time = item.message.time;
+    final time = item.message.time.toLocal();
     final date = localizations.formatShortDate(time);
     final clock = localizations.formatTimeOfDay(
       TimeOfDay.fromDateTime(time),
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
-    final position = chatPosition(item.message.text);
-    final secondary = TextStyle(color: style.secondary, fontSize: 12);
-    return GlassSurface(
-      radius: 18,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 3,
-              crossAxisAlignment: WrapCrossAlignment.center,
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Material(
+        color: style.text.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   item.author.isEmpty
                       ? tr(context, 'Автор неизвестен', 'Unknown author')
                       : item.author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: style.text,
+                    color: style.accent,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text('$date · $clock', style: secondary),
-              ],
-            ),
-            Text('${item.chatName} · ${item.radioName}', style: secondary),
-            const SizedBox(height: 8),
-            if (position?.standalone != true)
-              SelectionArea(
-                child: MessageLinkifiedText(
-                  text: item.message.text,
-                  style: TextStyle(color: style.text, fontSize: 15),
-                  linkColor: style.accent,
+                Text(
+                  '${item.chatName} · ${item.radioName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: style.secondary, fontSize: 12),
                 ),
-              ),
-            if (position case final data?)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: MeshLocationPreview(
-                  position: data.point,
-                  loadTiles: false,
+                Text(
+                  '$date · $clock',
+                  style: TextStyle(color: style.secondary, fontSize: 12),
                 ),
-              ),
-            if (item.labels.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    for (final label in item.labels) Chip(label: Text(label)),
-                  ],
-                ),
-              ),
-            Wrap(
-              spacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: onOpenSource,
-                  child: Text(tr(context, 'К оригиналу', 'Go to original')),
-                ),
-                TextButton(
-                  onPressed: onEditLabels,
-                  child: Text(tr(context, 'Метки', 'Labels')),
-                ),
-                IconButton(
-                  tooltip: tr(
-                    context,
-                    'Убрать из Избранного',
-                    'Remove from Saved',
-                  ),
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.bookmark_remove_outlined),
+                Text(
+                  tr(context, 'К оригиналу', 'Go to original'),
+                  style: TextStyle(color: style.accent, fontSize: 13),
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
