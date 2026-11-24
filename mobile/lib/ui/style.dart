@@ -197,23 +197,41 @@ class GlassSurface extends StatelessWidget {
     this.radius = 28,
     this.modal = false,
     this.color,
-    this.outline,
+    this.nativeButtonMaterial = false,
   });
   final Widget child;
   final double radius;
   final bool modal;
   final Color? color;
-  final BorderSide? outline;
+  final bool nativeButtonMaterial;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final opaque = MediaQuery.highContrastOf(context);
     final border = BorderRadius.circular(radius);
-    final shape = RoundedRectangleBorder(
-      borderRadius: border,
-      side: outline ?? BorderSide(color: style.separator),
-    );
+    if (nativeButtonMaterial && useIosControls) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: _NativeGlassButton(
+                label: '',
+                onTap: null,
+                primary: false,
+                decorative: true,
+              ),
+            ),
+          ),
+          // Keep UIKit's glass edge outside the clip for the phrase controls.
+          ClipRRect(
+            borderRadius: border,
+            child: Material(type: MaterialType.transparency, child: child),
+          ),
+        ],
+      );
+    }
     if (modal && useIosControls && !opaque) {
       return ClipRRect(
         borderRadius: border,
@@ -228,16 +246,7 @@ class GlassSurface extends StatelessWidget {
                 ),
               ),
             ),
-            Material(
-              type: MaterialType.transparency,
-              child: outline == null
-                  ? child
-                  : DecoratedBox(
-                      decoration: ShapeDecoration(shape: shape),
-                      position: DecorationPosition.foreground,
-                      child: child,
-                    ),
-            ),
+            Material(type: MaterialType.transparency, child: child),
           ],
         ),
       );
@@ -249,7 +258,10 @@ class GlassSurface extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
         child: Material(
           color: opaque ? style.surface : color ?? style.pill,
-          shape: shape,
+          shape: RoundedRectangleBorder(
+            borderRadius: border,
+            side: BorderSide(color: style.separator),
+          ),
           child: child,
         ),
       ),
@@ -432,6 +444,7 @@ class _NativeGlassButton extends StatelessWidget {
     this.longPressLabel,
     this.stacked = false,
     this.coveredByModal = false,
+    this.decorative = false,
   });
 
   final String? symbol;
@@ -439,18 +452,19 @@ class _NativeGlassButton extends StatelessWidget {
   final VoidCallback? onTap, onLongPress;
   final String? longPressLabel;
   final bool primary;
-  final bool stacked, coveredByModal;
+  final bool stacked, coveredByModal, decorative;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     return IosControl(
       kind: 'button',
-      onSelect: (_) => onTap?.call(),
+      onSelect: decorative ? null : (_) => onTap?.call(),
       onLongPress: onLongPress,
       properties: {
         'label': label,
-        'enabled': onTap != null,
+        'enabled': decorative || onTap != null,
+        if (decorative) 'readOnly': true,
         if (onLongPress != null) 'longPressLabel': longPressLabel ?? label,
         'primary': primary,
         'dark': style.dark,

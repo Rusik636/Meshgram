@@ -9,6 +9,24 @@ import XCTest
 
 class RunnerTests: XCTestCase {
   @MainActor
+  func testDecorativeGlassButtonKeepsItsMaterialWithoutTakingInput() throws {
+    let bounds = CGRect(x: 0, y: 0, width: 360, height: 64)
+    let control = MeshControlSurface(frame: bounds,
+      channel: FlutterMethodChannel(name: "meshgrame/tests/phraseMaterial", binaryMessenger: TestMessenger()),
+      input: [
+        "kind": "button", "enabled": true, "readOnly": true, "visualOutset": 8,
+      ])
+    let root = control.view()
+    root.layoutIfNeeded()
+    let button = try XCTUnwrap(root.subviews.compactMap { $0 as? UIButton }.first)
+    XCTAssertTrue(button.isEnabled)
+    XCTAssertEqual(button.frame, bounds.insetBy(dx: 8, dy: 8))
+    XCTAssertEqual(button.configuration?.cornerStyle, .capsule)
+    XCTAssertTrue(root.accessibilityElementsHidden)
+    XCTAssertNil(root.hitTest(CGPoint(x: bounds.midX, y: bounds.midY), with: nil))
+  }
+
+  @MainActor
   func testPassiveGlassKeepsMaterialInsideItsVisibleOutline() throws {
     guard #available(iOS 26.0, *) else { return }
     let frame = CGRect(x: 0, y: 0, width: 168, height: 40)

@@ -438,8 +438,9 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
   func update(_ values: [String: Any]) {
     var appearance = values
     let covered = appearance.removeValue(forKey: "coveredByModal") as? Bool == true
-    root.isUserInteractionEnabled = !covered && values["readOnly"] as? Bool != true
-    root.accessibilityElementsHidden = covered
+    let readOnly = values["readOnly"] as? Bool == true
+    root.isUserInteractionEnabled = !covered && !readOnly
+    root.accessibilityElementsHidden = covered || (readOnly && kind == "button")
     guard !(input as NSDictionary).isEqual(to: appearance) else { return }
     input = appearance
     refreshAppearance()
