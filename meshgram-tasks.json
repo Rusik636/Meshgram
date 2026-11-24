@@ -361,7 +361,7 @@
         "02",
         "03"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -381,11 +381,31 @@
         "02",
         "03"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Каждый результат показывает фрагмент, автора и дату. Тап открывает его место в истории."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatSearchResultsContollerNode.swift#L231-L243",
+          "behavior": "Результат поиска выбирается как отдельное сообщение по точному индексу."
+        },
+        {
+          "kind": "check",
+          "result": "В тесте фильтр ссылок оставил одно совпадение; тап открыл исходное сообщение по ID."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Результаты поиска в чате показывают автора, фрагмент и время."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Поиск по всем чатам показал точное совпадение с автором и датой. Тап открыл оригинал."
+        }
+      ]
     },
     {
       "id": "04.filters",
@@ -400,11 +420,26 @@
         "02",
         "03"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Фильтры по автору, периоду, ссылкам, координатам и контактам комбинируются. Переход к дате работает при наличии истории."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L11095-L11117",
+          "behavior": "Календарь доступен в поиске по чату. Выбранная дата используется для перехода в историю."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены сочетание автора, границ периода и типов, координаты, контакты и переход к выбранному дню."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Открыт календарь из поиска в чате, подтверждён переход к выбранной дате."
+        }
+      ]
     },
     {
       "id": "05",
