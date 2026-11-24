@@ -49,6 +49,7 @@ import 'package:meshgrame/ui/nodes.dart';
 import 'package:meshgrame/ui/notification_settings.dart';
 import 'package:meshgrame/ui/node_actions.dart';
 import 'package:meshgrame/ui/chat.dart';
+import 'package:meshgrame/ui/chat_folders.dart';
 import 'package:meshgrame/ui/channel_avatars.dart';
 import 'package:meshgrame/ui/emoji_picker.dart';
 import 'package:meshgrame/ui/emoji_text.dart';
@@ -2348,26 +2349,26 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final categories = tester.widget<IosControl>(
-        find.descendant(
-          of: find.byType(ChatFilters),
-          matching: find.byType(IosControl),
-        ),
+      final picker = find.byType(ChatFolderTabs);
+      final materials = tester.widgetList<IosControl>(
+        find.descendant(of: picker, matching: find.byType(IosControl)),
       );
-      expect(categories.kind, 'modalGlass');
-      final picker = find.byType(ChatFilters);
-      expect(tester.widget<ChatFilters>(picker).labels, [
+      expect(materials.map((control) => control.kind), [
+        'modalGlass',
+        'button',
+      ]);
+      expect(materials.last.properties['readOnly'], isTrue);
+      expect(tester.widget<ChatFolderTabs>(picker).builtInLabels, [
         'All',
         'Direct',
         'Channels',
-        'Unread',
       ]);
       expect(tester.getSize(picker).height, 48);
-      final scroll = find.descendant(
-        of: picker,
-        matching: find.byType(ListView),
+      final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+      expect(
+        tester.widget<CustomScrollView>(scroll).scrollDirection,
+        Axis.horizontal,
       );
-      expect(tester.widget<ListView>(scroll).scrollDirection, Axis.horizontal);
       await tester.tap(find.text('Channels'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Мира Соколова profile'), findsNothing);
@@ -3411,7 +3412,7 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final filters = find.byType(ChatFilters);
+      final filters = find.byKey(const ValueKey('chat-categories'));
       final heading = find.byType(PageHeading);
       final close = find.byWidgetPredicate(
         (widget) => widget is GlassButton && widget.label == 'Close search',
@@ -6670,8 +6671,9 @@ void main() {
     await tester.pumpAndSettle();
     double rowOpacity(String id) =>
         tester.widget<FadeTransition>(find.byKey(ValueKey(id))).opacity.value;
-    void filter(int index) =>
-        tester.widget<ChatFilters>(find.byType(ChatFilters)).onSelect(index);
+    void filter(int index) => tester
+        .widget<ChatFolderTabs>(find.byType(ChatFolderTabs))
+        .onSelect(index);
     filter(1);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -6697,7 +6699,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(tester.element(nav), same(navElement));
-    expect(find.byType(ChatFilters), findsOneWidget);
+    expect(find.byType(ChatFolderTabs), findsOneWidget);
     for (var frame = 0; frame < 12; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
@@ -6728,7 +6730,7 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final list = find.byType(CustomScrollView);
+      final list = find.byKey(const PageStorageKey<String>('chats'));
       final heading = find.byType(PageHeading);
       final firstChat = find.text('Тропа');
       Finder glass(String label) => find.byWidgetPredicate(
