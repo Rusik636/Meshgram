@@ -176,7 +176,7 @@
       "depends_on": [
         "01"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -194,12 +194,37 @@
       "depends_on": [
         "01"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Навигация из цитаты переиспользует общий переход к точному ID с краткой подсветкой.",
         "При вытеснении исходника показано понятное сообщение."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatHistoryListNode.swift#L3895-L3897",
+          "behavior": "Переход использует точный индекс сообщения, центрирование и подсветку через общий вход истории."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L17540-L17589",
+          "behavior": "Общий метод принимает ID сообщения, выбирает направление и ищет его в локальных элементах списка."
+        },
+        {
+          "kind": "check",
+          "result": "На вариантах Flutter iOS и Android проверены переход к сообщению вне экрана, подсветка, точка входа по ID и сообщение при вытеснении оригинала."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Тап по цитате в отправленном ответе закрыл клавиатуру и подсветил точный оригинал."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Тап по цитате в отправленном ответе открыл оригинал."
+        }
+      ]
     },
     {
       "id": "03",

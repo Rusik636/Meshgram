@@ -40,16 +40,57 @@ import 'node_actions.dart';
 import 'position_picker.dart';
 import '../mesh/store.dart';
 
+/// Opens a chat at an exact entry in the active radio profile's local history.
+Future<void> openMeshMessage(
+  BuildContext context, {
+  required MeshController controller,
+  required String chatId,
+  required String messageId,
+}) async {
+  final peer = controller.cache?.peers[chatId];
+  if (peer == null ||
+      !controller.messages(chatId).any((message) => message.id == messageId)) {
+    _showMessageUnavailable(context);
+    return;
+  }
+  await Navigator.of(context).push(
+    meshPageRoute<void>(
+      context,
+      builder: (_) => MeshChatPage(
+        controller: controller,
+        peer: peer,
+        initialMessageId: messageId,
+      ),
+    ),
+  );
+}
+
+void _showMessageUnavailable(BuildContext context) {
+  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+    SnackBar(
+      content: Text(
+        tr(
+          context,
+          'Сообщения больше нет в локальной истории',
+          'This message is no longer in local history',
+        ),
+      ),
+    ),
+  );
+}
+
 class MeshChatPage extends StatefulWidget {
   const MeshChatPage({
     super.key,
     required this.controller,
     required this.peer,
     this.initialSearch = false,
+    this.initialMessageId,
   });
   final MeshController controller;
   final Peer peer;
   final bool initialSearch;
+  final String? initialMessageId;
   @override
   State<MeshChatPage> createState() => _ChatState();
 }
@@ -66,7 +107,8 @@ class _ChatState extends State<MeshChatPage>
   final _history = ListController();
   AssetBundle? _emojiBundle;
   late Future<EmojiCatalog> _emojiCatalog;
-  ItemAnimation? _quoteScroll;
+  ItemAnimation? _messageScroll;
+  int _messageJump = 0;
   String? _highlighted;
   late final _highlight = AnimationController(
     vsync: this,
@@ -106,7 +148,7 @@ class _ChatState extends State<MeshChatPage>
   ({String id, double position})? _historyAnchor;
   bool _listedSearch = false;
   bool _historyScheduled = false;
-  bool _atInitialPosition = false;
+  late bool _atInitialPosition = widget.initialMessageId != null;
   bool _goingToLatest = false;
   AppLifecycleState? _lifecycle;
 
@@ -125,6 +167,11 @@ class _ChatState extends State<MeshChatPage>
         widget.peer.id,
         () => _canReadHistory && _atInitialPosition && _distanceToLatest < 2,
       );
+    }
+    if (widget.initialMessageId case final id?) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_revealMessage(id));
+      });
     }
   }
 
@@ -325,7 +372,7 @@ class _ChatState extends State<MeshChatPage>
     final position = _scroll.position;
     final bottom = position.minScrollExtent;
     final duration = meshMotion(context);
-    _quoteScroll?.cancel();
+    _messageScroll?.cancel();
     if (duration == Duration.zero) {
       _scroll.jumpTo(bottom);
       return;
@@ -421,7 +468,8 @@ class _ChatState extends State<MeshChatPage>
     _attachmentSourceHidden.dispose();
     _latestButtonVisible.dispose();
     _visibleLinkMessages.dispose();
-    _quoteScroll?.cancel();
+    ++_messageJump;
+    _messageScroll?.cancel();
     _history.dispose();
     _scroll.dispose();
     _highlight.dispose();
@@ -440,8 +488,15 @@ class _ChatState extends State<MeshChatPage>
     return math.max(34.0, padding);
   }
 
-  Future<void> _revealQuote(MeshMessage original) async {
-    _quoteScroll?.cancel();
+  Future<void> _revealMessage(String? messageId) async {
+    final jump = ++_messageJump;
+    _messageScroll?.cancel();
+    _historyAnchor = null;
+    _highlight.value = 0;
+    if (messageId == null) {
+      _showMessageUnavailable(context);
+      return;
+    }
     _dismissKeyboard();
     if (_searching) {
       setState(() {
@@ -450,15 +505,19 @@ class _ChatState extends State<MeshChatPage>
       });
       await WidgetsBinding.instance.endOfFrame;
     }
-    if (!mounted || !_history.isAttached || !_scroll.hasClients) return;
+    if (!mounted || jump != _messageJump) return;
     int? index() {
-      final messages = widget.controller.messages(original.chat);
-      final i = messages.indexWhere((item) => item.id == original.id);
+      final messages = widget.controller.messages(widget.peer.id);
+      final i = messages.indexWhere((item) => item.id == messageId);
       return i < 0 ? null : messages.length - i - 1;
     }
 
     final target = index();
-    if (target == null) return;
+    if (target == null) {
+      _showMessageUnavailable(context);
+      return;
+    }
+    if (!_history.isAttached || !_scroll.hasClients) return;
     final obstruction = ChildObstructionExtent(
       leading: _composerBottom(context) + _footerHeight,
       trailing: MediaQuery.paddingOf(context).top + _headerHeight,
@@ -471,7 +530,7 @@ class _ChatState extends State<MeshChatPage>
         obstruction: obstruction,
       );
     } else {
-      final animation = _quoteScroll = _history.animateToItem(
+      final animation = _messageScroll = _history.animateToItem(
         index: index,
         scrollController: _scroll,
         alignment: .5,
@@ -480,9 +539,14 @@ class _ChatState extends State<MeshChatPage>
         curve: (_) => Curves.easeInOutCubic,
       );
       await animation;
-      if (!mounted || animation != _quoteScroll || animation.isCanceled) return;
+      if (!mounted || jump != _messageJump) return;
+      if (index() == null) {
+        _showMessageUnavailable(context);
+        return;
+      }
+      if (animation.isCanceled) return;
     }
-    setState(() => _highlighted = original.id);
+    setState(() => _highlighted = messageId);
     unawaited(_highlight.forward(from: 0));
   }
 
@@ -1093,9 +1157,10 @@ class _ChatState extends State<MeshChatPage>
                                     next?.id != unreadBoundary &&
                                     _joins(item, next),
                                 quoted: quote,
-                                onQuote: onMenu == null || quote == null
+                                onQuote: onMenu == null || item.replyTo == null
                                     ? null
-                                    : () => unawaited(_revealQuote(quote)),
+                                    : () =>
+                                          unawaited(_revealMessage(quote?.id)),
                                 highlight:
                                     onMenu != null && _highlighted == item.id
                                     ? _highlightOpacity
@@ -1436,7 +1501,7 @@ class _ChatState extends State<MeshChatPage>
         if (showLink) {
           unawaited(openMessageLink(context, previewLink!));
         } else if (reply != null) {
-          unawaited(_revealQuote(reply));
+          unawaited(_revealMessage(reply.id));
         }
       }
 
