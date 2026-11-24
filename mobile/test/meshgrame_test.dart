@@ -2439,6 +2439,22 @@ void main() {
         final rail = find.byType(ChatFolderRail);
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
         expect(panelColor, const Color(0xfff2f4f6));
+        final panels = find.byType(DesktopWorkspacePanel);
+        expect(panels, findsNWidgets(2));
+        for (final panel in tester.widgetList<DesktopWorkspacePanel>(panels)) {
+          final foreground = find.descendant(
+            of: find.byWidget(panel),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is DecoratedBox &&
+                  widget.position == DecorationPosition.foreground,
+            ),
+          );
+          final box = tester.widget<DecoratedBox>(foreground);
+          final outline = box.decoration as BoxDecoration;
+          expect(outline.border!.dimensions, const EdgeInsets.all(1));
+          expect(outline.borderRadius, BorderRadius.circular(22));
+        }
         final headerEdge = tester.widget<MeshScrollEdge>(
           find.descendant(
             of: find.byKey(const ValueKey('chat-header-background')),

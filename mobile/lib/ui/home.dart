@@ -1075,10 +1075,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       context: context,
                       removeLeft: _desktopRail,
                       removeRight: _split,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(desktop ? 22 : 0),
-                        child: Builder(builder: _sidebar),
-                      ),
+                      child: desktop
+                          ? DesktopWorkspacePanel(
+                              child: Builder(builder: _sidebar),
+                            )
+                          : ClipRect(child: Builder(builder: _sidebar)),
                     ),
                   ),
                 ),

@@ -80,6 +80,32 @@ class ChatWorkspaceResizeHandle extends StatelessWidget {
   );
 }
 
+class DesktopWorkspacePanel extends StatelessWidget {
+  const DesktopWorkspacePanel({super.key, required this.child});
+
+  static const radius = 22.0;
+  static const _corners = BorderRadius.all(Radius.circular(radius));
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MeshStyle.of(context);
+    final outline = Color.lerp(style.desktopPanel, style.secondary, .22)!;
+    return ClipRRect(
+      borderRadius: _corners,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: _corners,
+          border: Border.all(color: outline),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class ChatFolderRail extends StatelessWidget {
   const ChatFolderRail({
     super.key,
@@ -250,13 +276,15 @@ class ChatFolderRail extends StatelessWidget {
         ),
       ),
     );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
+    return DesktopWorkspacePanel(
       child: MacGlass.enabled(context)
           ? Stack(
               fit: StackFit.expand,
               children: [
-                MacGlassBackground(radius: 22, dark: style.dark),
+                MacGlassBackground(
+                  radius: DesktopWorkspacePanel.radius,
+                  dark: style.dark,
+                ),
                 content,
               ],
             )
