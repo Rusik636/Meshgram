@@ -36,7 +36,9 @@ class MeshStyle {
       dark ? const Color(0xff080a0f) : const Color(MeshGrameV2Light.background);
   Color get surface =>
       dark ? const Color(0xff1a1e26) : const Color(MeshGrameV2Light.surface);
-  Color get desktopPanel => Color.lerp(canvas, surface, .56)!;
+  Color get desktopPanel => dark
+      ? Color.lerp(canvas, surface, .56)!
+      : const Color(MeshGrameV2Light.canvas);
   Color get field => dark ? const Color(0xff1c2029) : const Color(0xffeaf0f8);
   Color get searchField => dark
       ? const Color(MeshGrameV2Dark.searchField)

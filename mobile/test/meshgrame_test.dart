@@ -2438,6 +2438,7 @@ void main() {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
+        expect(panelColor, const Color(0xffe9edf0));
         final headerEdge = tester.widget<MeshScrollEdge>(
           find.descendant(
             of: find.byKey(const ValueKey('chat-header-background')),
