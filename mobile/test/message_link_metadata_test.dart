@@ -7,9 +7,44 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:meshgrame/ui/message_link_cache.dart';
 import 'package:meshgrame/ui/message_link_metadata.dart';
 
 void main() {
+  test('reuses downloaded preview images after reopening the cache', () async {
+    final directory = await Directory.systemTemp.createTemp('mesh-link-cache');
+    addTearDown(() => directory.delete(recursive: true));
+    final url = Uri.parse('https://paper.example/article');
+    MessageLinkDiskCache openCache() =>
+        MessageLinkDiskCache(() async => directory);
+    final cache = openCache();
+
+    final partial = await cache.load(
+      url,
+      (_) async => const MessageLinkMetadata(title: 'Field notes'),
+    );
+    expect(partial?.image, isNull);
+    await cache.load(
+      url,
+      (_) async => MessageLinkMetadata(
+        title: 'Field notes',
+        image: _png,
+        imageWidth: 3,
+        imageHeight: 2,
+        prefersLargeImage: true,
+      ),
+    );
+    final cached = await openCache().load(
+      url.replace(fragment: 'release-notes'),
+      (_) => throw StateError('Image should be available offline'),
+    );
+    expect(cached?.image, _png);
+    expect(cached?.title, 'Field notes');
+    expect(cached?.imageWidth, 3);
+    expect(cached?.imageHeight, 2);
+    expect(cached?.prefersLargeImage, isTrue);
+  });
+
   test('loads a CDN image and follows its public HTTPS redirect', () async {
     final page = Uri.parse('https://paper.example/article');
     final image = Uri.parse('https://images.example/cover');

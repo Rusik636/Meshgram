@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'emoji_text.dart';
+import 'message_link_cache.dart';
 import 'message_link_metadata.dart';
 import 'style.dart';
 
@@ -309,7 +310,7 @@ class _MessageLinkPreviewCache {
         _completed.remove(uri);
         _completed[uri] = (
           metadata: metadata,
-          retryAfter: metadata == null
+          retryAfter: metadata?.image == null
               ? DateTime.now().add(const Duration(minutes: 1))
               : null,
         );
@@ -348,7 +349,7 @@ class MessageLinkPreview extends StatefulWidget {
     this.onDismiss,
     this.builder,
     this.draftBuilder,
-    this.loadMetadata = fetchMessageLinkMetadata,
+    this.loadMetadata = loadMessageLinkPreview,
   }) : assert(draftBuilder == null || compact);
 
   final Uri uri;
