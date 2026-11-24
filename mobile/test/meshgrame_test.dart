@@ -2386,9 +2386,44 @@ void main() {
         expect(find.text('Pin chat'), findsOneWidget);
         await tester.tapAt(const Offset(1000, 700));
         await tester.pumpAndSettle();
+        expect(
+          controller.saveChatFolder(name: 'Field work', chats: {}),
+          isNotNull,
+        );
+        expect(
+          controller.saveChatFolder(name: 'Repeaters', chats: {}),
+          isNotNull,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatFolderTabs), findsNothing);
+        final remove = findControl('Delete folder Field work');
+        expect(remove, findsNothing);
         await tester.tap(find.text('Edit'));
         await tester.pumpAndSettle();
         expect(find.text('Done'), findsOneWidget);
+        expect(find.byType(ChatFolderTabs), findsNothing);
+        expect(find.descendant(of: rail, matching: remove), findsOneWidget);
+        expect(findControl('Delete folder All'), findsNothing);
+        final reorder = find.descendant(
+          of: rail,
+          matching: find.byType(ReorderableListView),
+        );
+        tester.widget<ReorderableListView>(reorder).onReorderItem!(0, 1);
+        await tester.pumpAndSettle();
+        expect(controller.chatFolders.map((folder) => folder.name), [
+          'Repeaters',
+          'Field work',
+        ]);
+        await tester.tap(remove);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(MeshDialog),
+            matching: find.text('Delete'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.chatFolders.single.name, 'Repeaters');
         await tester.tap(find.text('Done'));
         await tester.pumpAndSettle();
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -2451,6 +2486,12 @@ void main() {
       expect(mira.hitTestable(), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);
       await tester.tap(mira);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.widgetList<MeshChatPage>(chat).map((page) => page.peer.name),
+        ['Тропа', 'Мира Соколова'],
+      );
       await tester.pumpAndSettle();
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Мира Соколова');
       final conversation = tester.state(chat);
@@ -7101,7 +7142,7 @@ void main() {
 
       tester.widget<MeshNavigation>(navigation).onSelect(1);
       await tester.pump();
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(firstChat, findsNothing);
       tester.widget<MeshNavigation>(navigation).onSelect(0);
       await tester.pumpAndSettle();

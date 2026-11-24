@@ -2,9 +2,12 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
-import 'style.dart';
+import '../mesh/store.dart';
+
 import 'macos_glass.dart';
+import 'style.dart';
 
 bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
   TargetPlatform.macOS ||
@@ -62,7 +65,13 @@ class ChatWorkspaceResizeHandle extends StatelessWidget {
 class ChatFolderRail extends StatelessWidget {
   const ChatFolderRail({
     super.key,
-    required this.labels,
+    required this.builtInLabels,
+    required this.folders,
+    required this.scrollController,
+    required this.editing,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onReorder,
     required this.selected,
     required this.unread,
     required this.settingsUnread,
@@ -72,7 +81,12 @@ class ChatFolderRail extends StatelessWidget {
   });
 
   static const width = 86.0;
-  final List<String> labels;
+  final List<String> builtInLabels;
+  final List<ChatFolder> folders;
+  final ScrollController scrollController;
+  final bool editing;
+  final ValueChanged<String> onEdit, onDelete;
+  final ReorderCallback onReorder;
   final int? selected;
   final List<int> unread;
   final int settingsUnread;
@@ -87,6 +101,34 @@ class ChatFolderRail extends StatelessWidget {
       68.0,
       132.0,
     );
+    final builtInCount = builtInLabels.length;
+    Widget item(int index) {
+      final builtIn = index < builtInCount;
+      final folder = builtIn ? null : folders[index - builtInCount];
+      return SizedBox(
+        key: ValueKey(folder?.id ?? index),
+        height: row,
+        child: _destination(
+          context,
+          title: folder?.name ?? builtInLabels[index],
+          icon: switch (index) {
+            0 => Icons.forum_outlined,
+            1 => Icons.person_outline_rounded,
+            2 => Icons.tag_rounded,
+            _ => Icons.folder_outlined,
+          },
+          active: index == selected,
+          count: unread[index],
+          fill: editing && index == selected,
+          onTap: () => onFolder(index),
+          onEdit: editing && folder != null ? () => onEdit(folder.id) : null,
+          onDelete: editing && folder != null
+              ? () => onDelete(folder.id)
+              : null,
+        ),
+      );
+    }
+
     final content = SafeArea(
       right: false,
       child: Padding(
@@ -94,52 +136,68 @@ class ChatFolderRail extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      key: const ValueKey('folder-rail-indicator'),
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 240),
-                      curve: Curves.easeOutCubic,
-                      top: (selected ?? 0) * row,
-                      left: 0,
-                      right: 0,
-                      height: row - 5,
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: style.selection,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
+              child: editing
+                  ? ReorderableListView.builder(
+                      scrollController: scrollController,
+                      padding: EdgeInsets.zero,
+                      buildDefaultDragHandles: false,
+                      header: Column(
+                        children: [
+                          for (var i = 0; i < builtInCount; i++) item(i),
+                        ],
                       ),
-                    ),
-                    Column(
-                      children: [
-                        for (var index = 0; index < labels.length; index++)
-                          SizedBox(
-                            height: row,
-                            child: _destination(
-                              context,
-                              title: labels[index],
-                              icon: switch (index) {
-                                0 => Icons.forum_outlined,
-                                1 => Icons.person_outline_rounded,
-                                2 => Icons.tag_rounded,
-                                _ => Icons.folder_outlined,
-                              },
-                              active: index == selected,
-                              count: unread[index],
-                              onTap: () => onFolder(index),
+                      itemCount: folders.length,
+                      itemBuilder: (context, index) =>
+                          ReorderableDelayedDragStartListener(
+                            key: ValueKey(folders[index].id),
+                            index: index,
+                            child: item(index + builtInCount),
+                          ),
+                      onReorderItem: onReorder,
+                    )
+                  : SingleChildScrollView(
+                      controller: scrollController,
+                      child: Stack(
+                        children: [
+                          AnimatedPositioned(
+                            key: const ValueKey('folder-rail-indicator'),
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 240),
+                            curve: Curves.easeOutCubic,
+                            top: (selected ?? 0) * row,
+                            left: 0,
+                            right: 0,
+                            height: row - 5,
+                            child: IgnorePointer(
+                              child: AnimatedOpacity(
+                                opacity: selected == null ? 0 : 1,
+                                duration:
+                                    MediaQuery.disableAnimationsOf(context)
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 150),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: style.selection,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                      ],
+                          Column(
+                            children: [
+                              for (
+                                var i = 0;
+                                i < builtInCount + folders.length;
+                                i++
+                              )
+                                item(i),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
             SizedBox(
               height: row,
@@ -157,15 +215,17 @@ class ChatFolderRail extends StatelessWidget {
         ),
       ),
     );
-    if (!MacGlass.enabled(context)) {
-      return ColoredBox(color: style.surface, child: content);
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        MacGlassBackground(radius: 20, dark: style.dark),
-        content,
-      ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: MacGlass.enabled(context)
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                MacGlassBackground(radius: 22, dark: style.dark),
+                content,
+              ],
+            )
+          : ColoredBox(color: style.surface, child: content),
     );
   }
 
@@ -177,50 +237,95 @@ class ChatFolderRail extends StatelessWidget {
     required int count,
     bool fill = false,
     required VoidCallback onTap,
+    VoidCallback? onEdit,
+    VoidCallback? onDelete,
   }) {
     final style = MeshStyle.of(context);
     final foreground = active ? style.accent : style.secondary;
     final shape = BorderRadius.circular(14);
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
-      child: Semantics(
-        selected: active,
-        button: true,
-        child: Material(
-          color: fill ? style.selection : Colors.transparent,
-          borderRadius: shape,
-          child: InkWell(
-            borderRadius: shape,
-            hoverColor: Colors.transparent,
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 60),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 3),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Badge(
-                      isLabelVisible: count > 0,
-                      label: Text(count > 99 ? '99+' : '$count'),
-                      child: Icon(icon, color: foreground, size: 24),
-                    ),
-                    const SizedBox(height: 4),
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: foreground, fontSize: 11),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Semantics(
+            selected: active,
+            button: true,
+            customSemanticsActions: onEdit == null
+                ? null
+                : {
+                    CustomSemanticsAction(
+                      label: tr(context, 'Изменить папку', 'Edit folder'),
+                    ): onEdit,
+                  },
+            child: Material(
+              color: fill ? style.selection : Colors.transparent,
+              borderRadius: shape,
+              child: InkWell(
+                borderRadius: shape,
+                hoverColor: Colors.transparent,
+                onTap: onTap,
+                onDoubleTap: onEdit,
+                onSecondaryTap: onEdit,
+                child: Padding(
+                  padding: EdgeInsetsDirectional.only(
+                    top: 8,
+                    bottom: 8,
+                    start: 3,
+                    end: onDelete == null ? 3 : 25,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Badge(
+                        isLabelVisible: count > 0,
+                        label: Text(count > 99 ? '99+' : '$count'),
+                        child: Icon(icon, color: foreground, size: 24),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: foreground, fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          if (onDelete != null)
+            PositionedDirectional(
+              end: 0,
+              bottom: 0,
+              child: MeshIconButton(
+                label: tr(
+                  context,
+                  'Удалить папку $title',
+                  'Delete folder $title',
+                ),
+                constraints: const BoxConstraints.tightFor(
+                  width: 28,
+                  height: 34,
+                ),
+                style: IconButton.styleFrom(
+                  overlayColor: Colors.transparent,
+                  splashFactory: NoSplash.splashFactory,
+                ),
+                padding: EdgeInsets.zero,
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 15,
+                  color: style.secondary,
+                ),
+                onPressed: onDelete,
+              ),
+            ),
+        ],
       ),
     );
   }

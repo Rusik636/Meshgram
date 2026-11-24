@@ -126,6 +126,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   String? _revealedChat;
   final _previewBackground = GlobalKey();
   final _folderTabsScroll = ScrollController();
+  final _folderRailScroll = ScrollController();
   Radio? _folderProfile;
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
@@ -267,6 +268,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _searchFocus.dispose();
     _chatScroll.dispose();
     _folderTabsScroll.dispose();
+    _folderRailScroll.dispose();
     _searchMotion.dispose();
     _archiveDwell?.cancel();
     _archiveProgress.dispose();
@@ -747,18 +749,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     if (index < 0) return;
     _selectChatTab(index + 3);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_folderTabsScroll.hasClients) return;
-      final end = _folderTabsScroll.position.maxScrollExtent;
+      final scroll = _desktopRail ? _folderRailScroll : _folderTabsScroll;
+      if (!mounted || !scroll.hasClients) return;
+      final end = scroll.position.maxScrollExtent;
       final duration = meshMotion(context);
       if (duration == Duration.zero) {
-        _folderTabsScroll.jumpTo(end);
+        scroll.jumpTo(end);
       } else {
         unawaited(
-          _folderTabsScroll.animateTo(
-            end,
-            duration: duration,
-            curve: Curves.easeOutCubic,
-          ),
+          scroll.animateTo(end, duration: duration, curve: Curves.easeOutCubic),
         );
       }
     });
@@ -977,21 +976,41 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 : 840) &&
         (desktop || tablet);
     _workspaceEnabled |= desktop || _split || widget.tabletDisplay;
-    _desktopRail = desktop && _split;
+    _desktopRail = desktop;
     final rail = _desktopRail ? ChatFolderRail.width : 0.0;
+    final inset = desktop ? 8.0 : 0.0;
+    final sidebarLeft = rail + 2 * inset;
     final divider = _split ? (_desktopRail ? 6.0 : 1.0) : 0.0;
-    final maximum = math.min(480.0, size.width - rail - divider - 400);
+    final maximum = math.min(480.0, size.width - sidebarLeft - divider - 400);
+    final minimum = math.min(300.0, maximum);
     final sidebarWidth = _split
-        ? (_resizedChatListWidth ?? (size.width - rail) / 3)
-              .clamp(300.0, maximum)
+        ? (_resizedChatListWidth ?? (size.width - sidebarLeft) / 3)
+              .clamp(minimum, maximum)
               .toDouble()
-        : size.width;
+        : size.width - sidebarLeft - inset;
     final sidebarCanGoBack =
         (_split || !_detailOpen) &&
         (_searchActive || _editingChats || _showHidden);
     final sidebarCovered = !_split && _detailOpen;
     final top = _detailObserver.top;
     final detailMotion = top is TransitionRoute<dynamic> ? top.animation : null;
+    Widget behindDetail(Widget child) => AnimatedBuilder(
+      animation: detailMotion ?? const AlwaysStoppedAnimation(1.0),
+      builder: (context, child) => Offstage(
+        offstage:
+            sidebarCovered &&
+            !_detailBackGesture &&
+            detailMotion?.isCompleted == true,
+        child: child,
+      ),
+      child: ExcludeFocus(
+        excluding: sidebarCovered,
+        child: ExcludeSemantics(
+          excluding: sidebarCovered,
+          child: IgnorePointer(ignoring: sidebarCovered, child: child),
+        ),
+      ),
+    );
     return PopScope(
       canPop: !sidebarCanGoBack,
       onPopInvokedWithResult: (didPop, _) {
@@ -1019,42 +1038,31 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             key: _previewBackground,
             child: Stack(
               children: [
+                if (desktop)
+                  Positioned.fill(
+                    child: ColoredBox(color: MeshStyle.of(context).surface),
+                  ),
                 if (_desktopRail)
                   Positioned(
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
+                    top: inset,
+                    bottom: inset,
+                    left: inset,
                     width: rail,
-                    child: _folderRail(),
+                    child: behindDetail(_folderRail()),
                   ),
                 Positioned(
-                  left: rail,
-                  top: 0,
-                  bottom: 0,
+                  left: sidebarLeft,
+                  top: inset,
+                  bottom: inset,
                   width: sidebarWidth,
-                  child: AnimatedBuilder(
-                    animation:
-                        detailMotion ?? const AlwaysStoppedAnimation(1.0),
-                    builder: (context, child) => Offstage(
-                      offstage:
-                          sidebarCovered &&
-                          !_detailBackGesture &&
-                          detailMotion?.isCompleted == true,
-                      child: child,
-                    ),
-                    child: ExcludeFocus(
-                      excluding: sidebarCovered,
-                      child: ExcludeSemantics(
-                        excluding: sidebarCovered,
-                        child: IgnorePointer(
-                          ignoring: sidebarCovered,
-                          child: MediaQuery.removePadding(
-                            context: context,
-                            removeLeft: _desktopRail,
-                            removeRight: _split,
-                            child: Builder(builder: _sidebar),
-                          ),
-                        ),
+                  child: behindDetail(
+                    MediaQuery.removePadding(
+                      context: context,
+                      removeLeft: _desktopRail,
+                      removeRight: _split,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(desktop ? 22 : 0),
+                        child: Builder(builder: _sidebar),
                       ),
                     ),
                   ),
@@ -1063,13 +1071,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   Positioned(
                     top: 0,
                     bottom: 0,
-                    left: rail + sidebarWidth,
+                    left: sidebarLeft + sidebarWidth,
                     width: divider,
                     child: _desktopRail
                         ? ChatWorkspaceResizeHandle(
                             onResize: (delta) => setState(() {
                               _resizedChatListWidth = (sidebarWidth + delta)
-                                  .clamp(300.0, maximum)
+                                  .clamp(minimum, maximum)
                                   .toDouble();
                             }),
                           )
@@ -1078,7 +1086,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 if (_workspaceEnabled)
                   Positioned(
                     key: const ValueKey('conversation-pane'),
-                    left: _split ? rail + sidebarWidth + divider : 0,
+                    left: _split ? sidebarLeft + sidebarWidth + divider : 0,
                     top: 0,
                     bottom: 0,
                     right: 0,
@@ -1171,19 +1179,24 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   ];
 
   Widget _folderRail() {
-    final labels = [
-      ..._builtInFolders(context),
-      for (final folder in controller.chatFolders) folder.name,
-    ];
+    final builtIn = _builtInFolders(context);
+    final folders = controller.chatFolders;
+    final editing = _editingChats && !_showHidden && !_searchActive;
     final unread = controller.cache?.unread;
     final unreadPeers = controller.cache?.markedUnread;
     final chats = controller.conversations;
     return ChatFolderRail(
-      labels: labels,
+      builtInLabels: builtIn,
+      folders: folders,
+      editing: editing,
+      scrollController: _folderRailScroll,
+      onEdit: (id) => unawaited(_editFolder(id)),
+      onDelete: (id) => unawaited(_deleteFolder(id)),
+      onReorder: _reorderFolders,
       selected: _selectedTab == 0 ? _chatCategories.selected : null,
       settingsSelected: _selectedTab == 1,
       unread: [
-        for (var i = 0; i < labels.length; i++)
+        for (var i = 0; i < builtIn.length + folders.length; i++)
           chats.where((peer) => _matchesChatTab(peer, i)).fold(0, (
             count,
             peer,
@@ -1198,7 +1211,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       settingsUnread: controller.unreadOnOtherRadios,
       onFolder: (index) {
         if (_flashingFirmware) return;
-        _dismissSidebarMode();
+        if (!editing) _dismissSidebarMode();
         if (_selectedTab != 0) _selectTab(0);
         _selectChatTab(index);
       },
@@ -1337,8 +1350,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final hasChatCategories =
           !_showHidden &&
           (controller.active != null || controller.conversations.isNotEmpty);
-      final categoriesInChats =
-          hasChatCategories && (!_desktopRail || _editingChats);
+      final categoriesInChats = hasChatCategories && !_desktopRail;
       final categoriesInSearch =
           controller.peers.isNotEmpty || controller.conversations.isNotEmpty;
       final searchBottom = (keyboard > 0 ? 0 : safe.bottom) + 2;
