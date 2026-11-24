@@ -7137,7 +7137,24 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Quick phrases'));
+    final phraseButton = find.byTooltip('Quick phrases');
+    final attachmentButton = find.byTooltip('Attachments');
+    void expectAlignedButtons() {
+      expect(
+        tester.getCenter(phraseButton).dx,
+        tester.getCenter(attachmentButton).dx,
+      );
+    }
+
+    expectAlignedButtons();
+    controller.setReplyDraft(peer.id, controller.messages(peer.id).first);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Cancel reply'), findsOneWidget);
+    expectAlignedButtons();
+    controller.setReplyDraft(peer.id, null);
+    await tester.pumpAndSettle();
+
+    await tester.tap(phraseButton);
     await tester.pumpAndSettle();
     expect(find.text('I’m here'), findsOneWidget);
     await tester.tap(find.byTooltip('Edit phrase').first);
