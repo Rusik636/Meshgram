@@ -14,6 +14,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.close_fullscreen_rounded => 'arrow.down.right.and.arrow.up.left',
   Icons.close_rounded => 'xmark',
   Icons.copy_rounded => 'doc.on.doc',
+  Icons.create_new_folder_outlined => 'folder.badge.plus',
   Icons.download_rounded => 'arrow.down.to.line',
   Icons.edit_note_rounded => 'square.and.pencil',
   Icons.edit_outlined => 'pencil',

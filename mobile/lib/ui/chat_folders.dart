@@ -2,95 +2,382 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
-import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/store.dart';
+import 'haptics.dart';
+import 'navigation.dart';
 import 'page_route.dart';
 import 'style.dart';
 
 typedef ChatFolderEdit = ({String name, Set<String> chats});
 
-Future<void> showChatFolders(
-  BuildContext context, {
-  required MeshController controller,
-  required Future<void> Function(ChatFolder?) onEdit,
-  required ValueChanged<String> onDelete,
-  required ValueChanged<List<String>> onReorder,
-}) => Navigator.of(context).push<void>(
-  meshPageRoute(
-    context,
-    builder: (context) => Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            PageHeading(
-              tr(context, 'Папки чатов', 'Chat folders'),
-              leading: GlassButton(
-                icon: Icons.arrow_back_ios_new_rounded,
-                label: tr(context, 'Назад', 'Back'),
-                onTap: () => Navigator.pop(context),
-              ),
-              trailing: GlassButton(
-                icon: Icons.add_rounded,
-                label: tr(context, 'Новая папка', 'New folder'),
-                onTap: () => unawaited(onEdit(null)),
-              ),
+Future<String?> nameNewChatFolder(BuildContext context) {
+  var name = '';
+  return showMeshDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) {
+        final label = name.trim();
+        void save() {
+          if (label.isNotEmpty) Navigator.pop(context, label);
+        }
+
+        return MeshDialog(
+          title: Text(tr(context, 'Новая папка', 'New folder')),
+          content: TextFormField(
+            autofocus: true,
+            maxLength: 36,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              labelText: tr(context, 'Название', 'Name'),
+              counterText: '',
             ),
-            Expanded(
-              child: ListenableBuilder(
-                listenable: controller,
-                builder: (context, _) {
-                  final folders = controller.chatFolders;
-                  return ReorderableListView.builder(
-                    buildDefaultDragHandles: false,
-                    itemCount: folders.length,
-                    onReorderItem: (from, to) {
-                      final ids = folders.map((folder) => folder.id).toList();
-                      ids.insert(to, ids.removeAt(from));
-                      onReorder(ids);
-                    },
-                    itemBuilder: (context, index) {
-                      final folder = folders[index];
-                      return ListTile(
-                        key: ValueKey(folder.id),
-                        leading: ReorderableDragStartListener(
-                          index: index,
-                          child: const Icon(Icons.drag_handle_rounded),
-                        ),
-                        title: Text(folder.name),
-                        trailing: IconButton(
-                          tooltip: tr(
-                            context,
-                            'Удалить папку',
-                            'Delete folder',
-                          ),
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          onPressed: () => onDelete(folder.id),
-                        ),
-                        onTap: () => unawaited(onEdit(folder)),
-                      );
-                    },
-                  );
-                },
-              ),
+            onChanged: (text) => setState(() => name = text),
+            onFieldSubmitted: (_) => save(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(tr(context, 'Отмена', 'Cancel')),
+            ),
+            TextButton(
+              onPressed: label.isEmpty ? null : save,
+              child: Text(tr(context, 'Добавить', 'Add')),
             ),
           ],
+        );
+      },
+    ),
+  );
+}
+
+class ChatFolderTabs extends StatefulWidget {
+  const ChatFolderTabs({
+    super.key,
+    required this.builtInLabels,
+    required this.folders,
+    required this.scrollController,
+    required this.selected,
+    required this.editing,
+    required this.onSelect,
+    required this.onReorder,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<String> builtInLabels;
+  final List<ChatFolder> folders;
+  final ScrollController scrollController;
+  final int selected;
+  final bool editing;
+  final ValueChanged<int> onSelect;
+  final ReorderCallback onReorder;
+  final ValueChanged<String> onEdit, onDelete;
+
+  @override
+  State<ChatFolderTabs> createState() => _ChatFolderTabsState();
+}
+
+class _ChatFolderTabsState extends State<ChatFolderTabs>
+    with SingleTickerProviderStateMixin {
+  static const _padding = 4.0;
+  static const _gap = 3.0;
+  static const _titleStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+  );
+  late final _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMotion();
+  }
+
+  @override
+  void didUpdateWidget(ChatFolderTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncMotion();
+  }
+
+  void _syncMotion() {
+    if (widget.editing &&
+        widget.folders.isNotEmpty &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      if (!_shake.isAnimating) _shake.repeat();
+    } else if (_shake.isAnimating) {
+      _shake.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  Widget _tab({
+    required int index,
+    required double width,
+    required String title,
+    ChatFolder? folder,
+    int? folderIndex,
+  }) {
+    final style = MeshStyle.of(context);
+    final selected = widget.selected == index;
+    final rearranging = widget.editing && folder != null;
+    Widget label = Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _titleStyle.copyWith(color: selected ? style.accent : style.text),
+    );
+    if (rearranging && !MediaQuery.disableAnimationsOf(context)) {
+      final phase = (folderIndex! % 4) * math.pi / 2;
+      label = AnimatedBuilder(
+        animation: _shake,
+        builder: (_, child) => Transform.rotate(
+          angle: math.sin(_shake.value * 2 * math.pi + phase) * .045,
+          child: child,
+        ),
+        child: label,
+      );
+    }
+    final tab = Semantics(
+      selected: selected,
+      button: true,
+      customSemanticsActions: rearranging
+          ? {
+              if (folderIndex! > 0)
+                CustomSemanticsAction(
+                  label: tr(context, 'Переместить левее', 'Move earlier'),
+                ): () =>
+                    widget.onReorder(folderIndex, folderIndex - 1),
+              if (folderIndex < widget.folders.length - 1)
+                CustomSemanticsAction(
+                  label: tr(context, 'Переместить правее', 'Move later'),
+                ): () =>
+                    widget.onReorder(folderIndex, folderIndex + 1),
+            }
+          : null,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(32),
+        onTap: () => widget.onSelect(index),
+        onLongPress: folder == null || rearranging
+            ? null
+            : () => widget.onEdit(folder.id),
+        child: Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: rearranging ? 0 : 14,
+            end: 14,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (rearranging)
+                IconButton(
+                  tooltip: tr(
+                    context,
+                    'Удалить папку $title',
+                    'Delete folder $title',
+                  ),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 48,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.cancel_rounded, size: 17),
+                  color: style.secondary,
+                  onPressed: () => widget.onDelete(folder.id),
+                ),
+              Flexible(child: label),
+            ],
+          ),
         ),
       ),
-    ),
-  ),
-);
+    );
+    return Padding(
+      key: folder == null ? null : ValueKey(folder.id),
+      padding: const EdgeInsetsDirectional.only(end: _gap),
+      child: SizedBox(
+        width: width,
+        child: rearranging
+            ? ReorderableDelayedDragStartListener(
+                index: folderIndex!,
+                child: tab,
+              )
+            : tab,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MeshStyle.of(context);
+    final height = ChatFilters.contentHeight(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: GlassSurface(
+        modal: true,
+        radius: height / 2,
+        child: SizedBox(
+          height: height - 4,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final count = widget.builtInLabels.length;
+              final labels = [
+                ...widget.builtInLabels,
+                for (final folder in widget.folders) folder.name,
+              ];
+              final maxWidth = math.max(
+                48.0,
+                constraints.maxWidth - _padding * 2,
+              );
+              final painter = TextPainter(
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              );
+              final widths = List.generate(labels.length, (index) {
+                painter.text = TextSpan(
+                  text: labels[index],
+                  style: _titleStyle,
+                );
+                painter.layout();
+                final extra = widget.editing && index >= count ? 30 : 0;
+                return (painter.width.ceilToDouble() + 28 + extra).clamp(
+                  48.0,
+                  maxWidth,
+                );
+              });
+              painter.dispose();
+              final selected = widget.selected.clamp(0, labels.length - 1);
+              final start = widths
+                  .take(selected)
+                  .fold(_padding, (sum, width) => sum + width + _gap);
+              Widget folderTab(BuildContext context, int position) {
+                final index = count + position;
+                return _tab(
+                  index: index,
+                  width: widths[index],
+                  title: labels[index],
+                  folder: widget.folders[position],
+                  folderIndex: position,
+                );
+              }
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (!widget.editing)
+                    IgnorePointer(
+                      child: ListenableBuilder(
+                        listenable: widget.scrollController,
+                        builder: (context, indicator) {
+                          final scroll = widget.scrollController;
+                          final offset = scroll.hasClients
+                              ? scroll.offset
+                              : 0.0;
+                          final rtl =
+                              Directionality.of(context) == TextDirection.rtl;
+                          return Transform.translate(
+                            offset: Offset(rtl ? offset : -offset, 0),
+                            child: indicator,
+                          );
+                        },
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AnimatedPositionedDirectional(
+                              duration: meshMotion(context),
+                              curve: Curves.easeOutCubic,
+                              start: start,
+                              top: 4,
+                              bottom: 4,
+                              width: widths[selected],
+                              child: GlassSurface(
+                                key: const ValueKey('chat-folder-indicator'),
+                                nativeButtonMaterial: true,
+                                radius: height / 2,
+                                color: style.field,
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  CustomScrollView(
+                    key: const ValueKey('chat-folder-scroll'),
+                    controller: widget.scrollController,
+                    primary: false,
+                    scrollDirection: Axis.horizontal,
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: _padding,
+                        ),
+                        sliver: SliverToBoxAdapter(
+                          child: Row(
+                            children: [
+                              for (var index = 0; index < count; index++)
+                                _tab(
+                                  index: index,
+                                  width: widths[index],
+                                  title: labels[index],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (widget.editing && widget.folders.isNotEmpty)
+                        SliverReorderableList(
+                          key: const ValueKey('chat-folder-reorder'),
+                          itemBuilder: folderTab,
+                          itemCount: widget.folders.length,
+                          onReorderItem: widget.onReorder,
+                          onReorderStart: (_) =>
+                              unawaited(playMeshHaptic(MeshHaptic.selection)),
+                          proxyDecorator: (child, index, animation) => Material(
+                            color: style.surface,
+                            borderRadius: BorderRadius.circular(height / 2),
+                            child: child,
+                          ),
+                        )
+                      else
+                        SliverList.builder(
+                          itemCount: widget.folders.length,
+                          itemBuilder: folderTab,
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 Future<ChatFolderEdit?> editChatFolder(
   BuildContext context, {
   required List<Peer> chats,
-  ChatFolder? folder,
+  required ChatFolder folder,
 }) {
-  var name = folder?.name ?? '';
-  final selected = {...?folder?.chats};
+  var name = folder.name;
+  final selected = {...folder.chats};
   return Navigator.of(context).push<ChatFolderEdit>(
     meshPageRoute(
       context,
@@ -100,9 +387,7 @@ Future<ChatFolderEdit?> editChatFolder(
             child: Column(
               children: [
                 PageHeading(
-                  folder == null
-                      ? tr(context, 'Новая папка', 'New folder')
-                      : tr(context, 'Изменить папку', 'Edit folder'),
+                  tr(context, 'Изменить папку', 'Edit folder'),
                   sideWidth: 108,
                   leading: GlassButton(
                     icon: Icons.arrow_back_ios_new_rounded,

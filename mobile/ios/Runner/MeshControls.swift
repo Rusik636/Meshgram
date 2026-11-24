@@ -568,6 +568,14 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
         label.font = UIFont.preferredFont(forTextStyle: .caption1)
         configuration.attributedTitle = label
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 3, bottom: 4, trailing: 3)
+      } else if input["inlineSymbol"] as? Bool == true {
+        var label = AttributedString(title)
+        label.font = .preferredFont(forTextStyle: .subheadline)
+        configuration.attributedTitle = label
+        configuration.imagePlacement = .leading
+        configuration.imagePadding = 5
+        configuration.titleLineBreakMode = .byTruncatingTail
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8)
       } else {
         configuration.contentInsets = .zero
       }

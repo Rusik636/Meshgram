@@ -2061,8 +2061,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Select chats'));
-      await tester.pumpAndSettle();
+      expect(find.text('Select chats'), findsNothing);
       expect(find.byType(SliverReorderableList), findsOneWidget);
       expect(find.byIcon(Icons.drag_handle_rounded), findsWidgets);
       final chats = controller.conversations;
@@ -7499,22 +7498,31 @@ void main() {
       MeshGrame(controller: controller, locale: const Locale('en')),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Unread'), findsNothing);
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('New folder'));
+    await tester.tap(find.text(peer.name));
+    await tester.tap(find.text('Тропа'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.text('New folder'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField), ' Field team ');
     await tester.pump();
-    await tester.tap(find.widgetWithText(CheckboxListTile, peer.name));
-    await tester.tap(find.widgetWithText(CheckboxListTile, 'Тропа'));
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.descendant(of: dialog, matching: find.text('Add')));
     await tester.pumpAndSettle();
     final folder = controller.chatFolders.single.id;
     expect(find.text('Field team'), findsOneWidget);
+    expect(find.byTooltip('Delete folder Field team'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
     controller.toggleFolderPin(folder, peer.id);
     controller.setPinnedMessage(peer.id, message.id);
     final cache = ChatCache.fromJson(controller.cache!.toJson());
     expect(cache.folders[folder]?.name, 'Field team');
+    expect(cache.folders[folder]?.chats, {peer.id, 'ch:0'});
     expect(cache.folders[folder]?.pinned, [peer.id]);
     expect(cache.pinnedMessages[peer.id], message.id);
 
@@ -7538,6 +7546,74 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.pinnedMessageId(peer.id), isNull);
     expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('folder tabs reorder on hold and delete without deleting chats', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final first = controller.saveChatFolder(
+      name: 'Field team',
+      chats: {'node:a'},
+    );
+    final second = controller.saveChatFolder(
+      name: 'Survey crew',
+      chats: {'ch:0'},
+    );
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+    await tester.drag(scroll, const Offset(-260, 0));
+    await tester.pumpAndSettle();
+    final tabs = tester.widget<CustomScrollView>(scroll).controller!;
+    expect(tabs.offset, greaterThan(0));
+    tabs.jumpTo(tabs.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final left = tester.getCenter(find.text('Field team'));
+    final right = tester.getCenter(find.text('Survey crew'));
+    expect(find.text('Survey crew').hitTestable(), findsOneWidget);
+    final hold = await tester.startGesture(right);
+    await tester.pump(const Duration(milliseconds: 550));
+    await tester.pump();
+    await hold.moveBy(const Offset(-64, 0));
+    await tester.pump(const Duration(milliseconds: 100));
+    await hold.moveTo(left + const Offset(35, 0));
+    await tester.pump(const Duration(milliseconds: 240));
+    await hold.up();
+    await tester.pumpAndSettle();
+    expect(controller.chatFolders.map((folder) => folder.id), [second, first]);
+    expect(
+      tester.getCenter(find.text('Survey crew')).dx,
+      lessThan(tester.getCenter(find.text('Field team')).dx),
+    );
+
+    await tester.tap(find.byTooltip('Delete folder Field team'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Delete'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.chatFolders.map((folder) => folder.id), [second]);
+    expect(controller.messages('node:a'), isNotEmpty);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
