@@ -970,7 +970,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _split =
         size.width >=
             (desktop
-                ? 800
+                ? meshDesktopSplitWidth
                 : apple
                 ? 740
                 : 840) &&

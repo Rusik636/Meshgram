@@ -16,6 +16,8 @@ bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
   _ => false,
 };
 
+const meshDesktopSplitWidth = 800.0;
+
 /// Carries the workspace geometry through the conversation's own navigator.
 class ChatWorkspacePane extends InheritedWidget {
   const ChatWorkspacePane({
@@ -97,6 +99,7 @@ class ChatFolderRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final mac = Theme.of(context).platform == TargetPlatform.macOS;
     final row = (53 + MediaQuery.textScalerOf(context).scale(11) * 2.4).clamp(
       68.0,
       132.0,
@@ -131,6 +134,9 @@ class ChatFolderRail extends StatelessWidget {
 
     final content = SafeArea(
       right: false,
+      minimum: mac
+          ? const EdgeInsets.only(top: MacGlass.windowControlsInset)
+          : EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Column(

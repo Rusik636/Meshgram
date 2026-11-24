@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import 'radio/desktop_usb.dart';
 import 'radio/lan_transport.dart';
 import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
+import 'ui/chat_workspace.dart';
 import 'ui/home.dart';
 import 'ui/legal_consent.dart';
 import 'ui/macos_glass.dart';
@@ -40,6 +42,7 @@ Future<void> main() async {
         supportedLocales: const [Locale('ru'), Locale('en')],
         theme: const MeshStyle(false).theme(),
         darkTheme: const MeshStyle(true).theme(),
+        builder: (context, child) => _macWindowInsets(context, child!),
         themeMode: switch (MeshStore(preferences).appearance) {
           'light' => ThemeMode.light,
           'dark' => ThemeMode.dark,
@@ -137,7 +140,7 @@ class MeshGrame extends StatelessWidget {
       builder: (context, child) {
         final app = TooltipVisibility(visible: false, child: child!);
         if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-          return app;
+          return _macWindowInsets(context, app);
         }
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
@@ -157,5 +160,22 @@ class MeshGrame extends StatelessWidget {
         tabletDisplay: tabletDisplay,
       ),
     ),
+  );
+}
+
+Widget _macWindowInsets(BuildContext context, Widget child) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return child;
+  final media = MediaQuery.of(context);
+  if (media.size.width >= meshDesktopSplitWidth) return child;
+  return MediaQuery(
+    data: media.copyWith(
+      padding: media.padding.copyWith(
+        top: math.max(media.padding.top, MacGlass.windowControlsInset),
+      ),
+      viewPadding: media.viewPadding.copyWith(
+        top: math.max(media.viewPadding.top, MacGlass.windowControlsInset),
+      ),
+    ),
+    child: child,
   );
 }

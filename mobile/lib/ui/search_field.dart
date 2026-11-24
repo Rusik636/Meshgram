@@ -6,6 +6,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'navigation.dart';
 import 'style.dart';
 
@@ -315,7 +316,9 @@ class MeshSearchEditor extends StatelessWidget {
     }
     return GlassSurface(
       radius: 100,
-      color: Color.lerp(style.pill, style.searchField, progress),
+      color: MacGlass.enabled(context)
+          ? null
+          : Color.lerp(style.pill, style.searchField, progress),
       child: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= 120) {

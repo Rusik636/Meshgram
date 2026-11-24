@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 class MacGlass {
   static const channel = MethodChannel('meshgrame/macos_glass');
+  static const windowControlsInset = 30.0;
   static bool _supported = false;
 
   static Future<void> initialize() async {

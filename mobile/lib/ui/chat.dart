@@ -25,6 +25,7 @@ import 'chat_attachments.dart';
 import 'style.dart';
 import 'page_route.dart';
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'contact_qr.dart';
 import 'emoji_picker.dart';
 import 'emoji_text.dart';
@@ -3031,7 +3032,6 @@ class _ChatState extends State<MeshChatPage>
             ? editor
             : GlassSurface(
                 radius: 23,
-                nativeDesktopMaterial: true,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -3124,6 +3124,17 @@ class _ChatState extends State<MeshChatPage>
       'accent': style.accent.toARGB32(),
       'secondary': style.secondary.toARGB32(),
     };
+    final profileButton = MeshIconButton(
+      label: tr(context, 'Профиль чата', 'Chat profile'),
+      padding: EdgeInsets.zero,
+      onPressed: () => unawaited(_profile(peer)),
+      icon: MeshAvatar(
+        peer.name,
+        size: 43,
+        channel: peer.channel,
+        online: widget.controller.isNodeOnline(peer.id),
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 5),
       child: Row(
@@ -3179,18 +3190,13 @@ class _ChatState extends State<MeshChatPage>
                 onSelect: (_) => unawaited(_profile(peer)),
               ),
             )
+          else if (MacGlass.enabled(context))
+            SizedBox.square(
+              dimension: 48,
+              child: GlassSurface(child: profileButton),
+            )
           else
-            MeshIconButton(
-              label: tr(context, 'Профиль чата', 'Chat profile'),
-              padding: EdgeInsets.zero,
-              onPressed: () => unawaited(_profile(peer)),
-              icon: MeshAvatar(
-                peer.name,
-                size: 43,
-                channel: peer.channel,
-                online: widget.controller.isNodeOnline(peer.id),
-              ),
-            ),
+            profileButton,
         ],
       ),
     );
@@ -4480,7 +4486,6 @@ class _ChatTitle extends StatelessWidget {
             )
           : GlassSurface(
               radius: 100,
-              nativeDesktopMaterial: true,
               child: InkWell(
                 onTap: onTap,
                 onLongPress: onLongPress,
@@ -5121,42 +5126,45 @@ class MeshChatProfile extends StatelessWidget {
         symbol: symbol,
       );
     }
-    return SizedBox.square(
-      dimension: size,
-      child: Material(
-        color: style.pill,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(19),
-          side: BorderSide(color: style.separator),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: style.text, size: 20),
-                const SizedBox(height: 4),
-                Flexible(
-                  child: Text(
-                    text,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: style.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+    final button = InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: style.text, size: 20),
+            const SizedBox(height: 4),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: style.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
+    );
+    return SizedBox.square(
+      dimension: size,
+      child: MacGlass.enabled(context)
+          ? GlassSurface(radius: 19, child: button)
+          : Material(
+              color: style.pill,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(19),
+                side: BorderSide(color: style.separator),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: button,
+            ),
     );
   }
 }

@@ -5,6 +5,11 @@ class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
+    styleMask.insert(.fullSizeContentView)
+    titleVisibility = .hidden
+    titlebarAppearsTransparent = true
+    titlebarSeparatorStyle = .none
+    isMovableByWindowBackground = true
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
@@ -21,7 +26,7 @@ class MainFlutterWindow: NSWindow {
           return
         }
         if #available(macOS 26.0, *) {
-          reply(true)
+          reply(!NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency)
         } else {
           reply(false)
         }

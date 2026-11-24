@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import 'haptics.dart';
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'style.dart';
 
 Color _tabSelection(MeshStyle style) =>
@@ -220,7 +221,9 @@ class _FlutterTabsState extends State<_FlutterTabs> {
   }
 
   Widget _surface(MeshStyle style, Widget child) {
-    if (widget.textOnly) return GlassSurface(radius: 24, child: child);
+    if (widget.textOnly || MacGlass.enabled(context)) {
+      return GlassSurface(radius: widget.textOnly ? 24 : 30, child: child);
+    }
     return Material(
       color: MediaQuery.highContrastOf(context)
           ? style.surface

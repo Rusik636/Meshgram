@@ -137,6 +137,9 @@ class MessageMenuSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MacGlass.enabled(context)) {
+      return GlassSurface(radius: radius, child: child);
+    }
     final style = MeshStyle.of(context);
     final border = BorderRadius.circular(radius);
     final backdrop =
@@ -199,33 +202,33 @@ class GlassSurface extends StatelessWidget {
     this.modal = false,
     this.color,
     this.nativeButtonMaterial = false,
-    this.nativeDesktopMaterial = false,
   });
   final Widget child;
   final double radius;
   final bool modal;
   final Color? color;
   final bool nativeButtonMaterial;
-  final bool nativeDesktopMaterial;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final opaque = MediaQuery.highContrastOf(context);
     final border = BorderRadius.circular(radius);
-    if ((nativeDesktopMaterial || nativeButtonMaterial) &&
-        MacGlass.enabled(context)) {
-      return Stack(
-        children: [
-          Positioned.fill(
-            child: MacGlassBackground(
-              radius: radius,
-              dark: style.dark,
-              tint: color,
+    if (MacGlass.enabled(context)) {
+      return ClipRRect(
+        borderRadius: border,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: MacGlassBackground(
+                radius: radius,
+                dark: style.dark,
+                tint: color,
+              ),
             ),
-          ),
-          Material(type: MaterialType.transparency, child: child),
-        ],
+            Material(type: MaterialType.transparency, child: child),
+          ],
+        ),
       );
     }
     if (nativeButtonMaterial && useIosControls) {
@@ -348,7 +351,6 @@ class GlassButton extends StatelessWidget {
     final button = Semantics(
       label: label,
       child: GlassSurface(
-        nativeDesktopMaterial: true,
         color: primary ? style.accent : null,
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
@@ -428,47 +430,57 @@ class GlassActionButton extends StatelessWidget {
         ? (textScaler.scale(17) * 2.4 + 8).clamp(48.0, double.infinity)
         : (48 + (textScaler.scale(16) - 16)).clamp(48.0, 80.0);
     if (!useIosControls) {
+      final macGlass = MacGlass.enabled(context);
       final title = Text(
         label,
         textAlign: TextAlign.center,
         maxLines: wrapLabel ? 2 : 1,
         overflow: TextOverflow.ellipsis,
       );
+      final button = FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: macGlass
+              ? Colors.transparent
+              : primary
+              ? style.accent
+              : style.pill,
+          foregroundColor: primary
+              ? (style.dark ? const Color(0xff10254b) : Colors.white)
+              : style.text,
+          disabledBackgroundColor: macGlass
+              ? Colors.transparent
+              : primary
+              ? Color.lerp(style.surface, style.text, .27)
+              : style.pill,
+          disabledForegroundColor: style.secondary.withValues(alpha: .58),
+          shape: const StadiumBorder(),
+          side: primary || macGlass
+              ? BorderSide.none
+              : BorderSide(color: style.separator),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        onPressed: onTap,
+        child: icon == null
+            ? title
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 18),
+                  const SizedBox(width: 5),
+                  Flexible(child: title),
+                ],
+              ),
+      );
       return SizedBox(
         height: height ?? defaultHeight,
         width: buttonWidth,
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: primary ? style.accent : style.pill,
-            foregroundColor: primary
-                ? (style.dark ? const Color(0xff10254b) : Colors.white)
-                : style.text,
-            disabledBackgroundColor: primary
-                ? Color.lerp(style.surface, style.text, .27)
-                : style.pill,
-            disabledForegroundColor: style.secondary.withValues(alpha: .58),
-            shape: const StadiumBorder(),
-            side: primary
-                ? BorderSide.none
-                : BorderSide(color: style.separator),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          onPressed: onTap,
-          child: icon == null
-              ? title
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 18),
-                    const SizedBox(width: 5),
-                    Flexible(child: title),
-                  ],
-                ),
-        ),
+        child: macGlass
+            ? GlassSurface(
+                color: primary && onTap != null ? style.accent : null,
+                child: button,
+              )
+            : button,
       );
     }
     return SizedBox(
@@ -1001,7 +1013,7 @@ class MeshDialog extends StatelessWidget {
         onTap: action.onPressed,
       );
     }).toList();
-    if (useIosControls) {
+    if (useIosControls || MacGlass.enabled(context)) {
       return Dialog(
         elevation: 0,
         backgroundColor: Colors.transparent,
