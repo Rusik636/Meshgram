@@ -1646,7 +1646,7 @@
       "platform": ["ios", "android"],
       "branch": "task/20-composer-quick-phrase-status",
       "depends_on": ["18", "19"],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Подсказка смещается над открытой полоской. Карандаш открывает полный список из самой полоски.",
         "Нажатие на фон чата или выбор фразы сворачивает полоску. Протягивание за край открывает полный список.",
@@ -1656,6 +1656,17 @@
         {
           "kind": "check",
           "result": "Прошли пять целевых тестов Flutter, включая положение счётчика, раскрытие и сворачивание полоски, переходы статуса и доступ к очереди при отключении."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-strip-91.png",
+          "result": "Счётчик над полоской, карандаш внутри полоски. Выбор фразы в симуляторе вставил её в черновик и закрыл полоску."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "На сборке 91 проверены карандаш и сворачивание нажатием на фон. На Redmi при отключённой рации видна красная надпись без счётчика. Переход через зелёное подтверждение проверен в тесте с имитацией подключения."
         }
       ]
     },
@@ -1666,7 +1677,7 @@
       "platform": ["ios", "android"],
       "branch": "task/21-preview-rendering",
       "depends_on": ["14", "19"],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Фон размывается по всему экрану без прямоугольных границ вокруг нативных элементов.",
         "Пузырьки прокручиваются за заголовком и полностью уходят за границу карточки перед исчезновением.",
@@ -1680,8 +1691,19 @@
         {
           "kind": "screenshot",
           "device": "iPhone 18 Pro Simulator",
-          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-90.png",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-91.png",
           "result": "Размытие без прямоугольных участков и заголовок в Liquid Glass."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-scroll-90.png",
+          "result": "В альбомной ориентации виден пузырёк, частично ушедший за нижнюю скруглённую границу. Верхние сообщения проходят под заголовком."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "На обоих телефонах предпросмотр открывается удержанием и переходит в чат повторным нажатием. На iPhone проверены равномерное размытие, читаемый заголовок и меню."
         }
       ]
     },
@@ -1692,14 +1714,19 @@
       "platform": ["ios"],
       "branch": "task/22-glass-halo",
       "depends_on": ["20", "21"],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "У имени контакта и полоски фраз сохраняется нативное стекло без светящегося ободка."
       ],
       "evidence": [
         {
           "kind": "check",
-          "result": "На iPhone 18 Pro Simulator проверены имя контакта и открытая полоска с подложкой Liquid Glass без яркого контура."
+          "result": "На iPhone 18 Pro Simulator проверены светлая и тёмная темы. Прошли 5 XCTest, включая сохранение нативного материала внутри видимой области при изменении высоты. После слияния прошли 235 тестов Flutter и статический анализ."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "Установлена сборка 0.3.62 (91). На iPhone проверены стеклянные имя и полоска без светящегося ободка. На Redmi повторно проверены предпросмотр, полоска и красный статус при отключённой рации."
         }
       ]
     }
