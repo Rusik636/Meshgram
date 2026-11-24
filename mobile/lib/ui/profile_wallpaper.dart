@@ -89,7 +89,7 @@ class _ProfileWallpaperState extends State<ProfileWallpaper>
           _palette.seed,
           _palette.base(style),
           _palette.accent(style),
-          ChatWorkspacePane.blendWallpaperEdge(context) ? style.canvas : null,
+          ChatWorkspacePane.desktopSplit(context) ? style.canvas : null,
         ),
       ),
     );

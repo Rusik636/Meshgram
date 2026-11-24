@@ -266,7 +266,12 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 5),
+                  padding: EdgeInsets.fromLTRB(
+                    14,
+                    ChatWorkspacePane.toolbarTop(context),
+                    14,
+                    5,
+                  ),
                   child: Row(
                     children: [
                       GlassButton(

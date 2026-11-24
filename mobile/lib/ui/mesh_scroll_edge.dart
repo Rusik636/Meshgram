@@ -14,12 +14,14 @@ class MeshScrollViewport extends StatefulWidget {
     this.tint,
     this.edgeExtent = 18,
     this.fadeTop = true,
+    this.blur = true,
   }) : assert(edgeExtent > 0);
 
   final Widget child;
   final Color? tint;
   final double edgeExtent;
   final bool fadeTop;
+  final bool blur;
 
   @override
   State<MeshScrollViewport> createState() => _MeshScrollViewportState();
@@ -71,6 +73,7 @@ class _MeshScrollViewportState extends State<MeshScrollViewport> {
               top: true,
               tint: widget.tint,
               opaqueEdge: true,
+              blur: widget.blur,
             ),
           ),
         ),
@@ -86,6 +89,7 @@ class _MeshScrollViewportState extends State<MeshScrollViewport> {
               top: false,
               tint: widget.tint,
               opaqueEdge: true,
+              blur: widget.blur,
             ),
           ),
         ),
@@ -99,11 +103,13 @@ class MeshScrollEdge extends StatefulWidget {
     required this.top,
     this.tint,
     this.opaqueEdge = false,
+    this.blur = true,
   });
 
   final bool top;
   final Color? tint;
   final bool opaqueEdge;
+  final bool blur;
 
   @override
   State<MeshScrollEdge> createState() => _MeshScrollEdgeState();
@@ -154,7 +160,8 @@ class _MeshScrollEdgeState extends State<MeshScrollEdge> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (!MediaQuery.highContrastOf(context) &&
+          if (widget.blur &&
+              !MediaQuery.highContrastOf(context) &&
               (shader != null || tint == null))
             ClipRect(
               child: BackdropFilter(

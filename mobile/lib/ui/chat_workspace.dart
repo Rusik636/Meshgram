@@ -19,6 +19,7 @@ bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
 };
 
 const meshDesktopSplitWidth = 800.0;
+const meshDesktopWorkspaceInset = 8.0;
 
 void paintChatWorkspaceEdge(Canvas canvas, Size size, Color background) {
   final edge = Rect.fromLTWH(0, 0, math.min(size.width, 42), size.height);
@@ -46,8 +47,11 @@ class ChatWorkspacePane extends InheritedWidget {
   static ChatWorkspacePane? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ChatWorkspacePane>();
 
-  static bool blendWallpaperEdge(BuildContext context) =>
+  static bool desktopSplit(BuildContext context) =>
       meshDesktop(context) && of(context)?.split == true;
+
+  static double toolbarTop(BuildContext context) =>
+      desktopSplit(context) ? meshDesktopWorkspaceInset : 6.0;
 
   @override
   bool updateShouldNotify(ChatWorkspacePane oldWidget) =>

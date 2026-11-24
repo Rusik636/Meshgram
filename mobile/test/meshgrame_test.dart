@@ -44,6 +44,7 @@ import 'package:meshgrame/ui/radio_discovery.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/ios_control.dart';
 import 'package:meshgrame/ui/macos_glass.dart';
+import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 import 'package:meshgrame/ui/contact_qr.dart';
 import 'package:meshgrame/ui/position_picker.dart';
 import 'package:meshgrame/ui/style.dart';
@@ -2432,6 +2433,20 @@ void main() {
       if (defaultTargetPlatform == TargetPlatform.windows) {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
+        final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
+        final headerEdge = tester.widget<MeshScrollEdge>(
+          find.descendant(
+            of: find.byKey(const ValueKey('chat-header-background')),
+            matching: find.byType(MeshScrollEdge),
+          ),
+        );
+        expect(headerEdge.blur, isFalse);
+        expect(headerEdge.tint, panelColor);
+        final rows = tester.widgetList<SwipeActionsRow>(
+          find.byType(SwipeActionsRow),
+        );
+        expect(rows, isNotEmpty);
+        expect(rows.map((row) => row.closedSurface), everyElement(panelColor));
         final indicator = find.byKey(const ValueKey('folder-rail-indicator'));
         final originalTop = tester.getTopLeft(indicator).dy;
         await tester.tap(
@@ -2537,6 +2552,10 @@ void main() {
       final rail = find.byType(ChatFolderRail);
       final desktop = defaultTargetPlatform == TargetPlatform.windows;
       if (desktop) {
+        expect(
+          tester.getCenter(chatButton('Close chat')).dy,
+          closeTo(tester.getCenter(find.text('Edit')).dy, .5),
+        );
         await tester.tap(
           find.descendant(of: rail, matching: find.text('Settings')),
         );

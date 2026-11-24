@@ -141,6 +141,7 @@ class _ProfilePageState extends State<ProfilePage> {
           tint: widget.backgroundColor ?? style.canvas,
           fadeTop: false,
           edgeExtent: math.max(18.0, widget.padding.bottom),
+          blur: widget.backgroundColor == null,
           child: CustomScrollView(
             controller: _scroll,
             // Let glass buttons stretch over the expanded header's lower edge.

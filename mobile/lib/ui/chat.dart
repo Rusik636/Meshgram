@@ -2720,7 +2720,12 @@ class _ChatState extends State<MeshChatPage>
                             ),
                         ] else
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+                            padding: EdgeInsets.fromLTRB(
+                              14,
+                              ChatWorkspacePane.toolbarTop(context),
+                              14,
+                              8,
+                            ),
                             child: Row(
                               children: [
                                 Expanded(child: _chatSearchEditor()),
@@ -3136,7 +3141,12 @@ class _ChatState extends State<MeshChatPage>
       ),
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 5),
+      padding: EdgeInsets.fromLTRB(
+        14,
+        ChatWorkspacePane.toolbarTop(context),
+        14,
+        5,
+      ),
       child: Row(
         children: [
           GlassButton(
@@ -5384,7 +5394,7 @@ class MeshChatWallpaper extends StatelessWidget {
   Widget build(BuildContext context) => CustomPaint(
     painter: _ContourPaper(
       MeshStyle.of(context),
-      blendWithWorkspace: ChatWorkspacePane.blendWallpaperEdge(context),
+      blendWithWorkspace: ChatWorkspacePane.desktopSplit(context),
     ),
     child: child,
   );

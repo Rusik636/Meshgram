@@ -981,7 +981,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _workspaceEnabled |= desktop || _split || widget.tabletDisplay;
     _desktopRail = desktop;
     final rail = _desktopRail ? ChatFolderRail.width : 0.0;
-    final inset = desktop ? 8.0 : 0.0;
+    final inset = desktop ? meshDesktopWorkspaceInset : 0.0;
     final sidebarLeft = rail + 2 * inset;
     final divider = _split ? (_desktopRail ? 6.0 : 1.0) : 0.0;
     final maximum = math.min(480.0, size.width - sidebarLeft - divider - 400);
@@ -997,6 +997,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final sidebarCovered = !_split && _detailOpen;
     final top = _detailObserver.top;
     final detailMotion = top is TransitionRoute<dynamic> ? top.animation : null;
+    var detailMedia = MediaQuery.of(context).removePadding(removeLeft: _split);
+    if (desktop && _split) {
+      detailMedia = detailMedia.copyWith(
+        padding: detailMedia.padding + EdgeInsets.only(top: inset),
+        viewPadding: detailMedia.viewPadding + EdgeInsets.only(top: inset),
+      );
+    }
     Widget behindDetail(Widget child) => AnimatedBuilder(
       animation: detailMotion ?? const AlwaysStoppedAnimation(1.0),
       builder: (context, child) => Offstage(
@@ -1100,9 +1107,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       explicitChildNodes: true,
                       child: IgnorePointer(
                         ignoring: !_split && !_detailOpen,
-                        child: MediaQuery.removePadding(
-                          context: context,
-                          removeLeft: _split,
+                        child: MediaQuery(
+                          data: detailMedia,
                           child: ChatWorkspacePane(
                             split: _split,
                             visible: ModalRoute.isCurrentOf(context) != false,
@@ -1376,6 +1382,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           );
       final heading = PageHeading(
         caption,
+        padding: _desktopRail
+            ? const EdgeInsets.fromLTRB(16, meshDesktopWorkspaceInset, 16, 8)
+            : const EdgeInsets.fromLTRB(16, 7, 16, 9),
         sideWidth: _editingChats
             ? editSideWidth
             : _showHidden
@@ -1522,6 +1531,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   top: true,
                   tint: _desktopRail ? style.desktopPanel : style.canvas,
                   opaqueEdge: true,
+                  blur: !_desktopRail,
                 ),
               ),
               if (progress < 1)
@@ -1647,6 +1657,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       tint: background,
       fadeTop: false,
       edgeExtent: _scrollBottom,
+      blur: !_desktopRail,
       child: CustomScrollView(
         key: const PageStorageKey('chats'),
         controller: _chatScroll,
