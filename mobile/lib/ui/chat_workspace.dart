@@ -1,6 +1,8 @@
 // Meshgram — Rusik636 — https://github.com/Rusik636/Meshgram
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
@@ -18,6 +20,17 @@ bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
 
 const meshDesktopSplitWidth = 800.0;
 
+void paintChatWorkspaceEdge(Canvas canvas, Size size, Color background) {
+  final edge = Rect.fromLTWH(0, 0, math.min(size.width, 42), size.height);
+  canvas.drawRect(
+    edge,
+    Paint()
+      ..shader = LinearGradient(
+        colors: [background, background.withValues(alpha: 0)],
+      ).createShader(edge),
+  );
+}
+
 /// Carries the workspace geometry through the conversation's own navigator.
 class ChatWorkspacePane extends InheritedWidget {
   const ChatWorkspacePane({
@@ -32,6 +45,9 @@ class ChatWorkspacePane extends InheritedWidget {
 
   static ChatWorkspacePane? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ChatWorkspacePane>();
+
+  static bool blendWallpaperEdge(BuildContext context) =>
+      meshDesktop(context) && of(context)?.split == true;
 
   @override
   bool updateShouldNotify(ChatWorkspacePane oldWidget) =>

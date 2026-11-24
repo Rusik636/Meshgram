@@ -1584,6 +1584,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Widget _chats(MeshStyle style, double headerHeight, double collapseRange) {
     final hiddenCount = controller.hiddenConversations.length;
+    final background = _desktopRail ? style.desktopPanel : style.canvas;
     final folder = _chatFolder;
     final pins = _chatPins(folder);
     final visible = _visibleChats();
@@ -1616,12 +1617,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         child: Column(
           children: [
             if (_editingChats)
-              ColoredBox(
-                color: _desktopRail ? style.desktopPanel : style.canvas,
-                child: row,
-              )
+              ColoredBox(color: background, child: row)
             else
               ChatSwipeRow(
+                backgroundColor: background,
                 revealed: _revealedChat == peer.id,
                 hidden: _showHidden,
                 onReveal: (opened) =>
@@ -1645,7 +1644,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     }
 
     final viewport = MeshScrollViewport(
-      tint: style.canvas,
+      tint: background,
       fadeTop: false,
       edgeExtent: _scrollBottom,
       child: CustomScrollView(

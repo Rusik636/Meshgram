@@ -5384,8 +5384,7 @@ class MeshChatWallpaper extends StatelessWidget {
   Widget build(BuildContext context) => CustomPaint(
     painter: _ContourPaper(
       MeshStyle.of(context),
-      blendWithWorkspace:
-          meshDesktop(context) && ChatWorkspacePane.of(context)?.split == true,
+      blendWithWorkspace: ChatWorkspacePane.blendWallpaperEdge(context),
     ),
     child: child,
   );
@@ -5439,14 +5438,7 @@ class _ContourPaper extends CustomPainter {
     }
     canvas.restore();
     if (blendWithWorkspace) {
-      final edge = Rect.fromLTWH(0, 0, math.min(size.width, 42), size.height);
-      canvas.drawRect(
-        edge,
-        Paint()
-          ..shader = LinearGradient(
-            colors: [style.canvas, style.canvas.withValues(alpha: 0)],
-          ).createShader(edge),
-      );
+      paintChatWorkspaceEdge(canvas, size, style.canvas);
     }
   }
 
