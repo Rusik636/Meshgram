@@ -1660,7 +1660,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       title: profile,
       subtitle:
           active?.name ?? tr(context, 'Локальный профиль', 'Local profile'),
-      avatar: MeshAvatar(profile, size: 90),
+      avatar: Semantics(
+        label: tr(context, 'Избранное', 'Saved Messages'),
+        button: true,
+        child: MeshAvatar(
+          profile,
+          size: 90,
+          onTap: () => unawaited(showSavedChat(context, controller)),
+        ),
+      ),
       avatarSize: 90,
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top,
@@ -1672,15 +1680,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         onTap: _editProfile,
       ),
       children: [
-        _settingsGroup([
-          MeshRow(
-            title: tr(context, 'Избранное', 'Saved Messages'),
-            icon: Icons.bookmark_border_rounded,
-            tint: _blue,
-            onTap: () => unawaited(showSavedChat(context, controller)),
-          ),
-        ]),
-        const SizedBox(height: 16),
         _sectionTitle(tr(context, 'Рации', 'Radios'), style),
         _settingsGroup([
           for (final radio in controller.radios) _radioRow(radio),

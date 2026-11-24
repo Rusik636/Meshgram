@@ -361,14 +361,23 @@ class _FakeNetwork
     ];
   }
 
-  @override
-  List<ChannelAction> get channelActions => const [ChannelAction.createPrivate];
+  bool acceptsInvitations = false;
+  ChannelRequest? lastChannelRequest;
 
   @override
-  Future<ChannelProvision> addChannel(ChannelRequest request) async => (
-    peer: (id: 'ch:2', name: request.name, channel: true, writable: true),
-    invitation: null,
-  );
+  List<ChannelAction> get channelActions => [
+    ChannelAction.createPrivate,
+    if (acceptsInvitations) ChannelAction.invitation,
+  ];
+
+  @override
+  Future<ChannelProvision> addChannel(ChannelRequest request) async {
+    lastChannelRequest = request;
+    return (
+      peer: (id: 'ch:2', name: request.name, channel: true, writable: true),
+      invitation: null,
+    );
+  }
 
   @override
   Future<void> writeSettings(Map<String, String> values) async {
@@ -7304,6 +7313,85 @@ void main() {
     });
   }
 
+  for (final network in ['meshtastic', 'meshcore']) {
+    testWidgets('shared $network channel and contact links become chat cards', (
+      tester,
+    ) async {
+      _reduceMotion(tester);
+      final adapter = _FakeAdapter(network);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: [adapter],
+      );
+      await controller.connect((
+        device: 'link-radio',
+        name: 'Radio',
+        network: network,
+      ));
+      final session = adapter.sessions.single..acceptsInvitations = true;
+      final field =
+          (CodedBufferWriter()
+                ..writeField(2, PbFieldType.OY, List<int>.filled(16, 5))
+                ..writeField(3, PbFieldType.OY, utf8.encode('Trail Team')))
+              .toBuffer();
+      final blob = (CodedBufferWriter()..writeField(1, PbFieldType.OY, field))
+          .toBuffer();
+      final invite = network == 'meshcore'
+          ? 'meshcore://channel/add?name=Trail%20Team&secret=${'05' * 16}'
+          : 'https://meshtastic.org/e/?add=true#${base64Url.encode(blob).replaceAll('=', '')}';
+      final contact = compactContactLink((
+        network: network,
+        id: network == 'meshcore' ? 'node:${'a' * 12}' : 'node:42',
+        name: 'Base Operator',
+        publicKey: 'a' * 64,
+        type: network == 'meshcore' ? 1 : null,
+        shortName: null,
+      ), 200)!;
+      for (final (index, text) in [
+        'Contact for overnight $contact',
+        'Join us ($invite)',
+      ].indexed) {
+        session.stream.add(
+          TextReceived(
+            MeshMessage(
+              id: 'shared-link-$index',
+              chat: _peer.id,
+              author: 'Mira',
+              text: text,
+              time: DateTime.now(),
+              delivery: Delivery.received,
+            ),
+            _peer,
+          ),
+        );
+      }
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: _peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Base Operator'), findsOneWidget);
+      expect(find.text('Contact for overnight'), findsOneWidget);
+      expect(find.text('Trail Team'), findsOneWidget);
+      expect(find.text('Join us'), findsOneWidget);
+      expect(find.textContaining('secret='), findsNothing);
+      expect(session.lastChannelRequest, isNull);
+      await tester.tap(find.text('Join channel'));
+      await tester.pumpAndSettle();
+      expect(session.lastChannelRequest?.invitation, invite);
+      expect(controller.cache!.peers['ch:2']?.name, 'Trail Team');
+      expect(find.byType(MeshChatPage), findsOneWidget);
+      expect(
+        tester.widget<MeshChatPage>(find.byType(MeshChatPage)).peer.id,
+        'ch:2',
+      );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
   testWidgets('new messages promote chats below persistent chat pins', (
     tester,
   ) async {
@@ -7412,6 +7500,21 @@ void main() {
     await tester.longPress(row);
     await tester.pumpAndSettle();
     expect(preview, findsOneWidget);
+    final menu = find.byKey(const ValueKey('chat-preview-actions'));
+    expect(
+      tester.getTopLeft(menu).dy,
+      greaterThan(tester.getBottomLeft(preview).dy),
+    );
+    final delete = find.descendant(
+      of: menu,
+      matching: find.text('Delete chat'),
+    );
+    expect(delete.hitTestable(), findsOneWidget);
+    final text = find.descendant(of: preview, matching: find.text(latest.text));
+    expect(
+      DefaultTextStyle.of(tester.element(text)).style.decoration,
+      isNot(TextDecoration.underline),
+    );
     expect(find.byKey(ValueKey(('bubble', latest.id))), findsOneWidget);
     expect(find.byType(MeshChatPage), findsNothing);
     expect(controller.cache!.unread[peer.id], unread);

@@ -15,6 +15,7 @@ import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import '../mesh/radio_settings_index.dart';
 import '../mesh/route_trace.dart';
+import 'channel_invitation.dart';
 import 'channel_keys.dart';
 import 'meshcore_reactions.dart';
 
@@ -1202,17 +1203,10 @@ class _CoreSession
             secret = sha256.convert(utf8.encode(name)).bytes.sublist(0, 16);
           case ChannelAction.invitation:
             final uri = Uri.tryParse(request.invitation.trim());
-            if (uri == null ||
-                uri.scheme != 'meshcore' ||
-                uri.host != 'channel' ||
-                uri.path != '/add') {
-              throw const FormatException('channel-invite');
-            }
-            if (uri.queryParameters['region_scope']?.isNotEmpty == true) {
-              throw const FormatException('channel-scope');
-            }
-            name = uri.queryParameters['name']?.trim() ?? '';
-            secret = parseChannelKey(uri.queryParameters['secret'] ?? '', {16});
+            if (uri == null) throw const FormatException('channel-invite');
+            final invite = readMeshCoreChannelInvitation(uri);
+            name = invite.name;
+            secret = invite.key;
         }
         if (request.action == ChannelAction.createPrivate ||
             request.action == ChannelAction.joinPrivate) {

@@ -81,6 +81,38 @@ Iterable<({int start, int end, Uri uri})> _messageLinks(String text) sync* {
 
 Uri? firstMessageLink(String text) => _messageLinks(text).firstOrNull?.uri;
 
+final _nativeMeshLink = RegExp(
+  r'(?<![\p{L}\p{N}_@.:/\-])(?:meshgram|meshcore|meshtastic):[^\s<>"“”«»]+',
+  caseSensitive: false,
+  unicode: true,
+);
+
+Iterable<({int start, String source, String link})> meshLinksInMessage(
+  String text,
+) sync* {
+  final matches = [
+    for (final match in _nativeMeshLink.allMatches(text))
+      (
+        start: match.start,
+        source: _stripTrailingPunctuation(match[0]!),
+        link: _stripTrailingPunctuation(match[0]!),
+      ),
+    for (final match in _messageLinks(text))
+      if (const {
+        'meshtastic.org',
+        'www.meshtastic.org',
+      }.contains(match.uri.host))
+        (
+          start: match.start,
+          source: text.substring(match.start, match.end),
+          link: match.uri.toString(),
+        ),
+  ]..sort((a, b) => a.start.compareTo(b.start));
+  for (final match in matches) {
+    yield (start: match.start, source: match.source, link: match.link);
+  }
+}
+
 Future<void> openMessageLink(BuildContext context, Uri uri) async {
   try {
     if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
