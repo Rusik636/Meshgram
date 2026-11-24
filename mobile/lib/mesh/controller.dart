@@ -2294,7 +2294,11 @@ class MeshController extends ChangeNotifier {
     return _savedMessages.any((item) => item.key == key);
   }
 
-  Future<bool> toggleSavedMessage(Peer peer, MeshMessage message) {
+  Future<bool> toggleSavedMessage(
+    Peer peer,
+    MeshMessage message, {
+    bool keepSaved = false,
+  }) {
     final radio = active;
     if (radio == null || peer.id != message.chat) return Future.value(false);
     final item = SavedMessage(
@@ -2311,7 +2315,7 @@ class MeshController extends ChangeNotifier {
       final index = items.indexWhere((other) => other.key == item.key);
       if (index == -1) {
         items.insert(0, item);
-      } else {
+      } else if (!keepSaved) {
         items.removeAt(index);
       }
     });

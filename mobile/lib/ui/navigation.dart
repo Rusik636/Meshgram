@@ -350,10 +350,12 @@ class ChatFilters extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onSelect,
+    this.labels,
   });
 
   final int selected;
   final ValueChanged<int> onSelect;
+  final List<String>? labels;
 
   static double contentHeight(BuildContext context) =>
       (MediaQuery.textScalerOf(context).scale(15) * 1.2 + 30).ceilToDouble();
@@ -361,6 +363,55 @@ class ChatFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final custom = this.labels;
+    if (custom != null) {
+      final height = contentHeight(context);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        child: GlassSurface(
+          modal: true,
+          radius: height / 2,
+          child: SizedBox(
+            height: height - 4,
+            child: ListView.separated(
+              primary: false,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(3),
+              itemCount: custom.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 3),
+              itemBuilder: (context, index) => Semantics(
+                selected: index == selected,
+                button: true,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(height / 2),
+                  onTap: () => onSelect(index),
+                  child: AnimatedContainer(
+                    duration: meshMotion(context),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: ShapeDecoration(
+                      shape: const StadiumBorder(),
+                      color: index == selected
+                          ? _tabSelection(style)
+                          : Colors.transparent,
+                    ),
+                    child: Text(
+                      custom[index],
+                      style: TextStyle(
+                        color: index == selected ? style.accent : style.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final labels = [
       tr(context, 'Все', 'All'),
       tr(context, 'Личные', 'Direct'),

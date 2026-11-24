@@ -1729,6 +1729,150 @@
           "result": "Установлена сборка 0.3.62 (91). На iPhone проверены стеклянные имя и полоска без светящегося ободка. На Redmi повторно проверены предпросмотр, полоска и красный статус при отключённой рации."
         }
       ]
+    },
+    {
+      "id": "23",
+      "parent_id": null,
+      "title": "Выбор получателей для пересылки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/23-forward-picker",
+      "depends_on": [
+        "08"
+      ],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Поиск, чаты и контакты, папки и выбор нескольких получателей.",
+        "Один или несколько черновиков, копия в Избранном."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerForwardMessages.swift#L35-L60",
+          "behavior": "Фильтр доступных получателей, папки и множественный выбор."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L1338-L1390",
+          "behavior": "Отдельный режим выбора получателей Android."
+        }
+      ]
+    },
+    {
+      "id": "24",
+      "parent_id": null,
+      "title": "Архив по жесту вниз",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/24-chat-archive",
+      "depends_on": [
+        "14"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Архив скрыт до жеста, открывается нажатием и сохраняет скрытые чаты."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/Node/ChatListNode.swift#L3155-L3173",
+          "behavior": "Временное раскрытие архива у верхнего края."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L2244-L2280",
+          "behavior": "Порог раскрытия скрытого архива при завершении жеста."
+        }
+      ]
+    },
+    {
+      "id": "25",
+      "parent_id": null,
+      "title": "Управление папками и полоска категорий",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/25-folder-tabs",
+      "depends_on": [
+        "06",
+        "24"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Управление папками из Изм., прокручиваемые вкладки и Liquid Glass на iOS."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListController.swift#L3657-L3715",
+          "behavior": "Редактирование списка и переходы."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L9875-L9895",
+          "behavior": "Действия над папками в режиме выбора."
+        }
+      ]
+    },
+    {
+      "id": "26",
+      "parent_id": null,
+      "title": "Избранное в настройках",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/26-saved-settings",
+      "depends_on": [
+        "15"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Отдельная строка в настройках, имя открывает профиль активной рации."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "27",
+      "parent_id": null,
+      "title": "Liquid Glass меню предпросмотра",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/27-preview-glass",
+      "depends_on": [
+        "21",
+        "22"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Действия предпросмотра на iOS рисуются тем же материалом, что меню сообщения."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "28",
+      "parent_id": null,
+      "title": "Раскрытие полоски фраз из кнопки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/28-quick-phrase-morph",
+      "depends_on": [
+        "20",
+        "22"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Кнопка исчезает по мере расширения подложки, тексты появляются после начала расширения и скрываются перед сворачиванием."
+      ],
+      "evidence": []
     }
   ]
 }
