@@ -137,6 +137,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   String? _detailPeer;
   bool _detailOpen = false;
   bool _detailBackGesture = false;
+  Route<void>? _workspaceSettings;
+  Route<void>? _workspaceConversation;
   MeshController get controller => widget.controller;
   @override
   void initState() {
@@ -225,7 +227,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       if (profile != _folderProfile) {
         final previous = _folderProfile;
         _folderProfile = profile;
-        if (_detailOpen &&
+        if (_detailPeer != null &&
             (previous == null ||
                 profile == null ||
                 radioKey(previous) != radioKey(profile))) {
@@ -234,7 +236,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             if (mounted &&
                 controller.active == profile &&
                 _detailPeer == null) {
-              _detailKey.currentState?.popUntil((route) => route.isFirst);
+              final detail = _detailKey.currentState;
+              if (_workspaceSettings?.isActive == true) {
+                if (_workspaceConversation case final route?
+                    when route.isActive) {
+                  detail?.removeRoute(route);
+                }
+              } else {
+                detail?.popUntil((route) => route.isFirst);
+              }
             }
           });
         }
@@ -264,7 +274,42 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }
 
   void _openSettings() {
+    if (_split && _detailKey.currentState != null) {
+      final detail = _detailKey.currentState!;
+      if (_workspaceSettings case final existing? when existing.isActive) {
+        detail.popUntil((route) => route.isFirst || route == existing);
+        return;
+      }
+      final route = meshPageRoute<void>(
+        context,
+        conversationPane: true,
+        builder: (panelContext) => ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) =>
+              _settings(MeshStyle.of(context), panelContext: panelContext),
+        ),
+      );
+      setState(() => _workspaceSettings = route);
+      unawaited(
+        detail.push(route).whenComplete(() {
+          if (mounted && _workspaceSettings == route) {
+            setState(() => _workspaceSettings = null);
+          }
+        }),
+      );
+      return;
+    }
     _selectTab(1);
+  }
+
+  Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) =>
+      (_split ? _detailKey.currentState : null)?.push<T>(route) ??
+      Navigator.of(context).push<T>(route);
+
+  Future<void> _openWorkspacePage(WidgetBuilder builder) async {
+    await _pushWorkspacePage(
+      meshPageRoute<void>(context, builder: builder, conversationPane: _split),
+    );
   }
 
   void _selectTab(int index) {
@@ -322,29 +367,26 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     }
     FocusScope.of(context).unfocus();
     setState(() => _detailPeer = peerId);
-    await detail.pushAndRemoveUntil<void>(
-      meshPageRoute<void>(
-        context,
-        builder: builder,
-        settings: RouteSettings(name: peerId),
-        conversationPane: true,
-      ),
-      (route) => route.isFirst,
+    final route = meshPageRoute<void>(
+      context,
+      builder: builder,
+      settings: RouteSettings(name: peerId),
+      conversationPane: true,
     );
+    _workspaceConversation = route;
+    await detail.pushAndRemoveUntil<void>(route, (route) => route.isFirst);
+    if (_workspaceConversation == route) _workspaceConversation = null;
   }
 
   Future<void> _openProfile(Peer peer, {bool allowReadOnlyChat = false}) async {
     if (_searchActive) _dismissSearchKeyboard();
     FocusScope.of(context).unfocus();
-    await Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => MeshChatProfile(
-          controller: controller,
-          peer: peer,
-          openNewChat: true,
-          allowReadOnlyChat: allowReadOnlyChat,
-        ),
+    await _openWorkspacePage(
+      (_) => MeshChatProfile(
+        controller: controller,
+        peer: peer,
+        openNewChat: true,
+        allowReadOnlyChat: allowReadOnlyChat,
       ),
     );
   }
@@ -389,7 +431,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     animateMeshSearch(context, _searchMotion, open: false);
   }
 
-  Future<void> _showRadioSettings(Radio radio) => Navigator.of(context).push(
+  Future<void> _showRadioSettings(Radio radio) => _pushWorkspacePage(
     radioSettingsRoute(
       context,
       RadioSettingsPage(controller: controller, radio: radio),
@@ -1123,6 +1165,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     return ChatFolderRail(
       labels: labels,
       selected: _tabs.selected == 0 ? _chatCategories.selected : null,
+      settingsSelected: _workspaceSettings?.isActive == true,
       unread: [
         for (var i = 0; i < labels.length; i++)
           chats.where((peer) => _matchesChatTab(peer, i)).fold(0, (
@@ -1139,6 +1182,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       settingsUnread: controller.unreadOnOtherRadios,
       onFolder: (index) {
         _dismissSidebarMode();
+        if (_workspaceSettings?.isActive == true) {
+          _detailKey.currentState?.popUntil(
+            (route) =>
+                route.isFirst ||
+                (_detailPeer != null && route.settings.name == _detailPeer),
+          );
+        }
         if (_tabs.selected != 0) _selectTab(0);
         _selectChatTab(index);
       },
@@ -2422,7 +2472,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     LinkState.offline => tr(context, 'Не подключено', 'Disconnected'),
   };
 
-  Widget _settings(MeshStyle style) {
+  Widget _settings(MeshStyle style, {BuildContext? panelContext}) {
     final profile = controller.profileName.isEmpty
         ? appName
         : controller.profileName;
@@ -2439,6 +2489,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           active?.name ?? tr(context, 'Локальный профиль', 'Local profile'),
       avatar: MeshAvatar(profile, size: 90),
       avatarSize: 90,
+      leading: panelContext == null
+          ? null
+          : GlassButton(
+              icon: Icons.arrow_back_rounded,
+              label: tr(context, 'Назад', 'Back'),
+              onTap: () => Navigator.of(panelContext).maybePop(),
+            ),
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top,
         bottom: _scrollBottom,
@@ -2533,14 +2590,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               icon: Icons.notifications_outlined,
               tint: _blue,
               onTap: () => unawaited(
-                Navigator.of(context).push<void>(
-                  meshPageRoute(
-                    context,
-                    builder: (_) => NotificationSettingsPage(
-                      controller: controller,
-                      notifications: notifications,
-                      configureWifi: () => _configureWifiPush(notifications),
-                    ),
+                _openWorkspacePage(
+                  (_) => NotificationSettingsPage(
+                    controller: controller,
+                    notifications: notifications,
+                    configureWifi: () => _configureWifiPush(notifications),
                   ),
                 ),
               ),
@@ -2549,11 +2603,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             title: tr(context, 'О приложении', 'About'),
             icon: Icons.info_outline_rounded,
             tint: _teal,
-            onTap: () => unawaited(
-              Navigator.of(context).push(
-                meshPageRoute<void>(context, builder: (_) => const AboutPage()),
-              ),
-            ),
+            onTap: () =>
+                unawaited(_openWorkspacePage((_) => const AboutPage())),
           ),
         ]),
         const SizedBox(height: 14),
@@ -2697,25 +2748,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   );
 
   void _discoverRadios() => unawaited(
-    Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => RadioDiscoveryPage(controller: controller),
-      ),
-    ),
+    _openWorkspacePage((_) => RadioDiscoveryPage(controller: controller)),
   );
 
   void _nodes() => unawaited(
-    Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => MeshNodesPage(
-          controller: controller,
-          openChat: (peer) => controller.canOpenChat(peer)
-              ? _openChat(peer)
-              : _openProfile(peer),
-          openProfile: _openProfile,
-        ),
+    _openWorkspacePage(
+      (_) => MeshNodesPage(
+        controller: controller,
+        openChat: (peer) =>
+            controller.canOpenChat(peer) ? _openChat(peer) : _openProfile(peer),
+        openProfile: _openProfile,
       ),
     ),
   );

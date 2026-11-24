@@ -2348,6 +2348,26 @@ void main() {
 
       if (defaultTargetPlatform == TargetPlatform.windows) {
         expect(find.byType(ChatFolderRail), findsOneWidget);
+        final rail = find.byType(ChatFolderRail);
+        final indicator = find.byKey(const ValueKey('folder-rail-indicator'));
+        final originalTop = tester.getTopLeft(indicator).dy;
+        await tester.tap(
+          find.descendant(of: rail, matching: find.text('Direct')),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 90));
+        final movingTop = tester.getTopLeft(indicator).dy;
+        await tester.pumpAndSettle();
+        expect(
+          movingTop,
+          inExclusiveRange(originalTop, tester.getTopLeft(indicator).dy),
+        );
+        expect(
+          find.descendant(of: rail, matching: find.byType(Tooltip)),
+          findsNothing,
+        );
+        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
+        await tester.pumpAndSettle();
         final before = tester.getTopLeft(pane).dx;
         await tester.drag(
           find.byType(ChatWorkspaceResizeHandle),
@@ -2383,6 +2403,22 @@ void main() {
       await tester.tap(trail);
       await tester.pumpAndSettle();
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        final rail = find.byType(ChatFolderRail);
+        await tester.tap(
+          find.descendant(of: rail, matching: find.text('Settings')),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          find.descendant(of: pane, matching: find.text('Add a radio')),
+          findsOneWidget,
+        );
+        expect(trail.hitTestable(), findsOneWidget);
+        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
+        await tester.pumpAndSettle();
+        expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      }
       expect(mira.hitTestable(), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);
       await tester.tap(mira);
