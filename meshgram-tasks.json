@@ -2512,6 +2512,96 @@
           "result": "Установка сборки 0.3.62 (100) подтверждена через ADB. Ручная проверка ожидает разблокировки экрана. Сценарий редактирования прошёл на Android Emulator."
         }
       ]
+    },
+    {
+      "id": "41",
+      "parent_id": null,
+      "title": "Прозрачная подложка папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/41-ios-folder-transparent-track",
+      "depends_on": [
+        "40"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На iOS 26 и новее фон между сегментами прозрачен, граница полосы и внутренний отступ видны.",
+        "Интерактивная линза UIKit срабатывает при тапе на папку."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-101.png",
+          "result": "Прозрачная полоса на светлом фоне, активный сегмент выделен."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-tap-101.mov",
+          "result": "Граница статична, стеклянная линза движется и преломляет буквы при тапе."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (101) установлена. На iPhone проверены прозрачная основа и переключение категории по тапу."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folders-clear-101.png",
+          "result": "Фактический вид после тапа на категорию в сборке 101."
+        }
+      ]
+    },
+    {
+      "id": "42",
+      "parent_id": null,
+      "title": "Выравнивание Архива при отпускании",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/42-archive-release-spacing",
+      "depends_on": [
+        "37",
+        "40"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "При отпускании Архив завершает раскрытие и выравнивается между полосой папок и первым чатом.",
+        "На iOS сохраняется раскрытие при достижении порога, на Android после отпускания."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-spacing-101.png",
+          "result": "По 30 pt от иконки Архива до полосы и до аватара первого чата."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-release-101.mov",
+          "result": "После отпускания иконка и подпись плавно занимают окончательное положение."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-spacing-101.png",
+          "result": "Архив показан после отпускания и располагается над первым чатом."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. Тест сравнивает зазоры после отпускания и положение иконки до отпускания."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Сборка 0.3.62 (101) установлена. Экран остаётся заблокирован; сценарий пройден на эмуляторе."
+        }
+      ]
     }
   ]
 }
