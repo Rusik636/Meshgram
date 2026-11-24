@@ -9,6 +9,7 @@ import 'style.dart';
 
 typedef ReactionAuthor = ({String? name, bool hasKey, Peer? peer});
 typedef ChatReaction = ({MeshReaction reaction, ReactionAuthor author});
+typedef ReactionGlyphTarget = ({Key target, String emojiKey});
 
 Map<String, List<ChatReaction>> groupReactions(List<ChatReaction> reactions) {
   final groups = <String, List<ChatReaction>>{};
@@ -62,12 +63,14 @@ class MessageReactionChips extends StatelessWidget {
     this.onReact,
     this.outsideBubble = false,
     this.alignment = WrapAlignment.start,
+    this.flight,
   });
 
   final List<ChatReaction> reactions;
   final ValueChanged<String>? onReact;
   final bool outsideBubble;
   final WrapAlignment alignment;
+  final ReactionGlyphTarget? flight;
 
   static const spacing = 5.0;
   static const _inset = 8.0;
@@ -108,6 +111,10 @@ class MessageReactionChips extends StatelessWidget {
         children: groups.values.map((group) {
           final selected = group.any((item) => item.reaction.own);
           final emoji = group.first.reaction.emoji;
+          final moving =
+              flight != null &&
+              flight!.emojiKey == group.first.reaction.emojiKey &&
+              selected;
           return Material(
             color: selected
                 ? selectedColor
@@ -126,7 +133,12 @@ class MessageReactionChips extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(emoji, style: _emojiText),
+                      Opacity(
+                        key: moving ? flight!.target : null,
+                        opacity: moving ? 0 : 1,
+                        alwaysIncludeSemantics: true,
+                        child: Text(emoji, style: _emojiText),
+                      ),
                       const SizedBox(width: _gap),
                       if (group.length == 1)
                         ReactionAvatar(group.single.author)

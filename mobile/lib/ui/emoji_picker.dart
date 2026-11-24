@@ -139,16 +139,31 @@ class EmojiCatalog {
           false);
 }
 
+Rect? reactionGlyphBounds(BuildContext context, double size) {
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.hasSize) return null;
+  return MatrixUtils.transformRect(
+    box.getTransformTo(null),
+    Rect.fromCenter(
+      center: box.size.center(Offset.zero),
+      width: size,
+      height: size,
+    ),
+  );
+}
+
 class EmojiPicker extends StatefulWidget {
   const EmojiPicker({
     super.key,
     required this.gridHeight,
     required this.onSelect,
     required this.onCollapse,
+    this.onSelectFrom,
   });
 
   final double gridHeight;
   final ValueChanged<String> onSelect;
+  final void Function(String emoji, Rect? source)? onSelectFrom;
   final VoidCallback onCollapse;
 
   @override
@@ -194,6 +209,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
     _Emoji emoji,
     List<_Emoji> variants,
   ) async {
+    final source = reactionGlyphBounds(anchor, 24);
     final navigator = Navigator.of(anchor);
     final overlay = navigator.overlay!.context.findRenderObject()! as RenderBox;
     final target = anchor.findRenderObject()! as RenderBox;
@@ -218,7 +234,16 @@ class _EmojiPickerState extends State<EmojiPicker> {
         _ToneMenu([emoji, ...variants]),
       ],
     );
-    if (mounted && selected != null) widget.onSelect(selected);
+    if (mounted && selected != null) _select(selected, source);
+  }
+
+  void _select(String emoji, Rect? source) {
+    final selectedFrom = widget.onSelectFrom;
+    if (selectedFrom != null) {
+      selectedFrom(emoji, source);
+    } else {
+      widget.onSelect(emoji);
+    }
   }
 
   @override
@@ -357,7 +382,10 @@ class _EmojiPickerState extends State<EmojiPicker> {
                       return Builder(
                         builder: (context) => IconButton(
                           tooltip: entry.label(context),
-                          onPressed: () => widget.onSelect(entry.glyph),
+                          onPressed: () => _select(
+                            entry.glyph,
+                            reactionGlyphBounds(context, 24),
+                          ),
                           onLongPress: variants == null
                               ? null
                               : () => _showTones(context, entry, variants),
