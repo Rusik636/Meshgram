@@ -47,6 +47,7 @@ class MeshController extends ChangeNotifier {
     required this.store,
     required this.transport,
     this.lanTransport,
+    this.usbTransport,
     required Iterable<NetworkAdapter> adapters,
     this.preview = false,
     this.onIncomingMessage,
@@ -79,6 +80,7 @@ class MeshController extends ChangeNotifier {
   bool _flushingOutbox = false;
   final RadioTransport transport;
   final RadioLanTransport? lanTransport;
+  final RadioUsbTransport? usbTransport;
   final Map<String, NetworkAdapter> adapters;
   final bool preview;
   final void Function(Radio radio, Peer peer, MeshMessage message)?
@@ -231,10 +233,15 @@ class MeshController extends ChangeNotifier {
 
   // Keep the best known address for each transport in successful connection order.
   List<String> _rankRoutes(Iterable<String> routes) {
-    final seenLan = <bool>{};
+    final seen = <String>{};
     return [
       for (final device in routes)
-        if (seenLan.add(device.startsWith('tcp://'))) device,
+        if (seen.add(switch (Uri.tryParse(device)?.scheme) {
+          'tcp' => 'tcp',
+          'usb' => 'usb',
+          _ => 'bluetooth',
+        }))
+          device,
     ];
   }
 
@@ -327,6 +334,13 @@ class MeshController extends ChangeNotifier {
       for (final entry in adapters.entries)
         if (entry.value is NetworkLanAdapter)
           entry.key: (entry.value as NetworkLanAdapter).lan,
+  };
+
+  Map<String, NetworkUsbAdapter> get usbProtocols => {
+    if (usbTransport != null)
+      for (final entry in adapters.entries)
+        if (entry.value is NetworkUsbAdapter)
+          entry.key: entry.value as NetworkUsbAdapter,
   };
 
   Iterable<Peer> get peers => cache?.peers.values ?? [];
@@ -1250,7 +1264,11 @@ class MeshController extends ChangeNotifier {
         } catch (exception) {
           if (!_isCurrent(connection, operation)) return;
           debugPrint(
-            'MeshGrame ${route.network} ${lanEndpoint(route) == null ? 'Bluetooth' : 'Wi-Fi'} connection: $exception',
+            'MeshGrame ${route.network} ${usbPortOf(route) != null
+                ? 'USB'
+                : lanEndpoint(route) == null
+                ? 'Bluetooth'
+                : 'Wi-Fi'} connection: $exception',
           );
           if (index < firstPass && exception is _StartupDisconnected) {
             routes.add(device);
@@ -1291,9 +1309,16 @@ class MeshController extends ChangeNotifier {
     if (endpoint != null && protocol == null) {
       throw StateError('Local network connection unavailable');
     }
-    final link = endpoint == null
-        ? await transport.connect(route, adapter.service)
-        : await lanTransport!.connect(endpoint, protocol!);
+    final usbPort = usbPortOf(route);
+    final usbProtocol = usbProtocols[route.network]?.usb;
+    if (usbPort != null && usbProtocol == null) {
+      throw StateError('USB connection unavailable');
+    }
+    final link = await switch ((usbPort, endpoint)) {
+      (final port?, _) => usbTransport!.connect(port, usbProtocol!),
+      (_, final address?) => lanTransport!.connect(address, protocol!),
+      _ => transport.connect(route, adapter.service),
+    };
     if (!_isCurrent(connection, operation)) {
       await link.close();
       return;
