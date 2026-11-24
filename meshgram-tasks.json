@@ -25,7 +25,7 @@
       ],
       "branch": "task/01-reply-composer",
       "depends_on": [],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -34,6 +34,16 @@
         {
           "kind": "implementation",
           "result": "Для Android использован общий Flutter-контейнер, для iOS один нативный Liquid Glass с UITextView. Логика и оформление адаптированы в Meshgram по исходникам; код Telegram не копировался."
+        },
+        {
+          "kind": "merge_check",
+          "commit": "9604645",
+          "result": "После слияния прошли 213 тестов Flutter. Для мобильных устройств задана сборка 84."
+        },
+        {
+          "kind": "comparison",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/reply-and-link.png",
+          "result": "Состояния встроенной панели в iOS Simulator и Android Emulator; версия Telegram проверена по исходникам."
         }
       ]
     },
@@ -46,7 +56,7 @@
       ],
       "branch": "task/01-reply-composer",
       "depends_on": [],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
         "Превью ссылки при загрузке и после неё использует тот же слот над текстом. При закрытии возвращается предыдущая панель.",
@@ -92,6 +102,11 @@
           "kind": "device_check",
           "device": "iPhone 18 Pro Simulator, iOS 27.2",
           "result": "Встроенные загрузка и готовое превью проверены с клавиатурой и многострочным черновиком."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "Закрытие встроенного превью вернуло цитату, черновик и клавиатура сохранились. Ответ с двумя строками отправлен в деморежиме."
         }
       ]
     },
@@ -104,7 +119,7 @@
       ],
       "branch": "task/01-reply-composer",
       "depends_on": [],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
         "Превью ссылки при загрузке и после неё использует тот же слот над текстом. При закрытии возвращается предыдущая панель.",
