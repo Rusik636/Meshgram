@@ -21,15 +21,21 @@ class MainFlutterWindow: NSWindow {
     registrar.register(MeshGlassFactory(), withId: "meshgrame/glass")
     FlutterMethodChannel(name: "meshgrame/macos_glass", binaryMessenger: registrar.messenger)
       .setMethodCallHandler { call, reply in
-        guard call.method == "isSupported" else {
+        guard call.method == "configuration" else {
           reply(FlutterMethodNotImplemented)
           return
         }
+        let glass: Bool
         if #available(macOS 26.0, *) {
-          reply(!NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency)
+          glass = !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         } else {
-          reply(false)
+          glass = false
         }
+        reply([
+          "glass": glass,
+          "regularFontSize": NSFont.systemFontSize(for: .regular),
+          "smallFontSize": NSFont.smallSystemFontSize
+        ])
       }
 
     super.awakeFromNib()

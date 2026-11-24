@@ -42,7 +42,7 @@ Future<void> main() async {
         supportedLocales: const [Locale('ru'), Locale('en')],
         theme: const MeshStyle(false).theme(),
         darkTheme: const MeshStyle(true).theme(),
-        builder: (context, child) => _macWindowInsets(context, child!),
+        builder: (context, child) => _macWindowMedia(context, child!),
         themeMode: switch (MeshStore(preferences).appearance) {
           'light' => ThemeMode.light,
           'dark' => ThemeMode.dark,
@@ -140,7 +140,7 @@ class MeshGrame extends StatelessWidget {
       builder: (context, child) {
         final app = TooltipVisibility(visible: false, child: child!);
         if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-          return _macWindowInsets(context, app);
+          return _macWindowMedia(context, app);
         }
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
@@ -163,17 +163,18 @@ class MeshGrame extends StatelessWidget {
   );
 }
 
-Widget _macWindowInsets(BuildContext context, Widget child) {
+Widget _macWindowMedia(BuildContext context, Widget child) {
   if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return child;
   final media = MediaQuery.of(context);
-  if (media.size.width >= meshDesktopSplitWidth) return child;
+  final inset = media.size.width < meshDesktopSplitWidth
+      ? MacGlass.windowControlsInset
+      : 0.0;
   return MediaQuery(
     data: media.copyWith(
-      padding: media.padding.copyWith(
-        top: math.max(media.padding.top, MacGlass.windowControlsInset),
-      ),
+      textScaler: MacGlass.textScaler(media.textScaler),
+      padding: media.padding.copyWith(top: math.max(media.padding.top, inset)),
       viewPadding: media.viewPadding.copyWith(
-        top: math.max(media.viewPadding.top, MacGlass.windowControlsInset),
+        top: math.max(media.viewPadding.top, inset),
       ),
     ),
     child: child,

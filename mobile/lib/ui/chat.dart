@@ -5109,7 +5109,7 @@ class MeshChatProfile extends StatelessWidget {
     final size = (MediaQuery.textScalerOf(context).scale(13) + 61)
         .clamp(74, 108)
         .toDouble();
-    if (useIosControls) {
+    if (useIosControls || MacGlass.enabled(context)) {
       final symbol = switch (icon) {
         Icons.forum_outlined => 'bubble.left',
         Icons.search_rounded => 'magnifyingglass',
@@ -5124,6 +5124,8 @@ class MeshChatProfile extends StatelessWidget {
         height: size,
         width: size,
         symbol: symbol,
+        icon: icon,
+        fitContent: !useIosControls,
       );
     }
     final button = InkWell(
@@ -5154,17 +5156,15 @@ class MeshChatProfile extends StatelessWidget {
     );
     return SizedBox.square(
       dimension: size,
-      child: MacGlass.enabled(context)
-          ? GlassSurface(radius: 19, child: button)
-          : Material(
-              color: style.pill,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(19),
-                side: BorderSide(color: style.separator),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: button,
-            ),
+      child: Material(
+        color: style.pill,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(19),
+          side: BorderSide(color: style.separator),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: button,
+      ),
     );
   }
 }

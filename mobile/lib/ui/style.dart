@@ -219,6 +219,7 @@ class GlassSurface extends StatelessWidget {
       return ClipRRect(
         borderRadius: border,
         child: Stack(
+          fit: StackFit.passthrough,
           children: [
             Positioned.fill(
               child: MacGlassBackground(
@@ -404,10 +405,14 @@ class GlassActionButton extends StatelessWidget {
   final bool fitContent;
 
   double _contentWidth(BuildContext context, TextScaler textScaler) {
+    final stacked = symbol != null;
+    final baseStyle = MacGlass.enabled(context)
+        ? DefaultTextStyle.of(context).style
+        : const TextStyle();
     final measure = TextPainter(
       text: TextSpan(
         text: label,
-        style: TextStyle(
+        style: baseStyle.copyWith(
           fontSize: useIosControls ? 17 : 16,
           fontWeight: FontWeight.w600,
         ),
@@ -416,8 +421,12 @@ class GlassActionButton extends StatelessWidget {
       textScaler: textScaler,
       maxLines: 1,
     )..layout();
-    final result = (measure.width.ceilToDouble() + 28 + (icon == null ? 0 : 24))
-        .clamp(48.0, double.infinity);
+    final minimum = stacked && width.isFinite ? width : 48.0;
+    final iconSpace = stacked || icon == null ? 0 : 24;
+    final result = (measure.width.ceilToDouble() + 28 + iconSpace).clamp(
+      minimum,
+      double.infinity,
+    );
     measure.dispose();
     return result;
   }
@@ -432,6 +441,7 @@ class GlassActionButton extends StatelessWidget {
         : (48 + (textScaler.scale(16) - 16)).clamp(48.0, 80.0);
     if (!useIosControls) {
       final macGlass = MacGlass.enabled(context);
+      final stacked = symbol != null;
       final title = Text(
         label,
         textAlign: TextAlign.center,
@@ -458,12 +468,23 @@ class GlassActionButton extends StatelessWidget {
           side: primary || macGlass
               ? BorderSide.none
               : BorderSide(color: style.separator),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: stacked ? 6 : 12),
+          alignment: Alignment.center,
+          tapTargetSize: macGlass ? MaterialTapTargetSize.shrinkWrap : null,
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         onPressed: onTap,
         child: icon == null
             ? title
+            : stacked
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20),
+                  const SizedBox(height: 4),
+                  Flexible(child: title),
+                ],
+              )
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -493,7 +514,7 @@ class GlassActionButton extends StatelessWidget {
         onTap: onTap,
         symbol: symbol ?? (icon == null ? null : meshGlassButtonSymbol(icon!)),
         stacked: symbol != null,
-        inlineSymbol: icon != null,
+        inlineSymbol: icon != null && symbol == null,
       ),
     );
   }

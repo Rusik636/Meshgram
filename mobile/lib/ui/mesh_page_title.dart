@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'style.dart';
 
 /// A centered title using the same native glass control as the chat header.
@@ -18,11 +19,25 @@ class MeshPageTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!useIosControls) {
-      return fallback ??
+      final label =
+          fallback ??
           Semantics(
             header: true,
             child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           );
+      if (!MacGlass.enabled(context)) return label;
+      return Center(
+        heightFactor: 1,
+        child: GlassSurface(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Center(widthFactor: 1, heightFactor: 1, child: label),
+            ),
+          ),
+        ),
+      );
     }
 
     final style = MeshStyle.of(context);
@@ -81,7 +96,7 @@ class MeshMapPageHeading extends StatelessWidget {
       label: tr(context, 'Назад', 'Back'),
       onTap: () => Navigator.pop(context),
     );
-    if (!useIosControls) {
+    if (!useIosControls && !MacGlass.enabled(context)) {
       return PageHeading(
         title,
         titleBackground: fallbackBackground,

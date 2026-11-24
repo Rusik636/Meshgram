@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../mesh/chat_position.dart';
 import '../mesh/nodes.dart';
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'mesh_map.dart';
 import 'mesh_scroll_edge.dart';
 import 'style.dart';
@@ -84,7 +85,7 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                       ),
                     ),
                   ),
-                  if (useIosControls)
+                  if (useIosControls || MacGlass.enabled(context))
                     GlassButton(
                       icon: Icons.close_rounded,
                       label: tr(context, 'Закрыть поиск', 'Close search'),

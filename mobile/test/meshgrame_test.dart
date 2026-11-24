@@ -43,6 +43,7 @@ import 'package:meshgrame/ui/swipe_actions.dart';
 import 'package:meshgrame/ui/radio_discovery.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/ios_control.dart';
+import 'package:meshgrame/ui/macos_glass.dart';
 import 'package:meshgrame/ui/contact_qr.dart';
 import 'package:meshgrame/ui/position_picker.dart';
 import 'package:meshgrame/ui/style.dart';
@@ -2311,6 +2312,86 @@ void main() {
       TargetPlatform.iOS,
       TargetPlatform.android,
     }),
+  );
+
+  testWidgets(
+    'macOS glass button fills its material and uses system text metrics',
+    (tester) async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(MacGlass.channel, (call) async {
+        expect(call.method, 'configuration');
+        return {'glass': true, 'regularFontSize': 13.5, 'smallFontSize': 11.0};
+      });
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
+      await MacGlass.initialize();
+      try {
+        final scaler = MacGlass.textScaler(const TextScaler.linear(1.2));
+        expect(scaler.scale(16), closeTo(13.5 * 1.2, .01));
+        expect(scaler.scale(11), closeTo(11 * 1.2, .01));
+        var taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: GlassActionButton(
+                width: 126,
+                label: 'Готово',
+                primary: false,
+                onTap: () => taps++,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final glass = find.byType(AppKitView);
+        final label = find.text('Готово');
+        expect(
+          tester.getRect(find.byType(FilledButton)),
+          tester.getRect(glass),
+        );
+        expect(tester.getCenter(label), tester.getCenter(glass));
+        await tester.tap(label);
+        expect(taps, 1);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                textScaler: MacGlass.textScaler(TextScaler.noScaling),
+              ),
+              child: const Center(
+                child: GlassActionButton(
+                  width: 74,
+                  height: 74,
+                  label: 'Очистить',
+                  icon: Icons.delete_outline_rounded,
+                  symbol: 'trash',
+                  fitContent: true,
+                  onTap: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final stackedLabel = find.text('Очистить');
+        expect(
+          tester.renderObject<RenderParagraph>(stackedLabel).didExceedMaxLines,
+          isFalse,
+        );
+        expect(tester.getCenter(stackedLabel).dx, tester.getCenter(glass).dx);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        messenger.setMockMethodCallHandler(MacGlass.channel, (_) async => null);
+        await MacGlass.initialize();
+        messenger.setMockMethodCallHandler(MacGlass.channel, null);
+        messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
+      }
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.macOS}),
   );
 
   testWidgets(
