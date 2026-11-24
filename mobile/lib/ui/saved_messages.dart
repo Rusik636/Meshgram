@@ -186,7 +186,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
             onTap: () => unawaited(_openSource(context, item)),
           );
     final content = [
-      if (source != null) source,
+      ?source,
       if (position != null)
         MeshLocationPreview(position: position.point, loadTiles: false),
       if (item.labels.isNotEmpty)
@@ -229,6 +229,13 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final covered = ModalRoute.isCurrentOf(context) == false;
+    final editor = MessageInput(
+      key: _input,
+      controller: _draft,
+      onChanged: (value) =>
+          unawaited(controller.store.setSavedChatDraft(value)),
+      coveredByModal: covered,
+    );
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -289,14 +296,9 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Expanded(
-                          child: MessageInput(
-                            key: _input,
-                            controller: _draft,
-                            onChanged: (value) => unawaited(
-                              controller.store.setSavedChatDraft(value),
-                            ),
-                            coveredByModal: covered,
-                          ),
+                          child: useIosControls
+                              ? editor
+                              : GlassSurface(radius: 23, child: editor),
                         ),
                         const SizedBox(width: 8),
                         ValueListenableBuilder(

@@ -19,6 +19,7 @@ import '../mesh/chat_position.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/radio_outbox.dart';
+import '../radio/channel_invitation.dart';
 import 'channel_avatars.dart';
 import 'chat_attachments.dart';
 import 'style.dart';
@@ -196,111 +197,120 @@ Future<bool> showMeshChatPreview(
           );
           return AnimatedBuilder(
             animation: animation,
-            child: Semantics(
-              button: true,
-              label: tr(context, 'Открыть чат', 'Open chat'),
-              child: GestureDetector(
-                key: const ValueKey('open-chat-preview'),
-                behavior: HitTestBehavior.opaque,
-                onTap: () => Navigator.pop(context, (open: true, action: null)),
-                child: CustomPaint(
-                  painter: _ContourPaper(style),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
-                        child: Center(
-                          child: GlassSurface(
-                            radius: 22,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 7,
-                              ),
-                              child: Text(
-                                peer.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (pinnedMessage != null)
+            child: Material(
+              type: MaterialType.transparency,
+              child: Semantics(
+                button: true,
+                label: tr(context, 'Открыть чат', 'Open chat'),
+                child: GestureDetector(
+                  key: const ValueKey('open-chat-preview'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () =>
+                      Navigator.pop(context, (open: true, action: null)),
+                  child: CustomPaint(
+                    painter: _ContourPaper(style),
+                    child: Column(
+                      children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                          child: GlassSurface(
-                            radius: 17,
-                            child: ListTile(
-                              dense: true,
-                              leading: Icon(
-                                Icons.push_pin_outlined,
-                                color: style.accent,
-                                size: 17,
-                              ),
-                              title: Text(
-                                tr(
-                                  context,
-                                  'Закреплённое сообщение',
-                                  'Pinned message',
+                          padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
+                          child: Center(
+                            child: GlassSurface(
+                              radius: 22,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 7,
                                 ),
-                              ),
-                              subtitle: Text(
-                                pinnedMessage.text,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
-                      Expanded(
-                        child: messages.isEmpty
-                            ? Center(
                                 child: Text(
-                                  tr(
-                                    context,
-                                    'Начало переписки',
-                                    'Start of conversation',
+                                  peer.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              )
-                            : ListView.builder(
-                                primary: false,
-                                reverse: true,
-                                padding: const EdgeInsets.fromLTRB(9, 2, 9, 8),
-                                itemCount: messages.length,
-                                itemBuilder: (_, index) {
-                                  final message = messages[index];
-                                  return _Bubble(
-                                    item: message,
-                                    emoji: null,
-                                    hideText: false,
-                                    channel: peer.channel,
-                                    joinsPrevious: false,
-                                    joinsNext: false,
-                                    quoted: controller.referencedMessage(
-                                      peer.id,
-                                      message.replyTo,
-                                    ),
-                                    reactions: [
-                                      for (final reaction
-                                          in controller.reactionsFor(message))
-                                        (
-                                          reaction: reaction,
-                                          author: controller.reactionAuthor(
-                                            reaction,
-                                          ),
-                                        ),
-                                    ],
-                                  );
-                                },
                               ),
-                      ),
-                    ],
+                            ),
+                          ),
+                        ),
+                        if (pinnedMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                            child: GlassSurface(
+                              radius: 17,
+                              child: ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  Icons.push_pin_outlined,
+                                  color: style.accent,
+                                  size: 17,
+                                ),
+                                title: Text(
+                                  tr(
+                                    context,
+                                    'Закреплённое сообщение',
+                                    'Pinned message',
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  pinnedMessage.text,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: messages.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    tr(
+                                      context,
+                                      'Начало переписки',
+                                      'Start of conversation',
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  primary: false,
+                                  reverse: true,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    9,
+                                    2,
+                                    9,
+                                    8,
+                                  ),
+                                  itemCount: messages.length,
+                                  itemBuilder: (_, index) {
+                                    final message = messages[index];
+                                    return _Bubble(
+                                      item: message,
+                                      emoji: null,
+                                      hideText: false,
+                                      channel: peer.channel,
+                                      joinsPrevious: false,
+                                      joinsNext: false,
+                                      quoted: controller.referencedMessage(
+                                        peer.id,
+                                        message.replyTo,
+                                      ),
+                                      reactions: [
+                                        for (final reaction
+                                            in controller.reactionsFor(message))
+                                          (
+                                            reaction: reaction,
+                                            author: controller.reactionAuthor(
+                                              reaction,
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -403,20 +413,45 @@ Future<bool> showMeshChatPreview(
                               padding: EdgeInsets.zero,
                               children: [
                                 for (final action in actions)
-                                  ListTile(
-                                    minTileHeight: rowHeight,
-                                    leading: Icon(action.icon, size: 20),
-                                    title: Text(action.label),
-                                    textColor: action.destructive
-                                        ? Colors.redAccent
-                                        : style.text,
-                                    iconColor: action.destructive
-                                        ? Colors.redAccent
-                                        : style.text,
+                                  InkWell(
                                     onTap: () => Navigator.pop(context, (
                                       open: false,
                                       action: action.onTap,
                                     )),
+                                    child: SizedBox(
+                                      height: rowHeight,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              action.icon,
+                                              size: 20,
+                                              color: action.destructive
+                                                  ? Colors.redAccent
+                                                  : style.text,
+                                            ),
+                                            const SizedBox(width: 11),
+                                            Expanded(
+                                              child: Text(
+                                                action.label,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  height: 1.15,
+                                                  color: action.destructive
+                                                      ? Colors.redAccent
+                                                      : style.text,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -462,6 +497,38 @@ typedef _SendTextFlight = ({
   Rect? destination,
   bool ios,
 });
+
+typedef _SharedChatLink = ({
+  String link,
+  String caption,
+  ContactAttachment? contact,
+  ChannelInvitation? channel,
+});
+
+_SharedChatLink? _sharedChatLink(MeshController controller, String text) {
+  for (final candidate in meshLinksInMessage(text)) {
+    final contact = controller.contactAttachment(candidate.link);
+    final invite = contact == null ? channelInvitation(candidate.link) : null;
+    if (contact != null || invite != null) {
+      var start = candidate.start;
+      var end = start + candidate.source.length;
+      const wrapped = {'(': ')', '[': ']', '<': '>', '«': '»', '"': '"'};
+      if (start > 0 &&
+          end < text.length &&
+          wrapped[text[start - 1]] == text[end]) {
+        start--;
+        end++;
+      }
+      return (
+        link: candidate.link,
+        caption: text.replaceRange(start, end, '').trim(),
+        contact: contact,
+        channel: invite,
+      );
+    }
+  }
+  return null;
+}
 
 class _ReactionFlight {
   _ReactionFlight(this.messageId, this.emoji, this.source);
@@ -529,7 +596,7 @@ class _ChatState extends State<MeshChatPage>
   Uri? _linkBehindReply;
   bool _menuVisible = false;
   bool _attachmentOpen = false;
-  bool _openingContact = false;
+  bool _openingSharedLink = false;
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
   final _footerKey = GlobalKey();
@@ -1400,7 +1467,7 @@ class _ChatState extends State<MeshChatPage>
     _updateDraft(peer, '$prefix${_draft.text}', cursor: prefix.length);
   }
 
-  bool get _contactContextIsCurrent {
+  bool get _sharedContextIsCurrent {
     final radio = widget.controller.active;
     return _route?.isCurrent != false &&
         radio != null &&
@@ -1408,8 +1475,8 @@ class _ChatState extends State<MeshChatPage>
   }
 
   Future<void> _useContact(String link, {required bool openChat}) async {
-    if (!mounted || _openingContact || !_contactContextIsCurrent) return;
-    _openingContact = true;
+    if (!mounted || _openingSharedLink || !_sharedContextIsCurrent) return;
+    _openingSharedLink = true;
     try {
       final controller = widget.controller;
       final contact = controller.contactAttachment(link);
@@ -1422,7 +1489,7 @@ class _ChatState extends State<MeshChatPage>
       }
       final wasKnown = controller.findContactCode(link) != null;
       final peer = await controller.importContactAttachment(link);
-      if (!mounted || !_contactContextIsCurrent) return;
+      if (!mounted || !_sharedContextIsCurrent) return;
       if (peer == null) {
         _notice(
           tr(
@@ -1446,7 +1513,7 @@ class _ChatState extends State<MeshChatPage>
         }
       }
     } catch (_) {
-      if (mounted && _contactContextIsCurrent) {
+      if (mounted && _sharedContextIsCurrent) {
         _notice(
           tr(
             context,
@@ -1456,7 +1523,54 @@ class _ChatState extends State<MeshChatPage>
         );
       }
     } finally {
-      _openingContact = false;
+      _openingSharedLink = false;
+    }
+  }
+
+  Future<void> _joinSharedChannel(ChannelInvitation invite) async {
+    if (!mounted || _openingSharedLink || !_sharedContextIsCurrent) return;
+    final controller = widget.controller;
+    if (controller.active?.network != invite.network) {
+      _notice(
+        tr(
+          context,
+          'Выберите рацию сети ${controller.label(invite.network)}',
+          'Select a ${controller.label(invite.network)} radio',
+        ),
+      );
+      return;
+    }
+    if (!controller.channelActions.contains(ChannelAction.invitation)) {
+      _notice(
+        tr(
+          context,
+          'Подключите рацию, чтобы открыть канал',
+          'Connect the radio to open the channel',
+        ),
+      );
+      return;
+    }
+    _openingSharedLink = true;
+    try {
+      final result = await controller.addChannel((
+        action: ChannelAction.invitation,
+        name: invite.name ?? '',
+        secret: '',
+        invitation: invite.link,
+      ));
+      if (!mounted || !_sharedContextIsCurrent) return;
+      if (result.peer.id != widget.peer.id) {
+        _dismissKeyboard();
+        await showMeshChat(context, controller, result.peer);
+      }
+    } catch (_) {
+      if (mounted && _sharedContextIsCurrent) {
+        _notice(
+          tr(context, 'Не удалось открыть канал', 'Could not open the channel'),
+        );
+      }
+    } finally {
+      _openingSharedLink = false;
     }
   }
 
@@ -1943,7 +2057,7 @@ class _ChatState extends State<MeshChatPage>
       final outgoing = _draft.text.trim();
       final draftLink =
           chatPosition(outgoing) == null &&
-              controller.contactAttachment(outgoing) == null
+              _sharedChatLink(controller, outgoing) == null
           ? firstMessageLink(outgoing)
           : null;
       final previewLink = draftLink == _dismissedDraftLink ? null : draftLink;
@@ -2101,18 +2215,21 @@ class _ChatState extends State<MeshChatPage>
                                 : null;
                             final movingText = _sendTextFlight?.id == item.id;
                             final emoji = emojiCatalog?.singleEmoji(item.text);
-                            final contact = controller.contactAttachment(
+                            final shared = _sharedChatLink(
+                              controller,
                               item.text,
                             );
-                            final location = contact == null
+                            final contact = shared?.contact;
+                            final invitation = shared?.channel;
+                            final location = shared == null
                                 ? chatPosition(item.text)
                                 : null;
                             final knownContact = contact == null
                                 ? null
-                                : controller.findContactCode(item.text);
-                            final link = contact == null
-                                ? firstMessageLink(item.text)
-                                : null;
+                                : controller.findContactCode(shared!.link);
+                            final link = firstMessageLink(
+                              shared?.caption ?? item.text,
+                            );
                             Widget? card(bool interactive) {
                               if (contact != null) {
                                 final canOpen =
@@ -2143,7 +2260,7 @@ class _ChatState extends State<MeshChatPage>
                                   onOpenProfile: canOpen
                                       ? () => unawaited(
                                           _useContact(
-                                            item.text,
+                                            shared!.link,
                                             openChat: false,
                                           ),
                                         )
@@ -2151,11 +2268,39 @@ class _ChatState extends State<MeshChatPage>
                                   onWrite: canOpen && canWrite
                                       ? () => unawaited(
                                           _useContact(
-                                            item.text,
+                                            shared!.link,
                                             openChat: true,
                                           ),
                                         )
                                       : null,
+                                );
+                              }
+                              if (invitation != null) {
+                                final network = controller.label(
+                                  invitation.network,
+                                );
+                                final open = !interactive
+                                    ? null
+                                    : () => unawaited(
+                                        _joinSharedChannel(invitation),
+                                      );
+                                return _ContactCard(
+                                  name:
+                                      invitation.name ??
+                                      tr(
+                                        context,
+                                        'Канал $network',
+                                        '$network channel',
+                                      ),
+                                  id: network,
+                                  channel: true,
+                                  actionLabel: tr(
+                                    context,
+                                    'Присоединиться к каналу',
+                                    'Join channel',
+                                  ),
+                                  onOpenProfile: open,
+                                  onWrite: open,
                                 );
                               }
                               if (location != null) {
@@ -2171,8 +2316,9 @@ class _ChatState extends State<MeshChatPage>
                               _Bubble content(Widget? attachment) => _Bubble(
                                 item: item,
                                 emoji: emoji,
+                                displayedText: shared?.caption,
                                 hideText:
-                                    contact != null ||
+                                    shared?.caption.isEmpty == true ||
                                     location?.standalone == true,
                                 preview: attachment == null || onMenu != null
                                     ? attachment
@@ -2241,7 +2387,7 @@ class _ChatState extends State<MeshChatPage>
                                     ? () => unawaited(_retry(peer, item))
                                     : null,
                               );
-                              if (contact != null ||
+                              if (shared != null ||
                                   location != null ||
                                   link == null ||
                                   item.suppressLinkPreview ||
@@ -3024,6 +3170,7 @@ class _Bubble extends StatelessWidget {
     this.flightTarget,
     this.reactionTarget,
     this.localOnly = false,
+    this.displayedText,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -3045,6 +3192,7 @@ class _Bubble extends StatelessWidget {
   final Key? flightTarget;
   final ReactionGlyphTarget? reactionTarget;
   final bool localOnly;
+  final String? displayedText;
 
   @override
   Widget build(BuildContext context) {
@@ -3130,6 +3278,7 @@ class _Bubble extends StatelessWidget {
                         waitingForRadio: waitingForRadio,
                         textKey: flightTarget,
                         localOnly: localOnly,
+                        displayedText: displayedText,
                         reactions: reactions,
                         reactionTarget: reactionTarget,
                         onTap: tap,
@@ -3331,6 +3480,7 @@ class _MessageContent extends StatelessWidget {
     this.textKey,
     this.reactionTarget,
     this.localOnly = false,
+    this.displayedText,
   });
 
   final VoidCallback? onAuthor;
@@ -3351,11 +3501,13 @@ class _MessageContent extends StatelessWidget {
   final bool waitingForRadio;
   final Key? textKey;
   final bool localOnly;
+  final String? displayedText;
   final ReactionGlyphTarget? reactionTarget;
 
   Widget _text(MeshStyle style, TextStyle textStyle) {
     final highlighted = highlightedExcerpt;
-    final range = highlighted != null && highlighted.matches(item.text)
+    final text = displayedText ?? item.text;
+    final range = highlighted != null && highlighted.matches(text)
         ? TextRange(
             start: highlighted.offset,
             end: highlighted.offset + highlighted.text.length,
@@ -3363,9 +3515,9 @@ class _MessageContent extends StatelessWidget {
         : null;
     Widget render(double opacity) =>
         link == null && (range == null || opacity == 0)
-        ? EmojiText(item.text, style: textStyle, textAlign: TextAlign.left)
+        ? EmojiText(text, style: textStyle, textAlign: TextAlign.left)
         : MessageLinkifiedText(
-            text: item.text,
+            text: text,
             style: textStyle,
             linkColor: item.outgoing && style.dark ? style.text : style.accent,
             textAlign: TextAlign.left,
@@ -3432,7 +3584,11 @@ class _MessageContent extends StatelessWidget {
 
         final maxWidth = constraints.maxWidth;
         final stampWidth = math.min(stampSize.width, maxWidth);
-        final body = measure(hideText ? '' : item.text, textStyle, maxWidth);
+        final body = measure(
+          hideText ? '' : displayedText ?? item.text,
+          textStyle,
+          maxWidth,
+        );
         final lastLine = body.computeLineMetrics().lastOrNull;
         final bodyWidth = body.width;
         body.dispose();
@@ -3564,10 +3720,14 @@ class _ContactCard extends StatelessWidget {
     this.shortName,
     this.onOpenProfile,
     this.onWrite,
+    this.channel = false,
+    this.actionLabel,
   });
 
   final String name, id;
   final String? shortName;
+  final bool channel;
+  final String? actionLabel;
   final VoidCallback? onOpenProfile, onWrite;
 
   @override
@@ -3648,7 +3808,7 @@ class _ContactCard extends StatelessWidget {
                   }
                   return Row(
                     children: [
-                      MeshAvatar(name, size: avatarSize),
+                      MeshAvatar(name, size: avatarSize, channel: channel),
                       const SizedBox(width: gap),
                       Expanded(
                         child: Column(
@@ -3685,7 +3845,9 @@ class _ContactCard extends StatelessWidget {
                 Divider(height: 1, color: style.text.withValues(alpha: .16)),
                 TextButton(
                   onPressed: onWrite,
-                  child: Text(tr(context, 'Написать', 'Message')),
+                  child: Text(
+                    actionLabel ?? tr(context, 'Написать', 'Message'),
+                  ),
                 ),
               ],
             ],
