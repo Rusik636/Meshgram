@@ -76,11 +76,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   bool _editingChats = false, _showHidden = false, _removingChats = false;
   bool _archiveRevealed = false;
   bool _archiveSwipeOpen = false;
+  bool _archiveClosingShownRow = false;
   bool _archiveReady = false, _archiveMature = false;
   Timer? _archiveDwell;
   int? _archivePointer;
   double _archiveDistance = 0;
-  late final _archiveHeight = AnimationController.unbounded(vsync: this);
+  late final _archiveProgress = AnimationController(
+    vsync: this,
+    value: controller.archiveHidden ? 0 : 1,
+  );
   late final _archivePhysics = ChatArchiveScrollPhysics(
     _applyArchiveDrag,
     parent: const AlwaysScrollableScrollPhysics(),
@@ -100,6 +104,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     controller.addListener(_changed);
     if (controller.hideSystemNavigation) unawaited(_applySystemNavigation());
     _lifecycle = AppLifecycleListener(
+      onInactive: () => _finishArchiveDrag(released: false),
       onResume: () {
         controller.refreshNodePresence();
         unawaited(controller.flushOutbox());
@@ -178,15 +183,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final profile = controller.active;
       if (profile != _folderProfile) {
         _folderProfile = profile;
-        _archiveRevealed = false;
-        _archiveSwipeOpen = false;
-        _resetArchiveDrag();
-        _archiveHeight.value = 0;
+        _resetArchiveVisibility();
         if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
-      } else if (controller.hiddenConversations.isEmpty && _archiveRevealed) {
-        _archiveRevealed = false;
-        _resetArchiveDrag();
-        _archiveHeight.value = 0;
+      } else if (controller.cache?.hiddenChats.isNotEmpty != true) {
+        _resetArchiveVisibility();
       }
     });
   }
@@ -201,7 +201,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _folderTabsScroll.dispose();
     _searchMotion.dispose();
     _archiveDwell?.cancel();
-    _archiveHeight.dispose();
+    _archiveProgress.dispose();
     _tabs.opacity.dispose();
     _chatCategories.opacity.dispose();
     _searchCategories.opacity.dispose();
@@ -336,6 +336,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   bool get _canPullArchive =>
       _archiveAvailable && controller.archiveHidden && !_archiveRevealed;
 
+  bool get _archiveCanScrollAway =>
+      _archiveAvailable && controller.archiveHidden && _archiveRevealed;
+
   void _resetArchiveDrag() {
     _archiveDwell?.cancel();
     _archiveDwell = null;
@@ -345,17 +348,33 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _archiveReady = false;
   }
 
+  void _resetArchiveVisibility() {
+    _resetArchiveDrag();
+    _archiveRevealed = false;
+    _archiveSwipeOpen = false;
+    _archiveClosingShownRow = false;
+    final target = controller.archiveHidden ? 0.0 : 1.0;
+    if (_archiveProgress.isAnimating || _archiveProgress.value != target) {
+      _archiveProgress.value = target;
+    }
+  }
+
   double _applyArchiveDrag(ScrollMetrics position, double offset) {
     if (_archivePointer == null || !_canPullArchive) return offset;
     final atTop = position.pixels - position.minScrollExtent;
     final delta = offset > 0 ? math.max(0.0, offset - atTop) : offset;
-    if (delta == 0 || (delta < 0 && _archiveDistance == 0)) return offset;
-    final previous = _archiveDistance;
-    _archiveDistance = (previous + delta).clamp(0.0, _archiveExtent * 1.4);
+    final extent = _archiveExtent;
     final fraction = _archiveIsIos ? .67 : 1.0;
-    _archiveHeight.value = math.min(
-      _archiveExtent,
-      _archiveDistance * fraction,
+    final previous = math.max(
+      _archiveDistance,
+      _archiveProgress.value * extent / fraction,
+    );
+    if (delta == 0 || (delta < 0 && previous == 0)) return offset;
+    _archiveClosingShownRow = false;
+    _archiveDistance = (previous + delta).clamp(0.0, extent * 1.4);
+    _archiveProgress.value = math.min(
+      1.0,
+      _archiveDistance * fraction / extent,
     );
     if (!_archiveIsIos && !_archiveMature && _archiveDwell == null) {
       _archiveDwell = Timer(const Duration(milliseconds: 200), () {
@@ -371,8 +390,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   void _checkArchiveThreshold() {
     if (!_canPullArchive || _archivePointer == null) return;
     final ready = _archiveIsIos
-        ? _archiveHeight.value >= 40
-        : _archiveMature && _archiveHeight.value >= _archiveExtent * .85;
+        ? _archiveProgress.value * _archiveExtent >= 40
+        : _archiveMature && _archiveProgress.value >= .85;
     if (ready == _archiveReady) return;
     setState(() => _archiveReady = ready);
     if (ready) {
@@ -381,12 +400,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     }
   }
 
-  void _animateArchive(double target) {
+  void _settleArchive() {
+    final target = controller.archiveHidden && !_archiveRevealed ? 0.0 : 1.0;
     unawaited(
-      _archiveHeight.animateTo(
+      _archiveProgress.animateTo(
         target,
         duration: meshMotion(context),
-        curve: _archiveIsIos ? Curves.easeOutCubic : Curves.easeOutQuint,
+        curve: target == 0 ? Curves.easeInOutCubic : Curves.easeOutCubic,
       ),
     );
   }
@@ -394,22 +414,19 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   void _revealArchive({bool pointerHeld = false}) {
     if (!pointerHeld) _resetArchiveDrag();
     setState(() => _archiveRevealed = true);
-    _animateArchive(_archiveExtent);
+    _settleArchive();
   }
 
   void _finishArchiveDrag({required bool released}) {
     if (_archivePointer == null) return;
     if (_archiveRevealed) {
       setState(_resetArchiveDrag);
-      if (!_archiveHeight.isAnimating &&
-          _archiveHeight.value < _archiveExtent) {
-        _animateArchive(_archiveExtent);
-      }
+      if (!_archiveProgress.isAnimating) _settleArchive();
     } else if (released && _canPullArchive && _archiveReady) {
       _revealArchive();
     } else {
       _resetArchiveDrag();
-      _animateArchive(0);
+      _settleArchive();
     }
   }
 
@@ -422,28 +439,22 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         }
       });
     }
-    if (!_archiveAvailable ||
-        !_archiveRevealed ||
-        !controller.archiveHidden ||
+    if (!_archiveCanScrollAway ||
         event.metrics.extentBefore <
             _chatScroll.collapseRange + _archiveExtent) {
       return false;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !_archiveAvailable ||
-          !_archiveRevealed ||
-          !controller.archiveHidden ||
+          !_archiveCanScrollAway ||
           !_chatScroll.hasClients ||
           _chatScroll.position.extentBefore <
               _chatScroll.collapseRange + _archiveExtent) {
         return;
       }
-      final height = _archiveHeight.value;
-      _resetArchiveDrag();
-      _archiveHeight.value = 0;
+      final height = _archiveProgress.value * _archiveExtent;
       setState(() {
-        _archiveRevealed = false;
+        _resetArchiveVisibility();
         _archiveRetraction = (
           sequence: _archiveRetraction.sequence + 1,
           extent: height,
@@ -578,10 +589,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _selectChatTab(int index) {
     if (_removingChats || index == _chatCategories.selected) return;
-    _finishArchiveDrag(released: false);
-    _archiveRevealed = false;
-    _archiveSwipeOpen = false;
-    _archiveHeight.value = 0;
+    _resetArchiveVisibility();
     _revealedChat = null;
     _selectedChats.clear();
     _select(_chatCategories, index);
@@ -908,6 +916,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ..collapseRange = !_editingChats && !_showHidden && !_searchActive
             ? collapseRange
             : 0
+        ..trailingSnapExtent = _archiveCanScrollAway ? _archiveExtent : 0
         ..reduceMotion = MediaQuery.disableAnimationsOf(context);
       final normalFieldTop = safe.top + headingHeight + 3;
       final normalCategoriesTop = normalFieldTop + fieldHeight + 9;
@@ -1380,14 +1389,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   void _setArchiveHidden(bool hidden) {
     if (controller.archiveHidden == hidden) return;
     final radio = controller.active;
-    _resetArchiveDrag();
-    _archiveHeight.value = _archiveExtent;
-    setState(() {
-      _archiveRevealed = false;
-      _archiveSwipeOpen = false;
-    });
-    controller.setArchiveHidden(hidden);
-    _animateArchive(hidden ? 0 : _archiveExtent);
+    _applyArchivePreference(hidden);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -1399,13 +1401,23 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           label: tr(context, 'Отменить', 'Undo'),
           onPressed: () {
             if (mounted && controller.active == radio) {
-              controller.setArchiveHidden(!hidden);
-              _archiveHeight.value = hidden ? _archiveExtent : 0;
+              _applyArchivePreference(!hidden);
             }
           },
         ),
       ),
     );
+  }
+
+  void _applyArchivePreference(bool hidden) {
+    setState(() {
+      _resetArchiveDrag();
+      _archiveRevealed = false;
+      _archiveSwipeOpen = false;
+      _archiveClosingShownRow = hidden;
+    });
+    controller.setArchiveHidden(hidden);
+    _settleArchive();
   }
 
   String _archiveAction(bool hidden) => hidden
@@ -1434,26 +1446,38 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final shown = !hidden || _archiveRevealed;
     final label = tr(context, 'Архив', 'Archive');
     return AnimatedBuilder(
-      animation: _archiveHeight,
+      animation: Listenable.merge([_archiveProgress, _chatScroll]),
       builder: (context, _) {
         final extent = _archiveExtent;
-        final height = hidden
-            ? _archiveHeight.value.clamp(0.0, extent)
-            : extent;
-        if (height == 0) return const SizedBox.shrink();
+        final progress = _archiveProgress.value;
+        if (progress == 0) return const SizedBox.shrink();
+        var visibleFraction = progress;
+        if (_archiveCanScrollAway &&
+            _chatScroll.hasClients &&
+            _chatScroll.position.hasContentDimensions) {
+          final covered = math.max(
+            0.0,
+            _chatScroll.position.extentBefore - _chatScroll.collapseRange,
+          );
+          visibleFraction = (progress - covered / extent).clamp(0.0, 1.0);
+        }
+        final opacity = Curves.easeInOut.transform(visibleFraction);
+        final displaysArchive = shown || _archiveClosingShownRow;
         final row = ListTile(
           key: const ValueKey('archive-row'),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: MeshRowIcon(
-            icon: shown
+            icon: displaysArchive
                 ? Icons.archive_outlined
                 : _archiveReady
                 ? Icons.arrow_upward_rounded
                 : Icons.arrow_downward_rounded,
-            tint: shown || _archiveReady ? style.accent : style.secondary,
+            tint: displaysArchive || _archiveReady
+                ? style.accent
+                : style.secondary,
           ),
           title: Text(
-            shown || _archiveIsIos
+            displaysArchive || _archiveIsIos
                 ? label
                 : _archiveReady
                 ? tr(
@@ -1467,7 +1491,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     'Pull down to show Archive',
                   ),
           ),
-          trailing: shown ? Text('$count') : null,
+          trailing: displaysArchive ? Text('$count') : null,
           onTap: shown ? () => _showChats(true) : null,
         );
         final content = shown
@@ -1499,24 +1523,31 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 ),
               )
             : ExcludeSemantics(child: IgnorePointer(child: row));
-        return ClipRect(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            heightFactor: height / extent,
-            child: SizedBox(
-              height: extent,
-              child: Center(
-                child: AnimatedPadding(
-                  duration: meshMotion(context),
-                  curve: Curves.easeOutCubic,
-                  padding: EdgeInsets.only(
-                    // Center the archive between the visible folder bar and
-                    // the first chat, whose avatar has the usual row padding.
-                    bottom: _archivePointer == null
-                        ? ChatFolderTabs.verticalInset(context)
-                        : 0,
+        return IgnorePointer(
+          ignoring: opacity == 0,
+          child: Opacity(
+            key: const ValueKey('archive-opacity'),
+            opacity: opacity,
+            child: ClipRect(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                heightFactor: progress,
+                child: SizedBox(
+                  height: extent,
+                  child: Center(
+                    child: AnimatedPadding(
+                      duration: meshMotion(context),
+                      curve: Curves.easeOutCubic,
+                      padding: EdgeInsets.only(
+                        // Center the archive between the visible folder bar
+                        // and the avatar of the first chat.
+                        bottom: _archivePointer == null
+                            ? ChatFolderTabs.verticalInset(context)
+                            : 0,
+                      ),
+                      child: content,
+                    ),
                   ),
-                  child: content,
                 ),
               ),
             ),
