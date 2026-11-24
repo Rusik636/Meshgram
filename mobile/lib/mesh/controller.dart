@@ -545,6 +545,18 @@ class MeshController extends ChangeNotifier {
     _changed();
   }
 
+  bool get archiveHidden => cache?.archiveHidden ?? false;
+
+  void setArchiveHidden(bool hidden) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (current.archiveHidden == hidden) return;
+    current.archiveHidden = hidden;
+    _save(radio);
+    _changed();
+  }
+
   List<ChatFolder> get chatFolders =>
       cache?.folders.values.toList(growable: false) ?? const [];
 
