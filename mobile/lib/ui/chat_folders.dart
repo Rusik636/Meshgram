@@ -370,27 +370,32 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
         ? const EdgeInsets.all(_iosLensInset)
         : const EdgeInsets.symmetric(horizontal: _padding);
     final viewportHeight = barHeight - viewportPadding.vertical;
+    final viewport = Padding(
+      padding: viewportPadding,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(
+          native ? viewportHeight / 2 : height / 2 - _padding,
+        ),
+        child: native
+            ? _nativeTabs(viewportHeight)
+            : _flutterTabs(viewportHeight),
+      ),
+    );
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: 16,
         vertical: (height - barHeight) / 2,
       ),
-      child: GlassSurface(
-        modal: !native,
-        nativeButtonMaterial: native,
-        radius: native ? barHeight / 2 : height / 2,
-        child: Padding(
-          padding: viewportPadding,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(
-              native ? viewportHeight / 2 : height / 2 - _padding,
-            ),
-            child: native
-                ? _nativeTabs(viewportHeight)
-                : _flutterTabs(viewportHeight),
-          ),
-        ),
-      ),
+      child: native
+          ? DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: StadiumBorder(
+                  side: BorderSide(color: MeshStyle.of(context).separator),
+                ),
+              ),
+              child: viewport,
+            )
+          : GlassSurface(modal: true, radius: height / 2, child: viewport),
     );
   }
 
