@@ -197,17 +197,23 @@ class GlassSurface extends StatelessWidget {
     this.radius = 28,
     this.modal = false,
     this.color,
+    this.outline,
   });
   final Widget child;
   final double radius;
   final bool modal;
   final Color? color;
+  final BorderSide? outline;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final opaque = MediaQuery.highContrastOf(context);
     final border = BorderRadius.circular(radius);
+    final shape = RoundedRectangleBorder(
+      borderRadius: border,
+      side: outline ?? BorderSide(color: style.separator),
+    );
     if (modal && useIosControls && !opaque) {
       return ClipRRect(
         borderRadius: border,
@@ -222,7 +228,16 @@ class GlassSurface extends StatelessWidget {
                 ),
               ),
             ),
-            Material(type: MaterialType.transparency, child: child),
+            Material(
+              type: MaterialType.transparency,
+              child: outline == null
+                  ? child
+                  : DecoratedBox(
+                      decoration: ShapeDecoration(shape: shape),
+                      position: DecorationPosition.foreground,
+                      child: child,
+                    ),
+            ),
           ],
         ),
       );
@@ -234,10 +249,7 @@ class GlassSurface extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
         child: Material(
           color: opaque ? style.surface : color ?? style.pill,
-          shape: RoundedRectangleBorder(
-            borderRadius: border,
-            side: BorderSide(color: style.separator),
-          ),
+          shape: shape,
           child: child,
         ),
       ),

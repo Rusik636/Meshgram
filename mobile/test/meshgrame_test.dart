@@ -7269,6 +7269,62 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('iOS quick phrases paint an outline over the native glass', (
+    tester,
+  ) async {
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      SystemChannels.platform_views,
+      (_) async => null,
+    );
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        null,
+      ),
+    );
+    final store = MeshStore(await SharedPreferences.getInstance());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 300,
+              child: QuickPhraseStrip(
+                store: store,
+                onSelect: null,
+                onExpand: null,
+                progress: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final strip = find.byType(QuickPhraseStrip);
+    final backdrop = find.descendant(
+      of: strip,
+      matching: find.byType(IosControl),
+    );
+    expect(tester.widget<IosControl>(backdrop).kind, 'modalGlass');
+    final outline = find.descendant(
+      of: strip,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.position == DecorationPosition.foreground &&
+            widget.decoration is ShapeDecoration,
+      ),
+    );
+    final decoration =
+        tester.widget<DecoratedBox>(outline).decoration as ShapeDecoration;
+    final border = decoration.shape as RoundedRectangleBorder;
+    expect(border.side.width, greaterThan(0));
+    expect(border.side.strokeAlign, BorderSide.strokeAlignInside);
+    expect(tester.getRect(outline), tester.getRect(strip));
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
   testWidgets('radio status replaces the draft counter until connected', (
     tester,
   ) async {
