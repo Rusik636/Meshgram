@@ -21,11 +21,16 @@ class QuickPhraseStrip extends StatefulWidget {
     required this.store,
     required this.onSelect,
     required this.onExpand,
+    required this.progress,
   });
 
   final MeshStore store;
   final ValueChanged<String>? onSelect;
   final VoidCallback? onExpand;
+  final double progress;
+
+  static double extent(BuildContext context) =>
+      (MediaQuery.textScalerOf(context).scale(14) + 18).clamp(48.0, 80.0);
 
   @override
   State<QuickPhraseStrip> createState() => _QuickPhraseStripState();
@@ -63,70 +68,91 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
     final style = MeshStyle.of(context);
     final phrases = _phrases(context, widget.store);
     final select = widget.onSelect;
-    final height = (MediaQuery.textScalerOf(context).scale(14) + 18).clamp(
-      48.0,
-      80.0,
+    final height = QuickPhraseStrip.extent(context);
+    final contentOpacity = const Interval(
+      .34,
+      .88,
+      curve: Curves.easeOut,
+    ).transform(widget.progress);
+    final iconOpacity = 1 - const Interval(0, .38).transform(widget.progress);
+    final content = Row(
+      children: [
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _trackPull,
+            child: ListView.separated(
+              key: const ValueKey('quick-phrase-scroll'),
+              primary: false,
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              itemCount: phrases.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 2),
+              itemBuilder: (context, index) {
+                final phrase = phrases[index];
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 190),
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: style.text,
+                      disabledForegroundColor: style.secondary,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    onPressed: select == null ? null : () => select(phrase),
+                    child: Text(
+                      phrase,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        SizedBox.square(
+          dimension: 48,
+          child: IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            color: style.text,
+            tooltip: tr(
+              context,
+              'Развернуть быстрые фразы',
+              'Expand quick phrases',
+            ),
+            onPressed: widget.onExpand,
+          ),
+        ),
+      ],
     );
     return GlassSurface(
       modal: true,
       radius: height / 2,
       child: SizedBox(
         height: height,
-        child: Row(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _trackPull,
-                child: ListView.separated(
-                  key: const ValueKey('quick-phrase-scroll'),
-                  primary: false,
-                  scrollDirection: Axis.horizontal,
-                  physics: const ClampingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
+            if (contentOpacity > 0)
+              Opacity(opacity: contentOpacity, child: content),
+            if (iconOpacity > 0)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Opacity(
+                  opacity: iconOpacity,
+                  child: SizedBox(
+                    width: 48,
+                    child: Icon(Icons.short_text_rounded, color: style.text),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  itemCount: phrases.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 2),
-                  itemBuilder: (context, index) {
-                    final phrase = phrases[index];
-                    return ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 190),
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: style.text,
-                          disabledForegroundColor: style.secondary,
-                          minimumSize: const Size(48, 48),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        onPressed: select == null ? null : () => select(phrase),
-                        child: Text(
-                          phrase,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    );
-                  },
                 ),
               ),
-            ),
-            SizedBox.square(
-              dimension: 48,
-              child: IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                color: style.text,
-                tooltip: tr(
-                  context,
-                  'Развернуть быстрые фразы',
-                  'Expand quick phrases',
-                ),
-                onPressed: widget.onExpand,
-              ),
-            ),
           ],
         ),
       ),

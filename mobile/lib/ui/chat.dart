@@ -2808,74 +2808,92 @@ class _ChatState extends State<MeshChatPage>
       bytes: bytes,
       limit: limit,
     );
-    final phrases = TextFieldTapRegion(
-      child: QuickPhraseStrip(
-        store: controller.store,
-        onSelect: enabled ? (phrase) => _insertQuickPhrase(peer, phrase) : null,
-        onExpand: enabled ? () => unawaited(_showQuickPhraseList(peer)) : null,
-      ),
-    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: TweenAnimationBuilder<double>(
         tween: Tween(end: _quickPhrasesOpen ? 1 : 0),
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        builder: (context, progress, _) => Stack(
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
+            : const Duration(milliseconds: 260),
+        curve: Curves.easeInOutCubic,
+        builder: (context, progress, _) => LayoutBuilder(
+          builder: (context, constraints) {
+            final expanded = progress == 1 && _quickPhrasesOpen;
+            final extent = QuickPhraseStrip.extent(context);
+            final start = math.min(48.0, constraints.maxWidth);
+            final width = start + (constraints.maxWidth - start) * progress;
+            return Stack(
               children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: 48 - 24 * progress),
-                  child: Row(
-                    children: [
-                      SizedBox(width: 54 * (1 - progress)),
-                      if (controller.outboxFor(peer.id).isNotEmpty) ...[
-                        GlassButton(
-                          coveredByModal: _controlsCovered,
-                          icon: Icons.schedule_rounded,
-                          label: tr(context, 'Очередь рации', 'Radio outbox'),
-                          onTap: () => unawaited(_openOutbox(peer)),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Expanded(child: status),
-                    ],
-                  ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: 48 - 24 * progress,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: 54 * (1 - progress)),
+                          if (controller.outboxFor(peer.id).isNotEmpty) ...[
+                            GlassButton(
+                              coveredByModal: _controlsCovered,
+                              icon: Icons.schedule_rounded,
+                              label: tr(
+                                context,
+                                'Очередь рации',
+                                'Radio outbox',
+                              ),
+                              onTap: () => unawaited(_openOutbox(peer)),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(child: status),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: extent * progress),
+                  ],
                 ),
                 if (progress > 0)
-                  ClipRect(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      heightFactor: progress,
-                      child: IgnorePointer(
-                        ignoring: !_quickPhrasesOpen,
-                        child: ExcludeSemantics(
-                          excluding: !_quickPhrasesOpen,
-                          child: phrases,
+                  PositionedDirectional(
+                    start: 0,
+                    bottom: 0,
+                    width: width,
+                    child: IgnorePointer(
+                      ignoring: !expanded,
+                      child: ExcludeSemantics(
+                        excluding: !expanded,
+                        child: TextFieldTapRegion(
+                          child: QuickPhraseStrip(
+                            progress: progress,
+                            store: controller.store,
+                            onSelect: enabled
+                                ? (phrase) => _insertQuickPhrase(peer, phrase)
+                                : null,
+                            onExpand: enabled
+                                ? () => unawaited(_showQuickPhraseList(peer))
+                                : null,
+                          ),
                         ),
                       ),
                     ),
                   ),
+                if (progress == 0)
+                  PositionedDirectional(
+                    start: 0,
+                    top: 0,
+                    child: GlassButton(
+                      coveredByModal: _controlsCovered,
+                      icon: Icons.short_text_rounded,
+                      label: tr(context, 'Быстрые фразы', 'Quick phrases'),
+                      onTap: enabled && !_quickPhrasesOpen
+                          ? () => setState(() => _quickPhrasesOpen = true)
+                          : null,
+                    ),
+                  ),
               ],
-            ),
-            if (!_quickPhrasesOpen && progress == 0)
-              Positioned(
-                left: 0,
-                top: 0,
-                child: GlassButton(
-                  coveredByModal: _controlsCovered,
-                  icon: Icons.short_text_rounded,
-                  label: tr(context, 'Быстрые фразы', 'Quick phrases'),
-                  onTap: enabled
-                      ? () => setState(() => _quickPhrasesOpen = true)
-                      : null,
-                ),
-              ),
-          ],
+            );
+          },
         ),
       ),
     );

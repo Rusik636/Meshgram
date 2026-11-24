@@ -55,6 +55,7 @@ import 'package:meshgrame/ui/emoji_text.dart';
 import 'package:meshgrame/ui/message_details.dart';
 import 'package:meshgrame/ui/message_input.dart';
 import 'package:meshgrame/ui/message_reactions.dart';
+import 'package:meshgrame/ui/quick_phrases.dart';
 import 'package:meshgrame/ui/qr_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -7217,6 +7218,46 @@ void main() {
     expectAlignedButtons();
     expect(controller.messages(peer.id), hasLength(messages));
     expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('quick phrase strip grows before revealing its contents', (
+    tester,
+  ) async {
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final trigger = find.byTooltip('Quick phrases');
+    final strip = find.byType(QuickPhraseStrip);
+    final phrase = find.descendant(of: strip, matching: find.text('I’m here'));
+    await tester.tap(trigger);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 75));
+    final openingWidth = tester.getSize(strip).width;
+    expect(openingWidth, greaterThan(48));
+    expect(phrase, findsNothing);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(strip).width, greaterThan(openingWidth));
+    expect(phrase, findsOneWidget);
+    await tester.tap(phrase);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 185));
+    expect(strip, findsOneWidget);
+    expect(phrase, findsNothing);
+    await tester.pumpAndSettle();
+    expect(strip, findsNothing);
+    expect(trigger, findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
