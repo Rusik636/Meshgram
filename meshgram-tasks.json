@@ -3486,6 +3486,80 @@
           "result": "Проверены подпись и целостность универсального архива arm64 и x86_64."
         }
       ]
+    },
+    {
+      "id": "65",
+      "parent_id": null,
+      "title": "Системные кнопки окна в панели папок macOS",
+      "platform": ["macos"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["60"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Штатные кнопки закрытия, сворачивания и разворачивания расположены сверху внутри панели папок."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/appkit/nswindow/standardwindowbutton%28_%3A%29",
+          "result": "AppKit предоставляет штатные кнопки через NSWindow.standardWindowButton."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены положение кнопок в широкой раскладке, нативные роли окна и дерево доступности чатов. При сужении окна проверен переход в однопанельную раскладку."
+        }
+      ]
+    },
+    {
+      "id": "66",
+      "parent_id": null,
+      "title": "Палитра и общий фон панелей ПК",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["64"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Список чатов светлее правой панели в обеих темах.",
+        "Подложка окна и затухание у правого края списка совпадают с базовым цветом правой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены светлая и тёмная темы, переход у профиля и фон переписки в сборке 114. Тест Flutter сверяет цвет подложки с базовым цветом правой панели."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows и Linux",
+          "result": "На Windows использован вариант платформы в тестах Flutter. Нативный запуск выполнен на macOS."
+        }
+      ]
+    },
+    {
+      "id": "67",
+      "parent_id": null,
+      "title": "Тонкие рамки левых панелей ПК",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["66"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "У панели папок и списка чатов есть тонкая рамка по скруглённому контуру в обеих темах."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Обе рамки проверены в светлой и тёмной темах. Тест Flutter проверяет рамки в один пункт и радиус скругления. После слияния в dev прошли все 266 тестов."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-114-macOS.zip",
+          "result": "Универсальная сборка 114 для arm64 и x86_64."
+        }
+      ]
     }
   ]
 }
