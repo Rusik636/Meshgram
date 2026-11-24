@@ -249,7 +249,9 @@ Future<bool> showMeshChatPreview(
                                     ),
                                   ),
                                 )
-                              : ListView.builder(
+                              // The entire snapshot can paint as it scrolls
+                              // under the heading, up to the card's outer clip.
+                              : SingleChildScrollView(
                                   primary: false,
                                   clipBehavior: Clip.none,
                                   reverse: true,
@@ -259,32 +261,34 @@ Future<bool> showMeshChatPreview(
                                     9,
                                     8,
                                   ),
-                                  itemCount: messages.length,
-                                  itemBuilder: (_, index) {
-                                    final message = messages[index];
-                                    return _Bubble(
-                                      item: message,
-                                      emoji: null,
-                                      hideText: false,
-                                      channel: peer.channel,
-                                      joinsPrevious: false,
-                                      joinsNext: false,
-                                      quoted: controller.referencedMessage(
-                                        peer.id,
-                                        message.replyTo,
-                                      ),
-                                      reactions: [
-                                        for (final reaction
-                                            in controller.reactionsFor(message))
-                                          (
-                                            reaction: reaction,
-                                            author: controller.reactionAuthor(
-                                              reaction,
-                                            ),
+                                  child: Column(
+                                    children: [
+                                      for (final message in messages.reversed)
+                                        _Bubble(
+                                          item: message,
+                                          emoji: null,
+                                          hideText: false,
+                                          channel: peer.channel,
+                                          joinsPrevious: false,
+                                          joinsNext: false,
+                                          quoted: controller.referencedMessage(
+                                            peer.id,
+                                            message.replyTo,
                                           ),
-                                      ],
-                                    );
-                                  },
+                                          reactions: [
+                                            for (final reaction
+                                                in controller.reactionsFor(
+                                                  message,
+                                                ))
+                                              (
+                                                reaction: reaction,
+                                                author: controller
+                                                    .reactionAuthor(reaction),
+                                              ),
+                                          ],
+                                        ),
+                                    ],
+                                  ),
                                 ),
                         ),
                         LayoutId(
@@ -312,6 +316,7 @@ Future<bool> showMeshChatPreview(
                                   ),
                                   child: Center(
                                     child: GlassSurface(
+                                      modal: true,
                                       radius: 22,
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
@@ -403,64 +408,35 @@ Future<bool> showMeshChatPreview(
                 height: extent.height * scale,
               );
               final scrim = messageMenuDim(context);
-              final blur =
-                  dim > 0 && !MediaQuery.accessibleNavigationOf(context);
+              final blur = !MediaQuery.accessibleNavigationOf(context);
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: BackdropFilter(
-                        enabled: blur,
-                        filter: ImageFilter.blur(
-                          sigmaX: 18 * dim,
-                          sigmaY: 18 * dim,
-                          tileMode: TileMode.clamp,
-                        ),
-                        child: ColoredBox(
-                          color: scrim.withValues(alpha: scrim.a * dim),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned.fromRect(
-                    key: const ValueKey('chat-preview-card'),
-                    rect: frame,
-                    child: IgnorePointer(
-                      ignoring: !animation.isCompleted,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          (ios ? 26 : 12) * amount,
-                        ),
-                        child: ColoredBox(
-                          color: style.canvas,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              if (details < 1)
-                                ExcludeSemantics(
-                                  child: OverflowBox(
-                                    minWidth: anchor.width,
-                                    maxWidth: anchor.width,
-                                    minHeight: anchor.height,
-                                    maxHeight: anchor.height,
-                                    child: sourceRow,
-                                  ),
+                      child: useIosControls
+                          ? IosControl(
+                              kind: 'chatPreviewBackdrop',
+                              properties: {
+                                'blur': blur,
+                                'dark': style.dark,
+                                'color': scrim.toARGB32(),
+                                'progress': dim,
+                              },
+                            )
+                          : ClipRect(
+                              child: BackdropFilter(
+                                enabled: blur && dim > 0,
+                                filter: ImageFilter.blur(
+                                  sigmaX: 18 * dim,
+                                  sigmaY: 18 * dim,
+                                  tileMode: TileMode.clamp,
                                 ),
-                              Opacity(
-                                opacity: details,
-                                child: OverflowBox(
-                                  minWidth: width,
-                                  maxWidth: width,
-                                  minHeight: height,
-                                  maxHeight: height,
-                                  child: child,
+                                child: ColoredBox(
+                                  color: scrim.withValues(alpha: scrim.a * dim),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
+                            ),
                     ),
                   ),
                   if (actions.isNotEmpty && details > 0)
@@ -527,6 +503,48 @@ Future<bool> showMeshChatPreview(
                         ),
                       ),
                     ),
+                  // Paint the actions before the card inserts its UIKit
+                  // title surface, so they stay above the full-screen blur.
+                  Positioned.fromRect(
+                    key: const ValueKey('chat-preview-card'),
+                    rect: frame,
+                    child: IgnorePointer(
+                      ignoring: !animation.isCompleted,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          (ios ? 26 : 12) * amount,
+                        ),
+                        child: ColoredBox(
+                          color: style.canvas,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (details < 1)
+                                ExcludeSemantics(
+                                  child: OverflowBox(
+                                    minWidth: anchor.width,
+                                    maxWidth: anchor.width,
+                                    minHeight: anchor.height,
+                                    maxHeight: anchor.height,
+                                    child: sourceRow,
+                                  ),
+                                ),
+                              Opacity(
+                                opacity: details,
+                                child: OverflowBox(
+                                  minWidth: width,
+                                  maxWidth: width,
+                                  minHeight: height,
+                                  maxHeight: height,
+                                  child: child,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               );
             },

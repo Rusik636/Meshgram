@@ -33,6 +33,9 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
       return surface
     }
     let channel = FlutterMethodChannel(name: "meshgrame/controls/\(id)", binaryMessenger: messenger)
+    if kind == "chatPreviewBackdrop" {
+      return MeshChatPreviewBackdrop(frame: frame, channel: channel, input: input)
+    }
     if input["kind"] as? String == "messageGlass" {
       return MeshMessageGlass(frame: frame, input: input)
     }
@@ -61,6 +64,75 @@ private final class MeshPassiveSurface: UIView, FlutterPlatformView {
 
   required init?(coder: NSCoder) { nil }
   func view() -> UIView { self }
+}
+
+// The chat list mixes Flutter content and UIKit controls. A single UIKit
+// effect samples both without clipping the blur to each platform view.
+private final class MeshChatPreviewBackdrop: NSObject, FlutterPlatformView {
+  private let surface: UIView
+  private let blur = UIVisualEffectView()
+  private let dim = UIView()
+  private let channel: FlutterMethodChannel
+  private var animator: UIViewPropertyAnimator?
+  private var darkStyle = false
+
+  init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
+    surface = UIView(frame: frame)
+    self.channel = channel
+    super.init()
+    surface.isUserInteractionEnabled = false
+    surface.accessibilityElementsHidden = true
+    for layer in [blur, dim] {
+      layer.frame = surface.bounds
+      layer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      surface.addSubview(layer)
+    }
+    update(input)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "update", let input = call.arguments as? [String: Any] else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self?.update(input)
+      result(nil)
+    }
+  }
+
+  deinit {
+    animator?.stopAnimation(true)
+    channel.setMethodCallHandler(nil)
+  }
+
+  func view() -> UIView { surface }
+
+  private func update(_ input: [String: Any]) {
+    let progress = CGFloat(input["progress"] as? Double ?? 0)
+    let dark = input["dark"] as? Bool == true
+    let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+    if input["blur"] as? Bool == true && !reduceTransparency {
+      if animator == nil || dark != darkStyle {
+        animator?.stopAnimation(true)
+        blur.effect = nil
+        darkStyle = dark
+        let effect = UIBlurEffect(style: dark ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight)
+        let newAnimator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [weak blur] in
+          blur?.effect = effect
+        }
+        newAnimator.pausesOnCompletion = true
+        newAnimator.startAnimation()
+        newAnimator.pauseAnimation()
+        animator = newAnimator
+      }
+      animator?.fractionComplete = progress
+    } else {
+      animator?.stopAnimation(true)
+      animator = nil
+      blur.effect = nil
+    }
+    let color = meshColor(input["color"], .black)
+    let opacity = reduceTransparency ? max(0.85, color.cgColor.alpha) : color.cgColor.alpha
+    dim.backgroundColor = color.withAlphaComponent(opacity * progress)
+  }
 }
 
 // UIKit may sample Flutter's overlay when a live backdrop sits beneath its
