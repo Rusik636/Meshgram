@@ -6748,6 +6748,45 @@ void main() {
     }),
   );
 
+  testWidgets('chat preview leaves unread messages and row swipes intact', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final unread = controller.cache!.unread[peer.id];
+    expect(unread, greaterThan(0));
+    final latest = controller.messages(peer.id).last;
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    final row = find.text(peer.name);
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    expect(find.text('Open chat'), findsOneWidget);
+    expect(find.byKey(ValueKey(('bubble', latest.id))), findsOneWidget);
+    expect(find.byType(MeshChatPage), findsNothing);
+    expect(controller.cache!.unread[peer.id], unread);
+    expect(transport.links, isEmpty);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open chat'), findsNothing);
+    expect(controller.cache!.unread[peer.id], unread);
+    await tester.drag(row, const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Delete').hitTestable(), findsOneWidget);
+    expect(find.text('Open chat'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   testWidgets(
     'chat profile, search and switching radios use the two-tab interface',
     (tester) async {

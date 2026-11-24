@@ -1226,10 +1226,28 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ? '${tr(context, 'Черновик', 'Draft')}: $draft'
         : message?.text ??
               (peer.channel ? tr(context, 'Канал', 'Channel') : '');
-    return InkWell(
+    Widget row(BuildContext rowContext) => InkWell(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       onTap: onTap ?? () => unawaited(_openChat(peer)),
+      onLongPress: editing || _searchActive
+          ? null
+          : () async {
+              final box = rowContext.findRenderObject() as RenderBox;
+              final navigator = Navigator.of(rowContext, rootNavigator: true);
+              final overlay = navigator.overlay!.context.findRenderObject();
+              final anchor = box.localToGlobal(Offset.zero, ancestor: overlay);
+              final profile = controller.active;
+              final open = await showMeshChatPreview(
+                rowContext,
+                controller,
+                peer,
+                anchor & box.size,
+              );
+              if (open && mounted && controller.active == profile) {
+                await _openChat(peer);
+              }
+            },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 17, 8),
         child: Row(
@@ -1377,6 +1395,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
       ),
     );
+    return Builder(builder: row);
   }
 
   String? get _status => switch (controller.linkState) {
