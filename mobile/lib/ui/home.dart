@@ -15,6 +15,7 @@ import '../local_notifications.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
 import '../mesh/store.dart';
+import '../radio/desktop_usb.dart';
 import 'about.dart';
 import 'chat.dart';
 import 'chat_archive.dart';
@@ -22,6 +23,7 @@ import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
 import 'chat_workspace.dart';
+import 'firmware_page.dart';
 import 'emoji_text.dart';
 import 'haptics.dart';
 import 'radio_discovery.dart';
@@ -275,6 +277,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }
 
   void _openSettings() {
+    if (_flashingFirmware) return;
     if (_split && _detailKey.currentState != null) {
       final detail = _detailKey.currentState!;
       if (_workspaceSettings case final existing? when existing.isActive) {
@@ -303,9 +306,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _selectTab(1);
   }
 
-  Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) =>
-      (_split ? _detailKey.currentState : null)?.push<T>(route) ??
-      Navigator.of(context).push<T>(route);
+  bool get _flashingFirmware =>
+      _detailObserver.top?.settings.name == firmwareBoardRoute &&
+      _detailObserver.top?.popDisposition == RoutePopDisposition.doNotPop;
+
+  Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) async {
+    if (_flashingFirmware) return null;
+    final navigation =
+        (_split ? _detailKey.currentState : null) ?? Navigator.of(context);
+    return navigation.push<T>(route);
+  }
 
   Future<void> _openWorkspacePage(WidgetBuilder builder) async {
     await _pushWorkspacePage(
@@ -315,7 +325,23 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _selectTab(int index) {
     FocusScope.of(context).unfocus();
+    if (_split && _detailKey.currentState != null) {
+      if (index == 1) {
+        _openSettings();
+        return;
+      }
+      _closeWorkspaceSettings();
+    }
     _select(_tabs, index);
+  }
+
+  void _closeWorkspaceSettings() {
+    if (_flashingFirmware || _workspaceSettings?.isActive != true) return;
+    _detailKey.currentState?.popUntil(
+      (route) =>
+          route.isFirst ||
+          (_detailPeer != null && route.settings.name == _detailPeer),
+    );
   }
 
   void _select(MeshNavigationFade navigation, int index) {
@@ -354,6 +380,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     String? peerId,
     bool jump = false,
   }) async {
+    if (_flashingFirmware) return;
     final detail = _detailKey.currentState;
     if (detail == null) {
       await Navigator.of(context)
@@ -1182,14 +1209,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       ],
       settingsUnread: controller.unreadOnOtherRadios,
       onFolder: (index) {
+        if (_flashingFirmware) return;
         _dismissSidebarMode();
-        if (_workspaceSettings?.isActive == true) {
-          _detailKey.currentState?.popUntil(
-            (route) =>
-                route.isFirst ||
-                (_detailPeer != null && route.settings.name == _detailPeer),
-          );
-        }
+        _closeWorkspaceSettings();
         if (_tabs.selected != 0) _selectTab(0);
         _selectChatTab(index);
       },
@@ -1256,7 +1278,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   child: IgnorePointer(
                     ignoring: keyboard > 0,
                     child: MeshNavigation(
-                      index: _tabs.selected,
+                      index: _split && _workspaceSettings?.isActive == true
+                          ? 1
+                          : _tabs.selected,
                       unread: controller.unreadTotal,
                       settingsUnread: controller.unreadOnOtherRadios,
                       onSelect: _selectTab,
@@ -2530,6 +2554,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                         (_) => UsbRadioPage(controller: controller),
                       ),
                     ),
+            ),
+          if (controller.usbTransport case final DesktopUsbTransport usb)
+            MeshRow(
+              title: tr(context, 'Прошивки', 'Firmware'),
+              icon: Icons.memory_rounded,
+              tint: _violet,
+              onTap: () =>
+                  unawaited(_openWorkspacePage((_) => FirmwarePage(usb: usb))),
             ),
         ]),
         if (busy || controller.scanning)
