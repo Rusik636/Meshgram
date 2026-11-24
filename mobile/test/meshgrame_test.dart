@@ -2449,9 +2449,21 @@ void main() {
         expect(rows.map((row) => row.closedSurface), everyElement(panelColor));
         final indicator = find.byKey(const ValueKey('folder-rail-indicator'));
         final originalTop = tester.getTopLeft(indicator).dy;
-        await tester.tap(
-          find.descendant(of: rail, matching: find.text('Direct')),
+        final direct = find.descendant(of: rail, matching: find.text('Direct'));
+        final folderInk = find.ancestor(
+          of: direct,
+          matching: find.byType(InkWell),
         );
+        expect(
+          tester.widget<InkWell>(folderInk).highlightColor,
+          Colors.transparent,
+        );
+        expect(
+          tester.widget<InkWell>(folderInk).splashFactory,
+          NoSplash.splashFactory,
+        );
+        expect(tester.getSize(indicator).width, lessThan(8));
+        await tester.tap(direct);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 90));
         final movingTop = tester.getTopLeft(indicator).dy;

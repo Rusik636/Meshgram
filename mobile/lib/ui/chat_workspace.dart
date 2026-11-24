@@ -119,6 +119,7 @@ class ChatFolderRail extends StatelessWidget {
     final labelSize = labelStyle.fontSize!;
     final row = (47 + MediaQuery.textScalerOf(context).scale(labelSize) * 2.4)
         .clamp(68.0, 132.0);
+    const markerHeight = 24.0;
     final builtInCount = builtInLabels.length;
     Widget item(int index) {
       final builtIn = index < builtInCount;
@@ -137,7 +138,7 @@ class ChatFolderRail extends StatelessWidget {
           },
           active: index == selected,
           count: unread[index],
-          fill: editing && index == selected,
+          isFolder: true,
           onTap: () => onFolder(index),
           onEdit: editing && folder != null ? () => onEdit(folder.id) : null,
           onDelete: editing && folder != null
@@ -180,16 +181,18 @@ class ChatFolderRail extends StatelessWidget {
                       controller: scrollController,
                       child: Stack(
                         children: [
-                          AnimatedPositioned(
+                          AnimatedPositionedDirectional(
                             key: const ValueKey('folder-rail-indicator'),
                             duration: MediaQuery.disableAnimationsOf(context)
                                 ? Duration.zero
                                 : const Duration(milliseconds: 240),
                             curve: Curves.easeOutCubic,
-                            top: (selected ?? 0) * row,
-                            left: 0,
-                            right: 0,
-                            height: row - 5,
+                            top:
+                                (selected ?? 0) * row +
+                                (row - 5 - markerHeight) / 2,
+                            start: 0,
+                            width: 3,
+                            height: markerHeight,
                             child: IgnorePointer(
                               child: AnimatedOpacity(
                                 opacity: selected == null ? 0 : 1,
@@ -199,8 +202,8 @@ class ChatFolderRail extends StatelessWidget {
                                     : const Duration(milliseconds: 150),
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
-                                    color: style.selection,
-                                    borderRadius: BorderRadius.circular(14),
+                                    color: style.accent,
+                                    borderRadius: BorderRadius.circular(2),
                                   ),
                                 ),
                               ),
@@ -257,6 +260,7 @@ class ChatFolderRail extends StatelessWidget {
     required bool active,
     required int count,
     bool fill = false,
+    bool isFolder = false,
     required VoidCallback onTap,
     VoidCallback? onEdit,
     VoidCallback? onDelete,
@@ -286,6 +290,8 @@ class ChatFolderRail extends StatelessWidget {
               child: InkWell(
                 borderRadius: shape,
                 hoverColor: Colors.transparent,
+                highlightColor: isFolder ? Colors.transparent : null,
+                splashFactory: isFolder ? NoSplash.splashFactory : null,
                 onTap: onTap,
                 onDoubleTap: onEdit,
                 onSecondaryTap: onEdit,
