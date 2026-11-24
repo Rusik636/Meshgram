@@ -257,6 +257,12 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       case "focus":
         self.pendingFocus = self.container.isUserInteractionEnabled
         self.focusWhenReady()
+      case "textBounds":
+        let textBounds = self.textView.bounds.inset(by: self.textView.textContainerInset)
+          .insetBy(dx: self.textView.textContainer.lineFragmentPadding, dy: 0)
+        let rect = self.textView.convert(textBounds, to: self.container)
+        result([rect.minX, rect.minY, rect.width, rect.height])
+        return
       case "editing":
         if let value = call.arguments as? [String: Any] {
           self.applyEditing(value)
@@ -468,6 +474,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let secondary = meshColor(input["secondary"], .placeholderText)
     textView.textColor = foreground
     textView.tintColor = accent
+    textView.alpha = input["hidesMovingText"] as? Bool == true ? 0 : 1
     placeholder.textColor = secondary
     accessory.applyColors(accent: accent, foreground: foreground, secondary: secondary)
     placeholder.text = input["placeholder"] as? String

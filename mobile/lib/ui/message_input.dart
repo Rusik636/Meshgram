@@ -25,13 +25,14 @@ class MessageInput extends StatefulWidget {
     required this.controller,
     required this.onChanged,
     this.coveredByModal = false,
+    this.hidesMovingText = false,
     this.accessory,
     this.onOpenAccessory,
     this.onDismissAccessory,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final bool coveredByModal;
+  final bool coveredByModal, hidesMovingText;
   final MessageInputAccessory? accessory;
   final VoidCallback? onOpenAccessory, onDismissAccessory;
 
@@ -42,6 +43,7 @@ class MessageInput extends StatefulWidget {
 class MessageInputState extends State<MessageInput> {
   final _focus = FocusNode();
   final _flutterEditor = GlobalKey();
+  final _nativeEditor = GlobalKey();
   bool _pendingFocus = false;
 
   void dismissKeyboard() {
@@ -57,6 +59,33 @@ class MessageInputState extends State<MessageInput> {
       _send('focus', true);
     } else {
       _focus.requestFocus();
+    }
+  }
+
+  Future<Rect?> textBounds(RenderObject ancestor) async {
+    final key = _native ? _nativeEditor : _flutterEditor;
+    final box = key.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    final origin = box.localToGlobal(Offset.zero, ancestor: ancestor);
+    if (!_native) {
+      return Rect.fromLTWH(
+        origin.dx + 16,
+        origin.dy + 14,
+        (box.size.width - 32).clamp(0.0, double.infinity),
+        (box.size.height - 28).clamp(0.0, double.infinity),
+      );
+    }
+    try {
+      final frame = await _channel?.invokeListMethod<num>('textBounds');
+      if (frame == null || frame.length != 4) return null;
+      return Rect.fromLTWH(
+        origin.dx + frame[0],
+        origin.dy + frame[1],
+        frame[2].toDouble(),
+        frame[3].toDouble(),
+      );
+    } on MissingPluginException {
+      return null;
     }
   }
 
@@ -86,6 +115,9 @@ class MessageInputState extends State<MessageInput> {
     }
     if (_native && widget.coveredByModal != oldWidget.coveredByModal) {
       _pendingFocus = false;
+      _syncAppearance();
+    }
+    if (_native && widget.hidesMovingText != oldWidget.hidesMovingText) {
       _syncAppearance();
     }
     if (_native && widget.accessory != oldWidget.accessory) {
@@ -136,6 +168,7 @@ class MessageInputState extends State<MessageInput> {
     final style = MeshStyle.of(context);
     final appearance = <String, Object>{
       'coveredByModal': widget.coveredByModal,
+      'hidesMovingText': widget.hidesMovingText,
       'placeholder': tr(context, 'Сообщение', 'Message'),
       'dark': style.dark,
       'highContrast': MediaQuery.highContrastOf(context),
@@ -248,6 +281,7 @@ class MessageInputState extends State<MessageInput> {
         child: MeshIosGlassFrame(
           child: MeshSheetControlClip(
             child: UiKitView(
+              key: _nativeEditor,
               viewType: 'meshgrame/composer',
               creationParams: {
                 ...?_appearance,
@@ -275,6 +309,10 @@ class MessageInputState extends State<MessageInput> {
       maxLines: 4,
       textCapitalization: TextCapitalization.sentences,
       onChanged: widget.onChanged,
+      style: widget.hidesMovingText
+          ? const TextStyle(color: Colors.transparent)
+          : null,
+      showCursor: widget.hidesMovingText ? false : null,
       decoration: InputDecoration(
         hintText: tr(context, 'Сообщение', 'Message'),
         border: InputBorder.none,

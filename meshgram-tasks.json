@@ -942,7 +942,7 @@
         "01",
         "09"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -962,12 +962,43 @@
         "01",
         "09"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Текст переходит из редактора в исходящий пузырь при его появлении. Передача обновляется по событию транспорта.",
         "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerNode.swift#L5541-L5569",
+          "behavior": "Отправляемый элемент связывается со снимком редактора. Редактор обновляется отдельно от перехода в историю."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatMessageTransitionNode.swift#L330-L357",
+          "behavior": "Переход iOS по умолчанию использует 300 мс и отдельные кривые горизонтали и вертикали."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/recyclerview/ChatListItemAnimator.java#L43-L49",
+          "behavior": "Анимация Android длится 250 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/TextMessageEnterTransition.java#L471-L492",
+          "behavior": "Android рассчитывает горизонтальный и вертикальный сдвиги по отдельным кривым."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Записаны кадры до, во время и после перемещения текста. iOS использует границы нативного редактора. На обеих платформах текст и пузырь появляются без второй копии текста.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/send-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "В тесте сообщение уже показывалось в истории до получения подтверждения. Подтверждение изменило отметку без повторного запуска анимации. Уменьшение движения выключило перелёт."
+        }
+      ]
     },
     {
       "id": "11",

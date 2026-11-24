@@ -2459,6 +2459,7 @@ class MeshController extends ChangeNotifier {
     MeshMessage? reply,
     MessageExcerpt? replyExcerpt,
     bool suppressLinkPreview = false,
+    ValueChanged<MeshMessage>? onQueued,
   }) async {
     if (reply != null && !canUseMessageActions(peer, reply)) return false;
     return _sendMessage(
@@ -2469,6 +2470,7 @@ class MeshController extends ChangeNotifier {
           ? replyExcerpt
           : null,
       suppressLinkPreview: suppressLinkPreview,
+      onQueued: onQueued,
     );
   }
 
@@ -2507,6 +2509,7 @@ class MeshController extends ChangeNotifier {
     bool preserveDraft = false,
     bool isAttachment = false,
     bool suppressLinkPreview = false,
+    ValueChanged<MeshMessage>? onQueued,
   }) async {
     final radio = active;
     final session = _session;
@@ -2549,6 +2552,7 @@ class MeshController extends ChangeNotifier {
     }
     current.messages.add(outgoing);
     _save(radio);
+    onQueued?.call(outgoing);
     _changed();
     var result = preview ? Delivery.acknowledged : Delivery.submitted;
     try {

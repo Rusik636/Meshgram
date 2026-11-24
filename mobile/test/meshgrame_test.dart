@@ -6753,6 +6753,57 @@ void main() {
   );
 
   testWidgets(
+    'sent text moves before the transport receipt and respects reduced motion',
+    (tester) async {
+      const radio = (network: 'test', device: 'one', name: 'Field radio');
+      final adapter = _FakeAdapter(radio.network);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: [adapter],
+      );
+      await controller.connect(radio);
+      final session = adapter.sessions.single..autoAcknowledge = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: _peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'On the ridge');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+      await tester.pump();
+      final flight = find.byKey(const ValueKey('sending-text-flight'));
+      expect(flight, findsOneWidget);
+      final source = tester.getTopLeft(flight);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getTopLeft(flight).dy, lessThan(source.dy));
+      final sent = controller.messages(_peer.id).single;
+      expect(sent.delivery, Delivery.submitted);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(flight, findsNothing);
+      session.stream.add(DeliveryUpdate(sent.id, Delivery.acknowledged));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
+      expect(flight, findsNothing);
+
+      _reduceMotion(tester);
+      session.autoAcknowledge = true;
+      await tester.enterText(find.byType(TextField), 'Ready');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(controller.messages(_peer.id), hasLength(2));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+  );
+
+  testWidgets(
     'outbox waits for its profile and requires a retry after failure',
     (tester) async {
       const first = (network: 'test', device: 'one', name: 'Field radio');

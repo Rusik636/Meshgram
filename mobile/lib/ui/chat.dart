@@ -255,8 +255,17 @@ class MeshChatPage extends StatefulWidget {
   State<MeshChatPage> createState() => _ChatState();
 }
 
+typedef _SendTextFlight = ({
+  String id,
+  String text,
+  String draft,
+  Rect source,
+  Rect? destination,
+  bool ios,
+});
+
 class _ChatState extends State<MeshChatPage>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final _draft = EmojiEditingController(
     text: widget.controller.draft(widget.peer.id),
   );
@@ -267,6 +276,18 @@ class _ChatState extends State<MeshChatPage>
   final _input = GlobalKey<MessageInputState>();
   final _inputSurface = GlobalKey();
   final _sendControl = GlobalKey();
+  final _sendFlightTarget = GlobalKey();
+  _SendTextFlight? _sendTextFlight;
+  Completer<void>? _sendFlightCompletion;
+  late final _sendFlightAnimation = AnimationController(vsync: this)
+    ..addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        _finishSentText();
+      }
+    });
+  late final _sendTargetOpacity = _sendFlightAnimation.drive(
+    CurveTween(curve: const Interval(.50, 1)),
+  );
   final _scroll = ScrollController(keepScrollOffset: false);
   final _history = ListController();
   AssetBundle? _emojiBundle;
@@ -639,6 +660,9 @@ class _ChatState extends State<MeshChatPage>
     _history.dispose();
     _scroll.dispose();
     _highlight.dispose();
+    _sendFlightAnimation.dispose();
+    _sendFlightCompletion?.complete();
+    _sendFlightCompletion = null;
     _replyRevealTimer?.cancel();
     _draft.dispose();
     _search.dispose();
@@ -728,9 +752,21 @@ class _ChatState extends State<MeshChatPage>
     final controller = widget.controller;
     final reply = controller.replyDraft(peer.id);
     if (reply != null && !controller.canUseMessageActions(peer, reply)) return;
+    final canvas = _menuBackground.currentContext?.findRenderObject();
+    final animate =
+        !MediaQuery.disableAnimationsOf(context) &&
+        canvas != null &&
+        _distanceToLatest < 2 &&
+        !_searching;
+    final profile = controller.active;
     setState(() => _sending = true);
     try {
+      final source = animate
+          ? await _input.currentState?.textBounds(canvas)
+          : null;
+      if (!mounted || controller.active != profile) return;
       final dismissed = _dismissedDraftLink;
+      Future<void>? movement;
       final sent = await controller.send(
         peer,
         text,
@@ -738,8 +774,17 @@ class _ChatState extends State<MeshChatPage>
         replyExcerpt: controller.replyDraftExcerpt(peer.id),
         suppressLinkPreview:
             dismissed != null && firstMessageLink(text) == dismissed,
+        onQueued: source == null || source.isEmpty
+            ? null
+            : (message) {
+                movement = _animateSentText(message, originalDraft, source);
+              },
       );
-      if (mounted && sent && controller.replyDraft(peer.id)?.id == reply?.id) {
+      if (sent) await movement;
+      if (mounted &&
+          sent &&
+          controller.active == profile &&
+          controller.replyDraft(peer.id)?.id == reply?.id) {
         if (reply != null) controller.setReplyDraft(peer.id, null);
         if (_draft.text == originalDraft) {
           _draft.clear();
@@ -751,6 +796,111 @@ class _ChatState extends State<MeshChatPage>
       if (mounted) setState(() => _sending = false);
     }
   }
+
+  void _finishSentText() {
+    setState(() => _sendTextFlight = null);
+    _sendFlightCompletion?.complete();
+    _sendFlightCompletion = null;
+  }
+
+  Future<void> _animateSentText(
+    MeshMessage message,
+    String draft,
+    Rect source,
+  ) {
+    _sendFlightCompletion?.complete();
+    final completion = _sendFlightCompletion = Completer<void>();
+    final ios = Theme.of(context).platform == TargetPlatform.iOS;
+    _sendFlightAnimation
+      ..reset()
+      ..duration = Duration(milliseconds: ios ? 300 : 250);
+    setState(
+      () => _sendTextFlight = (
+        id: message.id,
+        text: message.text,
+        draft: draft,
+        source: source,
+        destination: null,
+        ios: ios,
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final flight = _sendTextFlight;
+      if (!mounted || flight == null || flight.id != message.id) return;
+      final target = _sendFlightTarget.currentContext?.findRenderObject();
+      final canvas = _menuBackground.currentContext?.findRenderObject();
+      if (target is! RenderBox ||
+          !target.hasSize ||
+          canvas is! RenderBox ||
+          !canvas.hasSize) {
+        _finishSentText();
+        return;
+      }
+      final destination =
+          target.localToGlobal(Offset.zero, ancestor: canvas) & target.size;
+      if (destination.isEmpty ||
+          !(Offset.zero & canvas.size).overlaps(destination)) {
+        _finishSentText();
+        return;
+      }
+      setState(
+        () => _sendTextFlight = (
+          id: flight.id,
+          text: flight.text,
+          draft: flight.draft,
+          source: flight.source,
+          destination: destination,
+          ios: flight.ios,
+        ),
+      );
+      unawaited(_sendFlightAnimation.forward());
+    });
+    return completion.future;
+  }
+
+  Widget _sendFlight(
+    _SendTextFlight flight,
+    MeshStyle style,
+  ) => AnimatedBuilder(
+    animation: _sendFlightAnimation,
+    builder: (_, _) {
+      final progress = _sendFlightAnimation.value;
+      final destination = flight.destination ?? flight.source;
+      const vertical = Cubic(.199194729, .010644531, .279209370, .910253906);
+      const horizontal = Cubic(.23, 1, .32, 1);
+      final y = vertical.transform(progress);
+      final x = flight.ios
+          ? horizontal.transform(progress)
+          : Curves.easeOut.transform(horizontal.transform(progress));
+      final rect = Rect.fromLTRB(
+        flight.source.left + (destination.left - flight.source.left) * x,
+        flight.source.top + (destination.top - flight.source.top) * y,
+        flight.source.right + (destination.right - flight.source.right) * x,
+        flight.source.bottom + (destination.bottom - flight.source.bottom) * y,
+      );
+      return Positioned.fromRect(
+        key: const ValueKey('sending-text-flight'),
+        rect: rect,
+        child: IgnorePointer(
+          child: ExcludeSemantics(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: EmojiText(
+                flight.text,
+                maxLines: 4,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  fontSize: flight.ios ? 17 - y : 16,
+                  height: 1.27,
+                  color: style.text,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 
   Future<void> _openOutbox(Peer peer) async {
     final controller = widget.controller;
@@ -1621,6 +1771,7 @@ class _ChatState extends State<MeshChatPage>
                             final revealedExcerpt = _highlighted == item.id
                                 ? _highlightedExcerpt
                                 : null;
+                            final movingText = _sendTextFlight?.id == item.id;
                             final emoji = emojiCatalog?.singleEmoji(item.text);
                             final contact = controller.contactAttachment(
                               item.text,
@@ -1706,6 +1857,9 @@ class _ChatState extends State<MeshChatPage>
                                     next?.id != unreadBoundary &&
                                     _joins(item, next),
                                 quoted: quote,
+                                flightTarget: movingText
+                                    ? _sendFlightTarget
+                                    : null,
                                 highlightedExcerpt:
                                     draftExcerpt ?? revealedExcerpt,
                                 excerptAnimation:
@@ -1843,6 +1997,13 @@ class _ChatState extends State<MeshChatPage>
                                                 child: IgnorePointer(
                                                   child: messageBubble,
                                                 ),
+                                              ),
+                                            )
+                                          : movingText
+                                          ? IgnorePointer(
+                                              child: FadeTransition(
+                                                opacity: _sendTargetOpacity,
+                                                child: messageBubble,
                                               ),
                                             )
                                           : messageBubble,
@@ -2090,6 +2251,9 @@ class _ChatState extends State<MeshChatPage>
                       ),
                     ),
                   ),
+                if (_sendTextFlight case final flight?
+                    when flight.destination != null)
+                  _sendFlight(flight, style),
               ],
             ),
           ),
@@ -2149,6 +2313,9 @@ class _ChatState extends State<MeshChatPage>
         coveredByModal:
             _controlsCovered || ModalRoute.isCurrentOf(context) == false,
         controller: _draft,
+        hidesMovingText:
+            _sendTextFlight?.destination != null &&
+            _sendTextFlight?.draft == _draft.text,
         accessory: native ? accessory : null,
         onOpenAccessory: open,
         onDismissAccessory: dismiss,
@@ -2507,6 +2674,7 @@ class _Bubble extends StatelessWidget {
     this.highlightedExcerpt,
     this.excerptAnimation,
     this.waitingForRadio = false,
+    this.flightTarget,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -2525,6 +2693,7 @@ class _Bubble extends StatelessWidget {
   final MessageExcerpt? highlightedExcerpt;
   final Animation<double>? excerptAnimation;
   final bool waitingForRadio;
+  final Key? flightTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -2607,6 +2776,7 @@ class _Bubble extends StatelessWidget {
                         highlightedExcerpt: highlightedExcerpt,
                         excerptAnimation: excerptAnimation,
                         waitingForRadio: waitingForRadio,
+                        textKey: flightTarget,
                         reactions: reactions,
                         onTap: tap,
                         onReact: onReact,
@@ -2801,6 +2971,7 @@ class _MessageContent extends StatelessWidget {
     this.highlightedExcerpt,
     this.excerptAnimation,
     required this.waitingForRadio,
+    this.textKey,
   });
 
   final VoidCallback? onAuthor;
@@ -2819,6 +2990,7 @@ class _MessageContent extends StatelessWidget {
   final MessageExcerpt? highlightedExcerpt;
   final Animation<double>? excerptAnimation;
   final bool waitingForRadio;
+  final Key? textKey;
 
   Widget _text(MeshStyle style, TextStyle textStyle) {
     final highlighted = highlightedExcerpt;
@@ -2844,12 +3016,13 @@ class _MessageContent extends StatelessWidget {
                   ),
           );
     final animation = excerptAnimation;
-    return animation == null
+    final body = animation == null
         ? render(1)
         : AnimatedBuilder(
             animation: animation,
             builder: (_, _) => render(animation.value),
           );
+    return textKey == null ? body : Opacity(opacity: 0, child: body);
   }
 
   @override
@@ -2977,6 +3150,7 @@ class _MessageContent extends StatelessWidget {
                     onTap: onTap,
                     onDoubleTap: onReact == null ? null : () => onReact!('❤️'),
                     child: ConstrainedBox(
+                      key: textKey,
                       constraints: BoxConstraints(
                         minWidth: chips == null ? textMinWidth : bubbleWidth,
                       ),
