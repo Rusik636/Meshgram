@@ -2403,22 +2403,29 @@ void main() {
       await tester.tap(trail);
       await tester.pumpAndSettle();
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
-      if (defaultTargetPlatform == TargetPlatform.windows) {
-        final rail = find.byType(ChatFolderRail);
+      final rail = find.byType(ChatFolderRail);
+      final desktop = defaultTargetPlatform == TargetPlatform.windows;
+      if (desktop) {
         await tester.tap(
           find.descendant(of: rail, matching: find.text('Settings')),
         );
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 400));
-        expect(
-          find.descendant(of: pane, matching: find.text('Add a radio')),
-          findsOneWidget,
-        );
-        expect(trail.hitTestable(), findsOneWidget);
-        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
-        await tester.pumpAndSettle();
-        expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      } else {
+        tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
       }
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        find.descendant(of: pane, matching: find.text('Add a radio')),
+        findsOneWidget,
+      );
+      expect(trail.hitTestable(), findsOneWidget);
+      if (desktop) {
+        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
+      } else {
+        tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(0);
+      }
+      await tester.pumpAndSettle();
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
       expect(mira.hitTestable(), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);
       await tester.tap(mira);
