@@ -2648,6 +2648,87 @@
           "result": "Сборка 0.3.62 (102) установлена. Проверено переключение категорий и возврат в «Все»."
         }
       ]
+    },
+    {
+      "id": "44",
+      "parent_id": null,
+      "title": "Локальный кэш картинок предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/44-link-preview-cache",
+      "depends_on": [
+        "43"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Загруженные картинки и данные карточки сохраняются в кэше приложения, доступном после повторного запуска.",
+        "Текстовая карточка без картинки не записывается в кэш на диске."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://github.com/Rusik636/Meshgram/releases/tag/v0.3.62%2B83",
+          "result": "Страница из примера. При повторной проверке сервер изображения вернул PNG размером 1200×600."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-sent-preview-103.png",
+          "result": "Ссылка на релиз отправлена в демонстрационном чате. В карточке видна картинка."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-sent-preview-offline-103.png",
+          "result": "После перезапуска Flutter и при отсутствии активной сети картинка показана из локального кэша."
+        },
+        {
+          "kind": "check",
+          "result": "Тест кэша использует новый экземпляр хранилища и подтверждает получение картинки без сетевого запроса."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (103) установлена и запущена. Сценарий кэша проверен на Android Emulator."
+        }
+      ]
+    },
+    {
+      "id": "45",
+      "parent_id": null,
+      "title": "Распределение и индикатор папок Android",
+      "platform": [
+        "android"
+      ],
+      "branch": "task/45-android-folder-strip",
+      "depends_on": [
+        "43"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Тап в панели папок не подсвечивает кнопку. Индикатор плавно переходит между вкладками.",
+        "Вкладки равномерно занимают доступную ширину, с учётом длинных названий. Полоса прокручивается при переполнении."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folder-strip-103.png",
+          "result": "Стандартные категории занимают всю ширину. Выбор обозначен отдельным индикатором."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-folder-strip-103.png",
+          "result": "Сборка 103. Проверено переключение на «Каналы» и возврат в «Все»."
+        },
+        {
+          "kind": "check",
+          "result": "Тест измеряет ширину вкладок, промежуточное положение индикатора и горизонтальную прокрутку при переполнении. Весь набор из 245 тестов Flutter и анализ прошли."
+        }
+      ]
     }
   ]
 }
