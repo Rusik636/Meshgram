@@ -79,6 +79,7 @@ class ChatCache {
   final muted = <String>{};
   final unmuted = <String>{};
   final hiddenChats = <String>{};
+  bool? _archiveHidden;
   final keptChats = <String>{};
   final chatOrder = <String>[];
   final pinnedChats = <String>[];
@@ -95,6 +96,9 @@ class ChatCache {
     nodeNumber: radioNodeNumber,
     publicKey: radioPublicKey,
   );
+
+  bool get archiveHidden => _archiveHidden ?? false;
+  set archiveHidden(bool hidden) => _archiveHidden = hidden;
 
   Map<String, Object> toJson() => {
     'peers': [
@@ -137,6 +141,8 @@ class ChatCache {
     'muted': muted.toList(),
     if (unmuted.isNotEmpty) 'unmuted': unmuted.toList(),
     'hiddenChats': hiddenChats.toList(),
+    if (_archiveHidden != null || hiddenChats.isNotEmpty)
+      'archiveHidden': archiveHidden,
     'keptChats': keptChats.toList(),
     'chatOrder': chatOrder,
     if (pinnedChats.isNotEmpty) 'pinnedChats': pinnedChats,
@@ -270,6 +276,9 @@ class ChatCache {
     cache.hiddenChats.addAll(
       (json['hiddenChats'] as List? ?? const []).cast<String>(),
     );
+    cache._archiveHidden =
+        json['archiveHidden'] as bool? ??
+        (cache.hiddenChats.isNotEmpty ? true : null);
     cache.keptChats.addAll(
       (json['keptChats'] as List? ?? const []).cast<String>(),
     );
@@ -465,6 +474,7 @@ class ChatCache {
     markedUnread.addAll(other.markedUnread);
     muted.addAll(other.muted);
     unmuted.addAll(other.unmuted);
+    _archiveHidden ??= other._archiveHidden;
     hiddenChats.addAll(other.hiddenChats);
     keptChats.addAll(other.keptChats);
     chatOrder.addAll(

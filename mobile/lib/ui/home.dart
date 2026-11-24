@@ -17,10 +17,12 @@ import '../mesh/network.dart';
 import '../mesh/store.dart';
 import 'about.dart';
 import 'chat.dart';
+import 'chat_archive.dart';
 import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
 import 'emoji_text.dart';
+import 'haptics.dart';
 import 'radio_discovery.dart';
 import 'ios_control.dart';
 import 'navigation.dart';
@@ -32,6 +34,7 @@ import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
 import 'message_search.dart';
 import 'style.dart';
+import 'swipe_actions.dart';
 import 'page_route.dart';
 
 const _blue = Color(0xff2978d5);
@@ -72,7 +75,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   bool _searchActive = false;
   bool _editingChats = false, _showHidden = false, _removingChats = false;
   bool _archiveRevealed = false;
-  double _archivePull = 0;
+  bool _archiveSwipeOpen = false;
+  bool _archiveReady = false, _archiveMature = false;
+  Timer? _archiveDwell;
+  int? _archivePointer;
+  double _archiveDistance = 0;
+  late final _archiveHeight = AnimationController.unbounded(vsync: this);
+  late final _archivePhysics = ChatArchiveScrollPhysics(
+    _applyArchiveDrag,
+    parent: const AlwaysScrollableScrollPhysics(),
+  );
+  ({int sequence, double extent}) _archiveRetraction = (sequence: 0, extent: 0);
   String? _revealedChat;
   final _previewBackground = GlobalKey();
   final _folderTabsScroll = ScrollController();
@@ -165,7 +178,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final profile = controller.active;
       if (profile != _folderProfile) {
         _folderProfile = profile;
+        _archiveRevealed = false;
+        _archiveSwipeOpen = false;
+        _resetArchiveDrag();
+        _archiveHeight.value = 0;
         if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
+      } else if (controller.hiddenConversations.isEmpty && _archiveRevealed) {
+        _archiveRevealed = false;
+        _archiveHeight.value = 0;
       }
     });
   }
@@ -179,6 +199,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _chatScroll.dispose();
     _folderTabsScroll.dispose();
     _searchMotion.dispose();
+    _archiveDwell?.cancel();
+    _archiveHeight.dispose();
     _tabs.opacity.dispose();
     _chatCategories.opacity.dispose();
     _searchCategories.opacity.dispose();
@@ -242,6 +264,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _enterSearch() {
     if (_searchActive) return;
+    _finishArchiveDrag(released: false);
     setState(() {
       _iosSearch = GlobalKey();
       _searchActive = true;
@@ -277,53 +300,148 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _toggleChatEditing() {
     if (_removingChats) return;
+    _finishArchiveDrag(released: false);
     setState(() {
       _editingChats = !_editingChats;
       _revealedChat = null;
+      _archiveSwipeOpen = false;
       _selectedChats.clear();
     });
   }
 
   void _showChats(bool hidden) {
+    _finishArchiveDrag(released: false);
     if (_chatScroll.hasClients) _chatScroll.jumpTo(0);
     setState(() {
       _showHidden = hidden;
-      _archiveRevealed = false;
-      _archivePull = 0;
+      _archiveSwipeOpen = false;
       _revealedChat = null;
       _selectedChats.clear();
     });
   }
 
-  bool _trackArchivePull(ScrollNotification event) {
-    if (event.depth != 0 ||
-        _showHidden ||
-        _editingChats ||
-        _searchActive ||
-        controller.hiddenConversations.isEmpty) {
+  bool get _archiveIsIos => Theme.of(context).platform == TargetPlatform.iOS;
+
+  double get _archiveExtent =>
+      math.max(70, 28 + MediaQuery.textScalerOf(context).scale(30));
+
+  bool get _archiveAvailable =>
+      !_showHidden &&
+      !_editingChats &&
+      !_searchActive &&
+      _chatCategories.selected == 0 &&
+      controller.cache?.hiddenChats.isNotEmpty == true;
+
+  bool get _canPullArchive =>
+      _archiveAvailable && controller.archiveHidden && !_archiveRevealed;
+
+  void _resetArchiveDrag() {
+    _archiveDwell?.cancel();
+    _archiveDwell = null;
+    _archivePointer = null;
+    _archiveDistance = 0;
+    _archiveMature = false;
+    _archiveReady = false;
+  }
+
+  double _applyArchiveDrag(ScrollMetrics position, double offset) {
+    if (_archivePointer == null || !_canPullArchive) return offset;
+    final atTop = position.pixels - position.minScrollExtent;
+    final delta = offset > 0 ? math.max(0.0, offset - atTop) : offset;
+    if (delta == 0 || (delta < 0 && _archiveDistance == 0)) return offset;
+    final previous = _archiveDistance;
+    _archiveDistance = (previous + delta).clamp(0.0, _archiveExtent * 1.4);
+    final fraction = _archiveIsIos ? .67 : 1.0;
+    _archiveHeight.value = math.min(
+      _archiveExtent,
+      _archiveDistance * fraction,
+    );
+    if (!_archiveIsIos && !_archiveMature && _archiveDwell == null) {
+      _archiveDwell = Timer(const Duration(milliseconds: 200), () {
+        _archiveDwell = null;
+        _archiveMature = true;
+        _checkArchiveThreshold();
+      });
+    }
+    _checkArchiveThreshold();
+    return offset - (delta > 0 ? delta : math.max(-previous, delta));
+  }
+
+  void _checkArchiveThreshold() {
+    if (!_canPullArchive || _archivePointer == null) return;
+    final ready = _archiveIsIos
+        ? _archiveHeight.value >= 40
+        : _archiveMature && _archiveHeight.value >= _archiveExtent * .85;
+    if (ready == _archiveReady) return;
+    setState(() => _archiveReady = ready);
+    if (ready) {
+      unawaited(playMeshHaptic(MeshHaptic.medium));
+      if (_archiveIsIos) _revealArchive();
+    }
+  }
+
+  void _animateArchive(double target) {
+    unawaited(
+      _archiveHeight.animateTo(
+        target,
+        duration: meshMotion(context),
+        curve: _archiveIsIos ? Curves.easeOutCubic : Curves.easeOutQuint,
+      ),
+    );
+  }
+
+  void _revealArchive() {
+    _resetArchiveDrag();
+    setState(() => _archiveRevealed = true);
+    _animateArchive(_archiveExtent);
+  }
+
+  void _finishArchiveDrag({required bool released}) {
+    if (_archivePointer == null) return;
+    if (released && _canPullArchive && _archiveReady) {
+      _revealArchive();
+    } else {
+      _resetArchiveDrag();
+      _animateArchive(0);
+    }
+  }
+
+  bool _trackArchiveScroll(ScrollNotification event) {
+    if (event.depth != 0 || event.metrics.axis != Axis.vertical) return false;
+    if (event is ScrollStartNotification && _archiveSwipeOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _archiveSwipeOpen) {
+          setState(() => _archiveSwipeOpen = false);
+        }
+      });
+    }
+    if (!_archiveAvailable ||
+        !_archiveRevealed ||
+        !controller.archiveHidden ||
+        event.metrics.extentBefore <
+            _chatScroll.collapseRange + _archiveExtent) {
       return false;
     }
-    if (event is ScrollStartNotification) {
-      _archivePull = 0;
-    } else if (event is OverscrollNotification &&
-        event.dragDetails != null &&
-        event.overscroll < 0) {
-      _archivePull -= event.overscroll;
-    } else if (event is ScrollEndNotification) {
-      final threshold = Theme.of(context).platform == TargetPlatform.iOS
-          ? 60.0
-          : 72.0;
-      final reveal = !_archiveRevealed && _archivePull >= threshold;
-      final hide = _archiveRevealed && event.metrics.extentBefore >= 72;
-      if (reveal || hide) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_showHidden) {
-            setState(() => _archiveRevealed = reveal);
-          }
-        });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_archiveAvailable ||
+          !_archiveRevealed ||
+          !controller.archiveHidden ||
+          !_chatScroll.hasClients ||
+          _chatScroll.position.extentBefore <
+              _chatScroll.collapseRange + _archiveExtent) {
+        return;
       }
-      _archivePull = 0;
-    }
+      final height = _archiveHeight.value;
+      _archiveHeight.value = 0;
+      setState(() {
+        _archiveRevealed = false;
+        _archiveRetraction = (
+          sequence: _archiveRetraction.sequence + 1,
+          extent: height,
+        );
+      });
+    });
     return false;
   }
 
@@ -452,6 +570,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _selectChatTab(int index) {
     if (_removingChats || index == _chatCategories.selected) return;
+    _finishArchiveDrag(released: false);
+    _archiveRevealed = false;
+    _archiveSwipeOpen = false;
+    _archiveHeight.value = 0;
     _revealedChat = null;
     _selectedChats.clear();
     _select(_chatCategories, index);
@@ -1079,33 +1201,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       child: CustomScrollView(
         key: const PageStorageKey('chats'),
         controller: _chatScroll,
-        physics: const ClampingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
+        physics: _archivePhysics,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
-          if (!_showHidden && hiddenCount > 0)
-            SliverToBoxAdapter(
-              child: AnimatedSize(
-                duration: meshMotion(context),
-                alignment: Alignment.topCenter,
-                curve: Curves.easeOutCubic,
-                child: _archiveRevealed && !_editingChats
-                    ? ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                        ),
-                        leading: Icon(
-                          Icons.archive_outlined,
-                          color: style.accent,
-                        ),
-                        title: Text(tr(context, 'Архив', 'Archive')),
-                        trailing: Text('$hiddenCount'),
-                        onTap: () => _showChats(true),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+          if (_archiveAvailable && hiddenCount > 0)
+            ChatArchiveSliver(
+              retraction: _archiveRetraction,
+              child: _archiveRow(style, hiddenCount),
             ),
           if (visible.isNotEmpty) ...[
             SliverPadding(
@@ -1139,7 +1242,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     height: math.max(
                       0,
                       layout.viewportMainAxisExtent +
-                          collapseRange -
+                          collapseRange +
+                          (_archiveRevealed && _archiveAvailable
+                              ? _archiveExtent
+                              : 0) -
                           layout.precedingScrollExtent,
                     ),
                   ),
@@ -1228,19 +1334,174 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 ),
               ),
             ),
+          if (visible.isEmpty && _archiveRevealed && _archiveAvailable)
+            SliverToBoxAdapter(
+              child: SizedBox(height: collapseRange + _archiveExtent),
+            ),
         ],
       ),
     );
     return Semantics(
       customSemanticsActions: {
-        if (!_showHidden && hiddenCount > 0)
+        if (_archiveAvailable && hiddenCount > 0)
           CustomSemanticsAction(label: tr(context, 'Архив', 'Archive')): () =>
               _showChats(true),
       },
-      child: NotificationListener<ScrollNotification>(
-        onNotification: _trackArchivePull,
-        child: viewport,
+      child: Listener(
+        onPointerDown: (event) {
+          if (_canPullArchive) _archivePointer ??= event.pointer;
+        },
+        onPointerUp: (event) {
+          if (event.pointer == _archivePointer) {
+            _finishArchiveDrag(released: true);
+          }
+        },
+        onPointerCancel: (event) {
+          if (event.pointer == _archivePointer) {
+            _finishArchiveDrag(released: false);
+          }
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _trackArchiveScroll,
+          child: viewport,
+        ),
       ),
+    );
+  }
+
+  void _setArchiveHidden(bool hidden) {
+    if (controller.archiveHidden == hidden) return;
+    final radio = controller.active;
+    _resetArchiveDrag();
+    _archiveHeight.value = _archiveExtent;
+    setState(() {
+      _archiveRevealed = false;
+      _archiveSwipeOpen = false;
+    });
+    controller.setArchiveHidden(hidden);
+    _animateArchive(hidden ? 0 : _archiveExtent);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hidden
+              ? tr(context, 'Архив скрыт', 'Archive hidden')
+              : tr(context, 'Архив закреплён', 'Archive pinned'),
+        ),
+        action: SnackBarAction(
+          label: tr(context, 'Отменить', 'Undo'),
+          onPressed: () {
+            if (mounted && controller.active == radio) {
+              controller.setArchiveHidden(!hidden);
+              _archiveHeight.value = hidden ? _archiveExtent : 0;
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  String _archiveAction(bool hidden) => hidden
+      ? tr(context, 'Закрепить в списке', 'Pin in the list')
+      : tr(context, 'Скрыть из списка', 'Hide from the list');
+
+  Future<void> _archiveMenu(Offset position) async {
+    final hidden = controller.archiveHidden;
+    final radio = controller.active;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final anchor = overlay.globalToLocal(position) & Size.zero;
+    final next = await showMenu<bool>(
+      context: context,
+      position: RelativeRect.fromSize(anchor, overlay.size),
+      items: [
+        PopupMenuItem(value: !hidden, child: Text(_archiveAction(hidden))),
+      ],
+    );
+    if (mounted && controller.active == radio && next != null) {
+      _setArchiveHidden(next);
+    }
+  }
+
+  Widget _archiveRow(MeshStyle style, int count) {
+    final hidden = controller.archiveHidden;
+    final shown = !hidden || _archiveRevealed;
+    final label = tr(context, 'Архив', 'Archive');
+    return AnimatedBuilder(
+      animation: _archiveHeight,
+      builder: (context, _) {
+        final extent = _archiveExtent;
+        final height = hidden
+            ? _archiveHeight.value.clamp(0.0, extent)
+            : extent;
+        if (height == 0) return const SizedBox.shrink();
+        final row = ListTile(
+          key: const ValueKey('archive-row'),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: MeshRowIcon(
+            icon: shown
+                ? Icons.archive_outlined
+                : _archiveReady
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_downward_rounded,
+            tint: shown || _archiveReady ? style.accent : style.secondary,
+          ),
+          title: Text(
+            shown || _archiveIsIos
+                ? label
+                : _archiveReady
+                ? tr(
+                    context,
+                    'Отпустите, чтобы показать архив',
+                    'Release to show Archive',
+                  )
+                : tr(
+                    context,
+                    'Потяните, чтобы показать архив',
+                    'Pull down to show Archive',
+                  ),
+          ),
+          trailing: shown ? Text('$count') : null,
+          onTap: shown ? () => _showChats(true) : null,
+        );
+        final content = shown
+            ? SwipeActionsRow(
+                revealed: _archiveSwipeOpen,
+                onReveal: (open) => setState(() => _archiveSwipeOpen = open),
+                surface: style.canvas,
+                background: style.canvas,
+                actions: [
+                  (
+                    label: _archiveAction(hidden),
+                    icon: hidden
+                        ? Icons.push_pin_outlined
+                        : Icons.visibility_off_outlined,
+                    color: style.accent,
+                    onTap: () => _setArchiveHidden(!hidden),
+                  ),
+                ],
+                child: Semantics(
+                  customSemanticsActions: {
+                    CustomSemanticsAction(label: _archiveAction(hidden)): () =>
+                        _setArchiveHidden(!hidden),
+                  },
+                  child: GestureDetector(
+                    onLongPressStart: (details) =>
+                        unawaited(_archiveMenu(details.globalPosition)),
+                    child: row,
+                  ),
+                ),
+              )
+            : ExcludeSemantics(child: IgnorePointer(child: row));
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            heightFactor: height / extent,
+            child: SizedBox(
+              height: extent,
+              child: Center(child: content),
+            ),
+          ),
+        );
+      },
     );
   }
 

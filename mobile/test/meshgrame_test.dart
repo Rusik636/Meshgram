@@ -2043,6 +2043,18 @@ void main() {
     },
   );
 
+  test('the archive pin preference survives cached history migration', () {
+    final legacyJson = ChatCache().toJson()..['hiddenChats'] = ['node:a'];
+    final legacy = ChatCache.fromJson(legacyJson);
+    expect(legacy.archiveHidden, isTrue);
+    final merged = ChatCache()..mergeHistory(legacy);
+    expect(merged.archiveHidden, isTrue);
+    merged.archiveHidden = false;
+    final restored = ChatCache.fromJson(merged.toJson());
+    expect(restored.archiveHidden, isFalse);
+    expect(restored.hiddenChats, {'node:a'});
+  });
+
   testWidgets(
     'chat editing marks read, reorders and hides without deleting a node',
     (tester) async {
@@ -2086,21 +2098,95 @@ void main() {
       expect(controller.messages('node:a'), isNotEmpty);
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsOneWidget);
+      await tester.longPress(find.text('Archive'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hide from the list'));
+      await tester.pumpAndSettle();
+      expect(
+        ChatCache.fromJson(controller.cache!.toJson()).archiveHidden,
+        isTrue,
+      );
       expect(find.text('Archive'), findsNothing);
       await tester.drag(find.text('Тропа'), const Offset(0, 35));
       await tester.pumpAndSettle();
       expect(find.text('Archive'), findsNothing);
-      await tester.drag(find.text('Тропа'), const Offset(0, 130));
+      final pull = await tester.startGesture(
+        tester.getCenter(find.text('Тропа')),
+      );
+      await pull.moveBy(const Offset(0, 28));
+      await pull.moveBy(const Offset(0, 95));
+      await tester.pump(const Duration(milliseconds: 230));
+      expect(find.text('Release to show Archive'), findsOneWidget);
+      await pull.up();
       await tester.pumpAndSettle();
       await tester.tap(find.text('Archive'));
       await tester.pumpAndSettle();
       expect(find.text('Мира Соколова'), findsOneWidget);
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsOneWidget);
+      await tester.drag(find.text('Тропа'), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      tester
+          .widget<CustomScrollView>(find.byKey(const PageStorageKey('chats')))
+          .controller!
+          .jumpTo(0);
+      await tester.pumpAndSettle();
       expect(find.text('Archive'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+  );
+
+  testWidgets(
+    'archive pull arms on Android and reveals at the threshold on iOS',
+    (tester) async {
+      _reduceMotion(tester);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.hideChats(['node:a'], hidden: true);
+      controller.setArchiveHidden(true);
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      final archive = find.byKey(const ValueKey('archive-row'));
+      final start = tester.getCenter(find.text('Тропа'));
+      final gesture = await tester.startGesture(start);
+      await gesture.moveBy(const Offset(0, 25));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      expect(tester.getSize(archive).height, greaterThan(0));
+      expect(tester.widget<ListTile>(archive).onTap, isNull);
+      await gesture.moveBy(const Offset(0, 65));
+      await tester.pump(const Duration(milliseconds: 230));
+      await tester.pump();
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+      } else {
+        expect(find.text('Release to show Archive'), findsOneWidget);
+        expect(tester.widget<ListTile>(archive).onTap, isNull);
+        await gesture.moveBy(const Offset(0, -105));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+      } else {
+        expect(archive, findsNothing);
+      }
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
   );
 
   test('MeshCore retries admin login after a stale saved route', () async {
