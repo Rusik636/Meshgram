@@ -116,6 +116,31 @@ class _ChatPreviewRoute extends RawDialogRoute<_ChatPreviewChoice> {
   final Duration reverseTransitionDuration;
 }
 
+enum _ChatPreviewContent { history, heading }
+
+class _ChatPreviewContentLayout extends MultiChildLayoutDelegate {
+  @override
+  void performLayout(Size size) {
+    final heading = layoutChild(
+      _ChatPreviewContent.heading,
+      BoxConstraints(
+        minWidth: size.width,
+        maxWidth: size.width,
+        maxHeight: size.height,
+      ),
+    );
+    layoutChild(
+      _ChatPreviewContent.history,
+      BoxConstraints.tight(Size(size.width, size.height - heading.height)),
+    );
+    positionChild(_ChatPreviewContent.heading, Offset.zero);
+    positionChild(_ChatPreviewContent.history, Offset(0, heading.height));
+  }
+
+  @override
+  bool shouldRelayout(_ChatPreviewContentLayout oldDelegate) => false;
+}
+
 final _iosPreviewSpring = SpringSimulation(
   const SpringDescription(mass: 5, stiffness: 900, damping: 104),
   0,
@@ -209,59 +234,11 @@ Future<bool> showMeshChatPreview(
                       Navigator.pop(context, (open: true, action: null)),
                   child: CustomPaint(
                     painter: _ContourPaper(style),
-                    child: Column(
+                    child: CustomMultiChildLayout(
+                      delegate: _ChatPreviewContentLayout(),
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
-                          child: Center(
-                            child: GlassSurface(
-                              radius: 22,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 7,
-                                ),
-                                child: Text(
-                                  peer.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (pinnedMessage != null)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                            child: GlassSurface(
-                              radius: 17,
-                              child: ListTile(
-                                dense: true,
-                                leading: Icon(
-                                  Icons.push_pin_outlined,
-                                  color: style.accent,
-                                  size: 17,
-                                ),
-                                title: Text(
-                                  tr(
-                                    context,
-                                    'Закреплённое сообщение',
-                                    'Pinned message',
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  pinnedMessage.text,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ),
-                        Expanded(
+                        LayoutId(
+                          id: _ChatPreviewContent.history,
                           child: messages.isEmpty
                               ? Center(
                                   child: Text(
@@ -274,6 +251,7 @@ Future<bool> showMeshChatPreview(
                                 )
                               : ListView.builder(
                                   primary: false,
+                                  clipBehavior: Clip.none,
                                   reverse: true,
                                   padding: const EdgeInsets.fromLTRB(
                                     9,
@@ -308,6 +286,86 @@ Future<bool> showMeshChatPreview(
                                     );
                                   },
                                 ),
+                        ),
+                        LayoutId(
+                          id: _ChatPreviewContent.heading,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  style.canvas.withValues(alpha: .88),
+                                  style.canvas.withValues(alpha: 0),
+                                ],
+                              ),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    9,
+                                    12,
+                                    6,
+                                  ),
+                                  child: Center(
+                                    child: GlassSurface(
+                                      radius: 22,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 7,
+                                        ),
+                                        child: Text(
+                                          peer.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (pinnedMessage != null)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      0,
+                                      12,
+                                      4,
+                                    ),
+                                    child: GlassSurface(
+                                      radius: 17,
+                                      child: ListTile(
+                                        dense: true,
+                                        leading: Icon(
+                                          Icons.push_pin_outlined,
+                                          color: style.accent,
+                                          size: 17,
+                                        ),
+                                        title: Text(
+                                          tr(
+                                            context,
+                                            'Закреплённое сообщение',
+                                            'Pinned message',
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          pinnedMessage.text,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -344,13 +402,23 @@ Future<bool> showMeshChatPreview(
                 width: extent.width * scale,
                 height: extent.height * scale,
               );
+              final scrim = messageMenuDim(context);
+              final blur =
+                  dim > 0 && !MediaQuery.accessibleNavigationOf(context);
               return Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: ColoredBox(
-                        color: Colors.black.withValues(
-                          alpha: dim * (ios ? .40 : 46 / 255),
+                      child: BackdropFilter(
+                        enabled: blur,
+                        filter: ImageFilter.blur(
+                          sigmaX: 18 * dim,
+                          sigmaY: 18 * dim,
+                          tileMode: TileMode.clamp,
+                        ),
+                        child: ColoredBox(
+                          color: scrim.withValues(alpha: scrim.a * dim),
                         ),
                       ),
                     ),

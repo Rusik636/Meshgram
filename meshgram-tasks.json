@@ -1583,6 +1583,33 @@
           "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-list-88.png"
         }
       ]
+    },
+    {
+      "id": "19",
+      "parent_id": null,
+      "title": "Затемнение предпросмотра и непрозрачные шторки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/19-preview-and-sheet-surfaces",
+      "depends_on": [
+        "14",
+        "16",
+        "18"
+      ],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Сообщения в предпросмотре идут под заголовок без жёсткой верхней границы. Фон затемняется как при открытии меню сообщения.",
+        "Шторки используют непрозрачные поверхности, кнопки iOS сохраняют Liquid Glass.",
+        "Фразы разделены линиями, удержание строки редактирует её, плюс добавляет новую."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли 234 теста Flutter и статический анализ. Android Emulator подтвердил затемнение, разделители, кнопку добавления и редактирование удержанием."
+        }
+      ]
     }
   ]
 }
