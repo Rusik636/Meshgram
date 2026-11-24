@@ -144,12 +144,14 @@ class _ForwardPickerState extends State<_ForwardPicker> {
       selected: _contacts ? 1 : 0,
       onSelect: switchDirectory,
     );
-    return SafeArea(
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final height =
+        (MediaQuery.sizeOf(context).height - keyboard) * (ios ? .87 : .78);
+    final showTabs = keyboard == 0 || height > 280;
+    final panel = SafeArea(
       top: false,
       child: SizedBox(
-        height:
-            MediaQuery.sizeOf(context).height * (ios ? .87 : .78) -
-            MediaQuery.viewInsetsOf(context).bottom * .5,
+        height: height,
         child: Column(
           children: [
             PageHeading(
@@ -189,8 +191,8 @@ class _ForwardPickerState extends State<_ForwardPicker> {
                 },
               ),
             ),
-            if (!ios) directory,
-            if (!_contacts)
+            if (!ios && showTabs) directory,
+            if (!_contacts && showTabs)
               ChatFilters(
                 labels: [
                   tr(context, 'Все', 'All'),
@@ -202,64 +204,73 @@ class _ForwardPickerState extends State<_ForwardPicker> {
                 onSelect: (index) => setState(() => _folder = index),
               ),
             Expanded(
-              child: peers.isEmpty && !showSaved
-                  ? Center(
-                      child: Text(
-                        tr(context, 'Нет получателей', 'No recipients'),
-                        style: TextStyle(color: style.secondary),
-                      ),
-                    )
-                  : ListView.separated(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: peers.length + (showSaved ? 1 : 0),
-                      separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        indent: 68,
-                        color: style.separator,
-                      ),
-                      itemBuilder: (context, index) {
-                        final peer = showSaved && index == 0
-                            ? null
-                            : peers[index - (showSaved ? 1 : 0)];
-                        final selected = peer == null
-                            ? _saved
-                            : _selected.containsKey(peer.id);
-                        return ListTile(
-                          leading: peer == null
-                              ? CircleAvatar(
-                                  backgroundColor: style.accent,
-                                  child: const Icon(
-                                    Icons.bookmark_rounded,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : MeshAvatar(
-                                  peer.name,
-                                  size: 40,
-                                  channel: peer.channel,
-                                ),
-                          title: Text(
-                            peer?.name ?? savedLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: _multiple
-                              ? Icon(
-                                  selected
-                                      ? Icons.check_circle_rounded
-                                      : Icons.radio_button_unchecked,
-                                  color: selected
-                                      ? style.accent
-                                      : style.secondary,
-                                )
-                              : null,
-                          selected: selected,
-                          onTap: () => _choose(peer),
-                        );
-                      },
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (useIosControls)
+                    const IgnorePointer(
+                      child: IosControl(kind: 'messagePreview', properties: {}),
                     ),
+                  peers.isEmpty && !showSaved
+                      ? Center(
+                          child: Text(
+                            tr(context, 'Нет получателей', 'No recipients'),
+                            style: TextStyle(color: style.secondary),
+                          ),
+                        )
+                      : ListView.separated(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          itemCount: peers.length + (showSaved ? 1 : 0),
+                          separatorBuilder: (_, _) => Divider(
+                            height: 1,
+                            indent: 68,
+                            color: style.separator,
+                          ),
+                          itemBuilder: (context, index) {
+                            final peer = showSaved && index == 0
+                                ? null
+                                : peers[index - (showSaved ? 1 : 0)];
+                            final selected = peer == null
+                                ? _saved
+                                : _selected.containsKey(peer.id);
+                            return ListTile(
+                              leading: peer == null
+                                  ? CircleAvatar(
+                                      backgroundColor: style.accent,
+                                      child: const Icon(
+                                        Icons.bookmark_rounded,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : MeshAvatar(
+                                      peer.name,
+                                      size: 40,
+                                      channel: peer.channel,
+                                    ),
+                              title: Text(
+                                peer?.name ?? savedLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: _multiple
+                                  ? Icon(
+                                      selected
+                                          ? Icons.check_circle_rounded
+                                          : Icons.radio_button_unchecked,
+                                      color: selected
+                                          ? style.accent
+                                          : style.secondary,
+                                    )
+                                  : null,
+                              selected: selected,
+                              onTap: () => _choose(peer),
+                            );
+                          },
+                        ),
+                ],
+              ),
             ),
             if (_multiple)
               Padding(
@@ -278,10 +289,14 @@ class _ForwardPickerState extends State<_ForwardPicker> {
                         )),
                 ),
               ),
-            if (ios) directory,
+            if (ios && showTabs) directory,
           ],
         ),
       ),
+    );
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: panel,
     );
   }
 }

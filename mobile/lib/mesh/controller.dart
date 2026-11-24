@@ -584,8 +584,7 @@ class MeshController extends ChangeNotifier {
     if (radio == null) return;
     final folders = _cacheFor(radio).folders;
     final reordered = <String, ChatFolder>{
-      for (final id in order)
-        if (folders[id] case final folder?) id: folder,
+      for (final id in order) id: ?folders[id],
     };
     for (final entry in folders.entries) {
       reordered.putIfAbsent(entry.key, () => entry.value);

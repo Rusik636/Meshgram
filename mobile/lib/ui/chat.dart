@@ -532,6 +532,15 @@ Future<bool> showMeshChatPreview(
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
+                              if (useIosControls && backdrop != null)
+                                // Keep the chat bubbles in a Flutter overlay
+                                // above the native blur and action material.
+                                const IgnorePointer(
+                                  child: IosControl(
+                                    kind: 'messagePreview',
+                                    properties: {},
+                                  ),
+                                ),
                               if (details < 1)
                                 ExcludeSemantics(
                                   child: OverflowBox(
