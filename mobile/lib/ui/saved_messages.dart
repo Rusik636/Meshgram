@@ -3,13 +3,15 @@
 
 part of 'chat.dart';
 
-Future<void> showSavedChat(BuildContext context, MeshController controller) =>
-    Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => SavedMessagesPage(controller: controller),
-      ),
-    );
+Future<void> showSavedChat(
+  BuildContext context,
+  MeshController controller, {
+  MeshChatOpener? open,
+}) => _pushConversation(
+  context,
+  (_) => SavedMessagesPage(controller: controller),
+  open: open,
+);
 
 class SavedMessagesPage extends StatefulWidget {
   const SavedMessagesPage({super.key, required this.controller});
@@ -242,7 +244,10 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final covered = ModalRoute.isCurrentOf(context) == false;
+    final pane = ChatWorkspacePane.of(context);
+    final split = pane?.split ?? false;
+    final covered =
+        pane?.visible == false || ModalRoute.isCurrentOf(context) == false;
     final radio = controller.active;
     final name = controller.profileName.trim();
     final editor = MessageInput(
@@ -265,8 +270,12 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                   child: Row(
                     children: [
                       GlassButton(
-                        icon: Icons.arrow_back_ios_new_rounded,
-                        label: tr(context, 'Назад', 'Back'),
+                        icon: split
+                            ? Icons.close_rounded
+                            : Icons.arrow_back_ios_new_rounded,
+                        label: split
+                            ? tr(context, 'Закрыть чат', 'Close chat')
+                            : tr(context, 'Назад', 'Back'),
                         onTap: () => Navigator.pop(context),
                         coveredByModal: covered,
                       ),

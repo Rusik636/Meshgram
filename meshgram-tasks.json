@@ -2802,6 +2802,51 @@
           "result": "APK 0.3.62 (104) собран. Redmi отсутствовал в списке ADB."
         }
       ]
+    },
+    {
+      "id": "47",
+      "parent_id": null,
+      "title": "Адаптивный экран чатов для планшетов и ПК",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/47-adaptive-workspace",
+      "depends_on": [
+        "42",
+        "43",
+        "46"
+      ],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "На широком экране одновременно видны список и текущая переписка.",
+        "При изменении ширины сохраняется открытый чат.",
+        "На iPad элементы навигации и редактор используют штатное жидкое стекло.",
+        "На ПК доступны отдельная панель папок, регулировка ширины списка и клавиатурный поиск."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "48",
+      "parent_id": "47",
+      "title": "Точки запуска настольного Meshgram",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/48-desktop-runners",
+      "depends_on": [
+        "47"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Flutter запускает существующий интерфейс Meshgram в отдельном окне на настольной платформе."
+      ],
+      "evidence": []
     }
   ]
 }

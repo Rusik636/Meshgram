@@ -45,10 +45,27 @@ import 'node_actions.dart';
 import 'position_picker.dart';
 import 'quick_phrases.dart';
 import 'search_field.dart';
+import 'chat_workspace.dart';
 import '../mesh/store.dart';
 
 part 'radio_outbox.dart';
 part 'saved_messages.dart';
+
+typedef MeshChatOpener = Future<void> Function(
+  WidgetBuilder builder, {
+  String? peerId,
+  required bool jump,
+});
+
+Future<void> _pushConversation(
+  BuildContext context,
+  WidgetBuilder builder, {
+  MeshChatOpener? open,
+  String? peerId,
+  bool jump = false,
+}) =>
+    open?.call(builder, peerId: peerId, jump: jump) ??
+    Navigator.of(context).push<void>(meshPageRoute(context, builder: builder));
 
 /// Opens a chat at an exact entry in the active radio profile's local history.
 Future<void> openMeshMessage(
@@ -56,25 +73,27 @@ Future<void> openMeshMessage(
   required MeshController controller,
   required String chatId,
   required String messageId,
+  MeshChatOpener? open,
 }) async {
   final peer = controller.cache?.peers[chatId];
   if (peer != null && !peer.channel && controller.isOwnChat(peer.id)) {
-    return showSavedChat(context, controller);
+    return showSavedChat(context, controller, open: open);
   }
   if (peer == null ||
       !controller.messages(chatId).any((message) => message.id == messageId)) {
     _showMessageUnavailable(context);
     return;
   }
-  await Navigator.of(context).push(
-    meshPageRoute<void>(
-      context,
-      builder: (_) => MeshChatPage(
-        controller: controller,
-        peer: peer,
-        initialMessageId: messageId,
-      ),
+  await _pushConversation(
+    context,
+    (_) => MeshChatPage(
+      controller: controller,
+      peer: peer,
+      initialMessageId: messageId,
     ),
+    open: open,
+    peerId: peer.id,
+    jump: true,
   );
 }
 
@@ -732,6 +751,7 @@ class _ChatState extends State<MeshChatPage>
   late final String? _radio;
   VoidCallback? _untrackViewport;
   ModalRoute<dynamic>? _route;
+  bool _workspaceVisible = true;
   List<MeshMessage> _listedMessages = const [];
   final _incomingRows = <String, GlobalKey>{};
   String? _unreadBoundary;
@@ -789,11 +809,15 @@ class _ChatState extends State<MeshChatPage>
       mounted &&
       !_menuVisible &&
       !_attachmentOpen &&
+      _workspaceVisible &&
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
   bool get _controlsCovered =>
-      _menuVisible || _attachmentOpen || _quickPhrasePickerOpen;
+      !_workspaceVisible ||
+      _menuVisible ||
+      _attachmentOpen ||
+      _quickPhrasePickerOpen;
 
   bool get _canReadHistory => !_searching && _canPreviewLinks;
 
@@ -1043,6 +1067,7 @@ class _ChatState extends State<MeshChatPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _route = ModalRoute.of(context);
+    _workspaceVisible = ChatWorkspacePane.of(context)?.visible ?? true;
     _scheduleHistoryUpdate();
     final bundle = DefaultAssetBundle.of(context);
     if (_emojiBundle == bundle) return;
@@ -3079,6 +3104,7 @@ class _ChatState extends State<MeshChatPage>
   }
 
   Widget _heading(Peer peer, MeshStyle style) {
+    final split = ChatWorkspacePane.of(context)?.split ?? false;
     final title = peer.channel
         ? tr(context, 'Канал', 'Channel')
         : tr(context, 'Личный чат', 'Direct chat');
@@ -3089,7 +3115,9 @@ class _ChatState extends State<MeshChatPage>
       'dark': style.dark,
       'enabled': true,
       'coveredByModal':
-          _controlsCovered || ModalRoute.isCurrentOf(context) == false,
+          _controlsCovered ||
+          !_workspaceVisible ||
+          ModalRoute.isCurrentOf(context) == false,
       'foreground': style.text.toARGB32(),
       'surface': style.surface.toARGB32(),
       'accent': style.accent.toARGB32(),
@@ -3101,8 +3129,12 @@ class _ChatState extends State<MeshChatPage>
         children: [
           GlassButton(
             coveredByModal: _controlsCovered,
-            icon: Icons.arrow_back_ios_new_rounded,
-            label: tr(context, 'Назад', 'Back'),
+            icon: split
+                ? Icons.close_rounded
+                : Icons.arrow_back_ios_new_rounded,
+            label: split
+                ? tr(context, 'Закрыть чат', 'Close chat')
+                : tr(context, 'Назад', 'Back'),
             onTap: () => Navigator.maybePop(context),
           ),
           const SizedBox(width: 9),
@@ -3118,6 +3150,14 @@ class _ChatState extends State<MeshChatPage>
             ),
           ),
           const SizedBox(width: 9),
+          if (split) ...[
+            GlassButton(
+              icon: Icons.search_rounded,
+              label: tr(context, 'Поиск в чате', 'Search in chat'),
+              onTap: _beginMessageSearch,
+            ),
+            const SizedBox(width: 8),
+          ],
           if (native)
             SizedBox.square(
               dimension: 48,
@@ -4728,17 +4768,19 @@ Future<void> showMeshChat(
   MeshController controller,
   Peer peer, {
   bool search = false,
+  MeshChatOpener? open,
 }) => !peer.channel && controller.isOwnChat(peer.id)
-    ? showSavedChat(context, controller)
-    : Navigator.of(context).push<void>(
-        meshPageRoute(
-          context,
-          builder: (_) => MeshChatPage(
-            controller: controller,
-            peer: peer,
-            initialSearch: search,
-          ),
+    ? showSavedChat(context, controller, open: open)
+    : _pushConversation(
+        context,
+        (_) => MeshChatPage(
+          controller: controller,
+          peer: peer,
+          initialSearch: search,
         ),
+        open: open,
+        peerId: peer.id,
+        jump: search,
       );
 
 class MeshChatProfile extends StatelessWidget {
@@ -5277,6 +5319,14 @@ class _AdminAccessState extends State<_AdminAccessDialog> {
       ),
     ],
   );
+}
+
+class MeshChatWallpaper extends StatelessWidget {
+  const MeshChatWallpaper({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: _ContourPaper(MeshStyle.of(context)));
 }
 
 class _ContourPaper extends CustomPainter {

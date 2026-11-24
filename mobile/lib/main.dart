@@ -71,9 +71,20 @@ Future<void> _startMessenger(SharedPreferences preferences) async {
     isChatForeground: () => notifications.isForeground,
   );
   await notifications.start(controller);
+  final display =
+      WidgetsBinding.instance.platformDispatcher.implicitView?.display;
+  final mobile =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final tabletDisplay =
+      mobile &&
+      display != null &&
+      display.size.shortestSide / display.devicePixelRatio >=
+          (defaultTargetPlatform == TargetPlatform.iOS ? 700 : 600);
   runApp(
     MeshGrame(
       controller: controller,
+      tabletDisplay: tabletDisplay,
       notifications: LocalMessageNotifications.supported && !controller.preview
           ? notifications
           : null,
@@ -96,10 +107,12 @@ class MeshGrame extends StatelessWidget {
     required this.controller,
     this.locale,
     this.notifications,
+    this.tabletDisplay = false,
   });
   final MeshController controller;
   final Locale? locale;
   final LocalMessageNotifications? notifications;
+  final bool tabletDisplay;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -133,7 +146,11 @@ class MeshGrame extends StatelessWidget {
           child: child!,
         );
       },
-      home: MeshHome(controller: controller, notifications: notifications),
+      home: MeshHome(
+        controller: controller,
+        notifications: notifications,
+        tabletDisplay: tabletDisplay,
+      ),
     ),
   );
 }

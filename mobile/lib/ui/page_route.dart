@@ -9,17 +9,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'chat_workspace.dart';
+
 PageRoute<T> meshPageRoute<T>(
   BuildContext context, {
   required WidgetBuilder builder,
+  RouteSettings? settings,
+  bool conversationPane = false,
 }) => Theme.of(context).platform == TargetPlatform.iOS
-    ? _MeshCupertinoRoute<T>(builder: builder)
-    : MaterialPageRoute<T>(builder: builder, allowSnapshotting: false);
+    ? _MeshCupertinoRoute<T>(
+        builder: builder,
+        settings: settings,
+        useNativeSnapshot:
+            !conversationPane && ChatWorkspacePane.of(context) == null,
+      )
+    : MaterialPageRoute<T>(
+        builder: builder,
+        settings: settings,
+        allowSnapshotting: false,
+      );
 
 class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
-  _MeshCupertinoRoute({required super.builder})
-    : super(allowSnapshotting: false);
+  _MeshCupertinoRoute({
+    required super.builder,
+    required super.settings,
+    required this.useNativeSnapshot,
+  }) : super(allowSnapshotting: false);
 
+  final bool useNativeSnapshot;
   static const _channel = MethodChannel('meshgrame/back_swipe');
   static int _nextSnapshotId = 0;
   final _snapshot = ValueNotifier<_SnapshotPhase>(_SnapshotPhase.idle);
@@ -29,6 +46,7 @@ class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
   @override
   void install() {
     super.install();
+    if (!useNativeSnapshot) return;
     navigator!.userGestureInProgressNotifier.addListener(_gestureChanged);
     animation!
       ..addListener(_moveSnapshot)
@@ -119,10 +137,12 @@ class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
 
   @override
   void dispose() {
-    navigator?.userGestureInProgressNotifier.removeListener(_gestureChanged);
-    animation!
-      ..removeListener(_moveSnapshot)
-      ..removeStatusListener(_keepPreviousPageHidden);
+    if (useNativeSnapshot) {
+      navigator?.userGestureInProgressNotifier.removeListener(_gestureChanged);
+      animation!
+        ..removeListener(_moveSnapshot)
+        ..removeStatusListener(_keepPreviousPageHidden);
+    }
     if (_snapshotId case final id?) {
       _snapshotId = null;
       _snapshotReady = false;
