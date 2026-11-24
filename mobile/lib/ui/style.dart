@@ -970,6 +970,7 @@ class MeshDialog extends StatelessWidget {
 Future<T?> showMeshSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  bool liquidGlass = false,
 }) {
   final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
   return showMeshBottomSheet<T>(
@@ -980,13 +981,17 @@ Future<T?> showMeshSheet<T>({
     backgroundColor: Colors.transparent,
     builder: (context) {
       final style = MeshStyle.of(context);
-      final sheet = Material(
-        key: const ValueKey('mesh-sheet-panel'),
-        color: style.canvas,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        clipBehavior: Clip.antiAlias,
-        child: Builder(builder: builder),
-      );
+      final sheet = liquidGlass && useIosControls
+          ? GlassSurface(modal: true, child: Builder(builder: builder))
+          : Material(
+              key: const ValueKey('mesh-sheet-panel'),
+              color: style.canvas,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Builder(builder: builder),
+            );
       return MeshSheetScrollContent(
         dragArea: 44,
         builder: (context) => Column(
