@@ -351,11 +351,13 @@ class ChatFilters extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     this.labels,
+    this.scrollController,
   });
 
   final int selected;
   final ValueChanged<int> onSelect;
   final List<String>? labels;
+  final ScrollController? scrollController;
 
   static double contentHeight(BuildContext context) =>
       (MediaQuery.textScalerOf(context).scale(15) * 1.2 + 30).ceilToDouble();
@@ -374,6 +376,7 @@ class ChatFilters extends StatelessWidget {
           child: SizedBox(
             height: height - 4,
             child: ListView.separated(
+              controller: scrollController,
               primary: false,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.all(3),

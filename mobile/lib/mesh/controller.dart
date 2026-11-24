@@ -579,6 +579,24 @@ class MeshController extends ChangeNotifier {
     _changed();
   }
 
+  void reorderChatFolders(Iterable<String> order) {
+    final radio = active;
+    if (radio == null) return;
+    final folders = _cacheFor(radio).folders;
+    final reordered = <String, ChatFolder>{
+      for (final id in order)
+        if (folders[id] case final folder?) id: folder,
+    };
+    for (final entry in folders.entries) {
+      reordered.putIfAbsent(entry.key, () => entry.value);
+    }
+    folders
+      ..clear()
+      ..addAll(reordered);
+    _save(radio);
+    _changed();
+  }
+
   void toggleFolderPin(String id, String chat) {
     final radio = active;
     if (radio == null) return;

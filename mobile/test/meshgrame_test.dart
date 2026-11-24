@@ -2060,6 +2060,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Select chats'));
+      await tester.pumpAndSettle();
       expect(find.byType(SliverReorderableList), findsOneWidget);
       expect(find.byIcon(Icons.drag_handle_rounded), findsWidgets);
       final chats = controller.conversations;
@@ -7349,7 +7351,7 @@ void main() {
       MeshGrame(controller: controller, locale: const Locale('en')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Chat folders'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('New folder'));
     await tester.pumpAndSettle();
@@ -7360,6 +7362,7 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     final folder = controller.chatFolders.single.id;
+    expect(find.text('Field team'), findsOneWidget);
     controller.toggleFolderPin(folder, peer.id);
     controller.setPinnedMessage(peer.id, message.id);
     final cache = ChatCache.fromJson(controller.cache!.toJson());
