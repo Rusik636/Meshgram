@@ -2418,6 +2418,11 @@ void main() {
         find.descendant(of: pane, matching: find.text('Add a radio')),
         findsOneWidget,
       );
+      final title = find.descendant(of: pane, matching: find.text('Settings'));
+      expect(
+        DefaultTextStyle.of(tester.element(title)).style.decoration,
+        isNot(TextDecoration.underline),
+      );
       expect(trail.hitTestable(), findsOneWidget);
       if (desktop) {
         await tester.tap(find.descendant(of: rail, matching: find.text('All')));

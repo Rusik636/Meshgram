@@ -287,10 +287,12 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final route = meshPageRoute<void>(
         context,
         conversationPane: true,
-        builder: (panelContext) => ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) =>
-              _settings(MeshStyle.of(context), panelContext: panelContext),
+        builder: (panelContext) => Scaffold(
+          body: ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) =>
+                _settings(MeshStyle.of(context), panelContext: panelContext),
+          ),
         ),
       );
       setState(() => _workspaceSettings = route);
