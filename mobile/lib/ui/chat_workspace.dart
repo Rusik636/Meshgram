@@ -3,6 +3,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
@@ -114,7 +115,7 @@ class ChatFolderRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final mac = Theme.of(context).platform == TargetPlatform.macOS;
+    final mac = !kIsWeb && Theme.of(context).platform == TargetPlatform.macOS;
     final labelStyle = Theme.of(context).textTheme.labelMedium!;
     final labelSize = labelStyle.fontSize!;
     final row = (47 + MediaQuery.textScalerOf(context).scale(labelSize) * 2.4)
@@ -150,13 +151,23 @@ class ChatFolderRail extends StatelessWidget {
 
     final content = SafeArea(
       right: false,
-      minimum: mac
-          ? const EdgeInsets.only(top: MacGlass.windowControlsInset)
-          : EdgeInsets.zero,
+      top: !mac,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        padding: EdgeInsets.fromLTRB(6, mac ? 0 : 8, 6, 8),
         child: Column(
           children: [
+            if (mac) ...[
+              const SizedBox(
+                height: MacGlass.windowControlsInset,
+                width: double.infinity,
+                child: ExcludeSemantics(
+                  child: IgnorePointer(
+                    child: AppKitView(viewType: 'meshgrame/window_controls'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             Expanded(
               child: editing
                   ? ReorderableListView.builder(
