@@ -3430,6 +3430,62 @@
           "result": "Проверка ограничена Flutter. Нативный запуск выполнен на macOS."
         }
       ]
+    },
+    {
+      "id": "63",
+      "parent_id": null,
+      "title": "Выбор папок на компьютере без заливки",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/63-folder-press-light-canvas",
+      "depends_on": [
+        "60"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Нажатие на папку не меняет фон строки. Активную папку отмечает тонкая подвижная линия."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Проверено в сборке 112 на macOS. Тест Flutter для Windows проверяет отсутствие эффекта нажатия, положение и анимацию индикатора."
+        }
+      ]
+    },
+    {
+      "id": "64",
+      "parent_id": null,
+      "title": "Сероватый фон светлой темы на всех платформах",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/64-light-gray-background",
+      "depends_on": [
+        "63"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Общий фон светлой темы и фон переписки используют более нейтральные светло-серые оттенки."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Светлый фон проверен на macOS и в тестовых вариантах Flutter для iOS, Android и Windows. Все 266 тестов прошли. Контраст вторичного текста на изменённых фонах от 4,99:1."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-112-macOS.zip",
+          "result": "Проверены подпись и целостность универсального архива arm64 и x86_64."
+        }
+      ]
     }
   ]
 }
