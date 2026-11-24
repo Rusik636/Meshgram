@@ -69,6 +69,37 @@ class RunnerTests: XCTestCase {
   }
 
   @MainActor
+  func testReplyControlsShareTheNativeComposerSurface() throws {
+    let draft = "Первая строка\nВторая 👋"
+    let messenger = TestMessenger()
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 128),
+      id: 1, input: appearance(dark: false).merging([
+        "text": draft, "start": 1, "end": 5, "visualOutset": 8,
+        "reply": [
+          "author": "Мира", "text": "На месте", "openLabel": "Исходное сообщение",
+          "cancelLabel": "Отменить ответ",
+        ],
+      ]) { _, value in value }, messenger: messenger)
+    let root = composer.view()
+    root.layoutIfNeeded()
+    let field = try XCTUnwrap(root.subviews.first)
+    let glass = try XCTUnwrap(field.subviews.first as? UIVisualEffectView)
+    let contents = glass.isUserInteractionEnabled ? glass.contentView : field
+    let editor = try XCTUnwrap(contents.subviews.last as? UITextView)
+    let quote = try XCTUnwrap(contents.subviews.dropLast().last)
+    XCTAssertFalse(quote.isHidden)
+    XCTAssertGreaterThan(quote.bounds.height, 0)
+    XCTAssertEqual(quote.frame.maxY, editor.frame.minY)
+    XCTAssertEqual(editor.frame.maxY, field.bounds.maxY)
+    XCTAssertEqual(editor.text, draft)
+    XCTAssertEqual(editor.selectedRange, NSRange(location: 1, length: 4))
+    let controls = try XCTUnwrap(quote.subviews.first).subviews.compactMap { $0 as? UIControl }
+    XCTAssertEqual(controls.count, 2)
+    controls.forEach { $0.sendActions(for: .touchUpInside) }
+    XCTAssertEqual(Array(messenger.methods.suffix(2)), ["openReply", "cancelReply"])
+  }
+
+  @MainActor
   func testNativeButtonsKeepTheirConfigurationWhileCovered() throws {
     let controls: [(name: String, properties: [String: Any])] = [
       ("back", ["symbol": "chevron.left", "label": "Back"]),

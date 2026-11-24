@@ -1,0 +1,735 @@
+{
+  "base_commit": "56ad46d5d84fe224d76b39a92a3185fde0c35862",
+  "integration_branch": "dev",
+  "design_skill": {
+    "name": "UI UX Pro Max",
+    "commit": "f2f7266b07805025421611656045e9b44b41e2eb",
+    "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/f2f7266b07805025421611656045e9b44b41e2eb"
+  },
+  "telegram": {
+    "ios": {
+      "commit": "24638bc69bd083981b178dd1e7f921eebbf7fc46"
+    },
+    "android": {
+      "commit": "21f7d109da6ab3506c9e9577f98c6a38771ab335"
+    }
+  },
+  "tasks": [
+    {
+      "id": "01",
+      "parent_id": null,
+      "title": "Поле ввода при ответе",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "01.ios",
+      "parent_id": "01",
+      "title": "Редактор ответа на iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
+        "Вход через свайп и меню, появление, смена и закрытие цитаты с плавной перестройкой редактора и клавиатуры.",
+        "Нативное поле, Liquid Glass и шторки работают при удержании и переходах. Черновик, курсор, выделение и видимая позиция истории сохраняются.",
+        "Многострочный текст и превью ссылки помещаются и отправляются с нужной цитатой."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L4696-L4717",
+          "behavior": "Свайп и меню передают цель в общее состояние ответа. Редактор получает фокус, закрытие убирает только контекст ответа."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerNode.swift#L2046-L2092",
+          "behavior": "Панель ответа измеряется отдельно от редактора. Для закрытия используется пружинный переход 400 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ReplyAccessoryPanelNode/Sources/ReplyAccessoryPanelNode.swift#L395-L445",
+          "behavior": "Панель измеряется на 45 pt, её значок появляется и уходит за 200 мс."
+        },
+        {
+          "kind": "check",
+          "result": "213 тестов Flutter прошли. flutter analyze без замечаний."
+        },
+        {
+          "kind": "check",
+          "result": "На iPhone 18 Pro Simulator прошли 4 теста XCTest. Тест проверяет общую поверхность для цитаты и UITextView, выделение, открытие и закрытие цитаты."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "В деморежиме свайп открывает ответ внутри нативного поля. Проверены геометрия Liquid Glass и видимая клавиатура."
+        }
+      ]
+    },
+    {
+      "id": "01.android",
+      "parent_id": "01",
+      "title": "Редактор ответа на Android",
+      "platform": [
+        "android"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
+        "Вход через свайп и меню, появление, смена и закрытие цитаты с поведением Android.",
+        "Многострочный текст и превью ссылки не теряют черновик, курсор, выделение или видимую позицию истории при работе с клавиатурой.",
+        "Отправка использует выбранную цитату."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java#L6424-L6495",
+          "behavior": "Верхняя панель открывается в начале показа клавиатуры, резервный запуск через 200 мс. Закрытие отдельно от клавиатуры."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L7989-L8000",
+          "behavior": "При изменении количества строк анимируются границы существующего редактора."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L15604-L15631",
+          "behavior": "Цель ответа и выбранная цитата обновляются отдельно от текста."
+        },
+        {
+          "kind": "check",
+          "result": "213 тестов Flutter прошли. flutter analyze без замечаний."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "В деморежиме проверены свайп, меню, сохранение клавиатуры после закрытия ответа, многострочный черновик с превью ссылки и отправка."
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "parent_id": null,
+      "title": "Общий переход к конкретному сообщению",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/02-message-jump",
+      "depends_on": [
+        "01"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "02.history",
+      "parent_id": "02",
+      "title": "Прокрутка и подсветка",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/02-message-jump",
+      "depends_on": [
+        "01"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Навигация из цитаты переиспользует общий переход к точному ID с краткой подсветкой.",
+        "При вытеснении исходника показано понятное сообщение."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "03",
+      "parent_id": null,
+      "title": "Локальное «Избранное»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "03.copy",
+      "parent_id": "03",
+      "title": "Самостоятельная копия",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Сохраняются текст, ссылки и координаты с метками, автором, датой и источником.",
+        "Копия открывается после очистки обычной истории и перезапуска без интернета и рации."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "03.browse",
+      "parent_id": "03",
+      "title": "Экран «Избранное»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Есть просмотр и переход к доступному оригиналу.",
+        "При работе с «Избранным» транспорт получает ноль пакетов."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "04",
+      "parent_id": null,
+      "title": "Поиск по отдельным сообщениям",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "04.matches",
+      "parent_id": "04",
+      "title": "Результаты на уровне сообщений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Каждый результат показывает фрагмент, автора и дату. Тап открывает его место в истории."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "04.filters",
+      "parent_id": "04",
+      "title": "Фильтры и переход к дате",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Фильтры по автору, периоду, ссылкам, координатам и контактам комбинируются. Переход к дате работает при наличии истории."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "05",
+      "parent_id": null,
+      "title": "Предпросмотр чата по удержанию",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/05-chat-preview",
+      "depends_on": [
+        "04"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "05.gesture",
+      "parent_id": "05",
+      "title": "Жест и содержимое карточки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/05-chat-preview",
+      "depends_on": [
+        "04"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Удержание показывает последние локальные сообщения и не ломает свайпы строки.",
+        "Открытие и закрытие сохраняют счётчик непрочитанного."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "06",
+      "parent_id": null,
+      "title": "Папки и локальные закрепления",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "06.folders",
+      "parent_id": "06",
+      "title": "Пользовательские папки и «Непрочитанные»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Папки переиспользуют категории и «Скрытые чаты». Названия и состав сохраняются на устройстве."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "06.pins",
+      "parent_id": "06",
+      "title": "Закрепление чатов и сообщений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Чат закрепляется вверху своей папки. Закреплённое сообщение видно внутри чата и использует общий переход.",
+        "Закрепления сохраняются после перезапуска, работают без рации."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "07",
+      "parent_id": null,
+      "title": "Быстрые фразы",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-quick-phrases",
+      "depends_on": [
+        "06"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "07.templates",
+      "parent_id": "07",
+      "title": "Редактируемые шаблоны",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-quick-phrases",
+      "depends_on": [
+        "06"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Предустановлены «На месте», «Задержусь» и «Пришли координаты». Можно добавлять, изменять и удалять фразы.",
+        "Шаблон подставляется в редактируемый черновик. Отправка происходит после явного действия."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "08",
+      "parent_id": null,
+      "title": "Пересылка текста и цитирование фрагмента",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "08.forward",
+      "parent_id": "08",
+      "title": "Пересылка обычного текста",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Выбор чата подготавливает обычный текст с подписью автора. Штатный адаптер проверяет полный бюджет UTF‑8."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "08.quote",
+      "parent_id": "08",
+      "title": "Ответ на выделение",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Поддерживаемый протокол сохраняет штатную ссылку на оригинал, выбранный фрагмент подсвечивается локально.",
+        "Для остальных случаев доступна короткая текстовая цитата. Бюджет UTF‑8 учитывает её целиком."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "09",
+      "parent_id": null,
+      "title": "Отправить при подключении рации",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "09.queue",
+      "parent_id": "09",
+      "title": "Локальная очередь по рации и чату",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Удержание стрелки сохраняет черновик для выбранного профиля и чата. Есть просмотр, редактирование и отмена.",
+        "Очередь сохраняется после перезапуска и разделена по профилям."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "09.send",
+      "parent_id": "09",
+      "title": "Обработка очереди и статусы",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Очередь обрабатывается при подключении правильного профиля в открытом приложении.",
+        "Потеря связи и смена профиля не вызывают повтора сообщения, которое могло уйти в эфир. Повтор решает пользователь.",
+        "Подключение и подтверждение передачи отображаются по отдельным фактическим событиям."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "10",
+      "parent_id": null,
+      "title": "Анимация текста из редактора в пузырь",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/10-composer-to-bubble",
+      "depends_on": [
+        "01",
+        "09"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "10.motion",
+      "parent_id": "10",
+      "title": "Переход при появлении в истории",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/10-composer-to-bubble",
+      "depends_on": [
+        "01",
+        "09"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Текст переходит из редактора в исходящий пузырь при его появлении. Передача обновляется по событию транспорта.",
+        "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "11",
+      "parent_id": null,
+      "title": "Анимация реакции к счётчику",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/11-reaction-to-counter",
+      "depends_on": [
+        "10"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "11.motion",
+      "parent_id": "11",
+      "title": "Перелёт эмодзи после события реакции",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/11-reaction-to-counter",
+      "depends_on": [
+        "10"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Реакция летит к счётчику по существующему событию. Полный список эмодзи раскрывается. Выбранное сообщение на iPhone остаётся чётким.",
+        "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "12",
+      "parent_id": null,
+      "title": "Анимация строки чата и предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/12-chat-preview-motion",
+      "depends_on": [
+        "02",
+        "05",
+        "11"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "12.motion",
+      "parent_id": "12",
+      "title": "Раскрытие и возврат карточки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/12-chat-preview-motion",
+      "depends_on": [
+        "02",
+        "05",
+        "11"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Карточка раскрывается из удерживаемой строки и возвращается в неё. Траектория, время и порядок сверены по платформам.",
+        "Сокращение движения учитывается. Поиск, «Избранное» и закрепления используют общий переход."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "13",
+      "parent_id": null,
+      "title": "Приёмка и сборки dev",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Сборки и результаты приёмки зафиксированы, изменения оставлены в dev."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "13.simulator",
+      "parent_id": "13",
+      "title": "iOS Simulator и Android Emulator",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Каждая задача проверена на затронутых платформах, в светлой и тёмной темах, с уменьшением движения и прозрачности где применимо.",
+        "Проверены состояния Liquid Glass и перекрытие кнопок шторками. Есть записи и покадровые сравнения где возможно."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "13.devices",
+      "parent_id": "13",
+      "title": "Установка и проверка на устройствах",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Обе сборки dev используют единый увеличенный номер и ставятся поверх текущих.",
+        "Проверены iPhone и Android, тестовый чат без интернета, обычные клиенты Meshtastic и MeshCore, события транспорта и отсутствие радиопакетов для локальных функций."
+      ],
+      "evidence": []
+    }
+  ]
+}

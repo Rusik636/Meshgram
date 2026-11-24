@@ -18,10 +18,15 @@ class MessageInput extends StatefulWidget {
     required this.controller,
     required this.onChanged,
     this.coveredByModal = false,
+    this.reply,
+    this.onOpenReply,
+    this.onCancelReply,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final bool coveredByModal;
+  final ({String author, String text})? reply;
+  final VoidCallback? onOpenReply, onCancelReply;
 
   @override
   MessageInputState createState() => MessageInputState();
@@ -29,6 +34,7 @@ class MessageInput extends StatefulWidget {
 
 class MessageInputState extends State<MessageInput> {
   final _focus = FocusNode();
+  final _flutterEditor = GlobalKey();
   bool _pendingFocus = false;
 
   void dismissKeyboard() {
@@ -48,36 +54,71 @@ class MessageInputState extends State<MessageInput> {
   }
 
   MethodChannel? _channel;
-  String? _nativeText;
+  TextEditingValue? _nativeValue;
   Map<String, Object>? _appearance;
+  Map<String, Object>? _nativeReply;
   double _height = 46;
+  bool _replyHeightChanging = false;
+  Duration _heightDuration = const Duration(milliseconds: 100);
 
   bool get _native => useIosControls;
 
   @override
   void initState() {
     super.initState();
-    if (_native) widget.controller.addListener(_syncText);
+    if (_native) widget.controller.addListener(_syncEditing);
   }
 
   @override
   void didUpdateWidget(MessageInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (_native && oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_syncText);
-      widget.controller.addListener(_syncText);
-      _syncText();
+      oldWidget.controller.removeListener(_syncEditing);
+      widget.controller.addListener(_syncEditing);
+      _syncEditing();
     }
     if (_native && widget.coveredByModal != oldWidget.coveredByModal) {
       _pendingFocus = false;
       _syncAppearance();
+    }
+    if (_native && widget.reply != oldWidget.reply) {
+      _replyHeightChanging =
+          (widget.reply == null) != (oldWidget.reply == null);
+      _syncReply();
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_native) _syncAppearance();
+    if (_native) {
+      _syncAppearance();
+      _syncReply();
+    }
+  }
+
+  void _syncReply() {
+    final reply = _replyArguments;
+    if (!mapEquals(reply, _nativeReply)) {
+      _nativeReply = reply;
+      _send('reply', reply);
+    }
+  }
+
+  Map<String, Object> get _replyArguments {
+    final reply = widget.reply;
+    return reply == null
+        ? const {}
+        : {
+            'author': reply.author,
+            'text': reply.text,
+            'openLabel': tr(
+              context,
+              'Перейти к исходному сообщению',
+              'Go to original message',
+            ),
+            'cancelLabel': tr(context, 'Отменить ответ', 'Cancel reply'),
+          };
   }
 
   void _syncAppearance() {
@@ -114,11 +155,21 @@ class MessageInputState extends State<MessageInput> {
     }
   }
 
-  void _syncText() {
-    final text = widget.controller.text;
-    if (text == _nativeText) return;
-    _nativeText = text;
-    _send('replaceText', text);
+  Map<String, Object> _editingArguments(TextEditingValue value) {
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    return {'text': value.text, 'start': selection.start, 'end': selection.end};
+  }
+
+  void _syncEditing() {
+    final value = widget.controller.value;
+    if (value.text == _nativeValue?.text &&
+        value.selection == _nativeValue?.selection) {
+      return;
+    }
+    _nativeValue = value;
+    _send('editing', _editingArguments(value));
   }
 
   void _created(int id) {
@@ -126,27 +177,47 @@ class MessageInputState extends State<MessageInput> {
     channel.setMethodCallHandler((call) async {
       if (!mounted) return;
       switch (call.method) {
-        case 'text':
-          final value = call.arguments as String;
-          _nativeText = value;
-          if (widget.controller.text != value) {
-            widget.controller.text = value;
-            widget.onChanged(value);
-          }
+        case 'editing':
+          final arguments = call.arguments as Map;
+          final text = arguments['text'] as String;
+          final next = TextEditingValue(
+            text: text,
+            selection: TextSelection(
+              baseOffset: arguments['start'] as int,
+              extentOffset: arguments['end'] as int,
+            ),
+          );
+          final changed = widget.controller.text != text;
+          _nativeValue = next;
+          if (widget.controller.value != next) widget.controller.value = next;
+          if (changed) widget.onChanged(text);
         case 'height':
-          final height = (call.arguments as num).toDouble().clamp(42.0, 160.0);
-          if (height != _height) setState(() => _height = height);
+          final height = (call.arguments as num).toDouble().clamp(42.0, 240.0);
+          if (height != _height) {
+            setState(() {
+              _height = height;
+              _heightDuration = _replyHeightChanging
+                  ? const Duration(milliseconds: 400)
+                  : const Duration(milliseconds: 100);
+              _replyHeightChanging = false;
+            });
+          }
+        case 'openReply':
+          widget.onOpenReply?.call();
+        case 'cancelReply':
+          widget.onCancelReply?.call();
       }
     });
-    _nativeText = null;
-    _syncText();
+    _nativeValue = null;
+    _syncEditing();
     if (_appearance case final appearance?) _send('appearance', appearance);
+    _send('reply', _replyArguments);
     if (_pendingFocus) focusInput();
   }
 
   @override
   void dispose() {
-    if (_native) widget.controller.removeListener(_syncText);
+    if (_native) widget.controller.removeListener(_syncEditing);
     _channel?.setMethodCallHandler(null);
     _focus.dispose();
     super.dispose();
@@ -159,7 +230,7 @@ class MessageInputState extends State<MessageInput> {
         tween: Tween(end: _height),
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 100),
+            : _heightDuration,
         curve: Curves.easeInOut,
         builder: (context, height, editor) =>
             SizedBox(height: height, child: editor),
@@ -169,7 +240,8 @@ class MessageInputState extends State<MessageInput> {
               viewType: 'meshgrame/composer',
               creationParams: {
                 ...?_appearance,
-                'text': widget.controller.text,
+                ..._editingArguments(widget.controller.value),
+                'reply': _replyArguments,
                 'visualOutset': meshIosGlassOutset,
               },
               creationParamsCodec: const StandardMessageCodec(),
@@ -184,7 +256,8 @@ class MessageInputState extends State<MessageInput> {
         ),
       );
     }
-    return TextField(
+    final field = TextField(
+      key: _flutterEditor,
       controller: widget.controller,
       focusNode: _focus,
       minLines: 1,
@@ -200,6 +273,13 @@ class MessageInputState extends State<MessageInput> {
           vertical: 14,
         ),
       ),
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return field;
+    return AnimatedSize(
+      alignment: Alignment.bottomCenter,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      child: field,
     );
   }
 }
