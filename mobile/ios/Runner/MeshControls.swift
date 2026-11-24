@@ -194,13 +194,15 @@ private final class MeshMessageGlass: UIView, FlutterPlatformView {
 
 private final class MeshModalGlassView: UIView {
   let glass: UIVisualEffectView
+  private let showsRim: Bool
   var radius: CGFloat = 22 {
     didSet { if radius != oldValue { setNeedsLayout() } }
   }
   private let aperture = UIView()
 
-  init(frame: CGRect, effect: UIVisualEffect) {
+  init(frame: CGRect, effect: UIVisualEffect, showsRim: Bool) {
     glass = UIVisualEffectView(effect: effect)
+    self.showsRim = showsRim
     super.init(frame: frame)
     aperture.backgroundColor = .white
     glass.clipsToBounds = true
@@ -213,6 +215,11 @@ private final class MeshModalGlassView: UIView {
     super.layoutSubviews()
     let radius = min(self.radius, min(bounds.width, bounds.height) / 2)
     if #available(iOS 26.0, *) {
+      if showsRim {
+        glass.frame = bounds
+        glass.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
+        return
+      }
       // The glass edge sits outside the visible shape, leaving the native
       // refraction inside without its bright rim.
       let outset: CGFloat = 4
@@ -235,17 +242,18 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
   private let channel: FlutterMethodChannel
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
+    let clear = input["clear"] as? Bool == true
     let effect: UIVisualEffect
     if #available(iOS 26.0, *) {
-      let glass = UIGlassEffect(style: .regular)
+      let glass = UIGlassEffect(style: clear ? .clear : .regular)
       if input["panel"] as? Bool == true {
         glass.tintColor = meshPanelTint(dark: input["dark"] as? Bool == true)
       }
       effect = glass
     } else {
-      effect = UIBlurEffect(style: .systemMaterial)
+      effect = UIBlurEffect(style: clear ? .systemUltraThinMaterial : .systemMaterial)
     }
-    surface = MeshModalGlassView(frame: frame, effect: effect)
+    surface = MeshModalGlassView(frame: frame, effect: effect, showsRim: clear)
     self.channel = channel
     super.init()
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
