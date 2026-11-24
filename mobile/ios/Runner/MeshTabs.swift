@@ -203,7 +203,7 @@ final class MeshFolderTabs: NSObject, FlutterPlatformView {
     control.addTarget(self, action: #selector(selectSegment), for: .valueChanged)
     root.layoutContent = { [weak self] in
       guard let self else { return }
-      self.control.frame = self.root.bounds.insetBy(dx: 0, dy: 2)
+      self.control.frame = self.root.bounds
       self.control.layoutIfNeeded()
       self.boundary.gateGestures(in: self.control)
     }

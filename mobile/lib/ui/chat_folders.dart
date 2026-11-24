@@ -88,6 +88,7 @@ class ChatFolderTabs extends StatefulWidget {
 class _ChatFolderTabsState extends State<ChatFolderTabs>
     with SingleTickerProviderStateMixin {
   static const _padding = 4.0;
+  static const _iosLensInset = 3.0;
   static const _gap = 3.0;
   static const _titleStyle = TextStyle(
     fontSize: 15,
@@ -188,9 +189,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
             final changed = index != widget.selected;
             widget.onSelect(index);
             if (!changed || !scroll.hasClients) return;
-            // Telegram iOS HorizontalTabsComponent keeps the selected item
-            // visible with a small margin when it reaches either edge.
-            const lookahead = 16.0;
+            // Match the tap focus margin in Telegram iOS HorizontalTabsComponent.
+            const lookahead = 100.0;
             var offset = scroll.offset;
             if (offset + viewport - lookahead < edges[index + 1]) {
               offset = edges[index + 1] - viewport + lookahead;
@@ -361,17 +361,33 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
   Widget build(BuildContext context) {
     final height = ChatFilters.contentHeight(context);
     final native = useIosControls && !widget.editing;
+    // Telegram iOS gives the header panel a 40 pt strip at the default
+    // text size, then uses one uniform inset for the lens and its scroll view.
+    final barHeight = native
+        ? math.min(height, math.max(40.0, height - 8))
+        : height - 4;
+    final viewportPadding = native
+        ? const EdgeInsets.all(_iosLensInset)
+        : const EdgeInsets.symmetric(horizontal: _padding);
+    final viewportHeight = barHeight - viewportPadding.vertical;
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: native ? 0 : 2),
+      padding: EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: (height - barHeight) / 2,
+      ),
       child: GlassSurface(
         modal: !native,
         nativeButtonMaterial: native,
-        radius: height / 2,
+        radius: native ? barHeight / 2 : height / 2,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _padding),
+          padding: viewportPadding,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(height / 2 - _padding),
-            child: native ? _nativeTabs(height) : _flutterTabs(height - 4),
+            borderRadius: BorderRadius.circular(
+              native ? viewportHeight / 2 : height / 2 - _padding,
+            ),
+            child: native
+                ? _nativeTabs(viewportHeight)
+                : _flutterTabs(viewportHeight),
           ),
         ),
       ),

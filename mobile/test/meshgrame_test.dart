@@ -7760,8 +7760,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
-    expect(tester.getSize(scroll).width, 350);
-    expect(tester.getTopLeft(scroll).dx, 20);
+    expect(tester.getSize(scroll), const Size(352, 34));
+    expect(tester.getTopLeft(scroll).dx, 19);
+    expect(
+      tester.getCenter(scroll).dy,
+      tester.getCenter(find.byType(ChatFolderTabs)).dy,
+    );
     final scrollController = tester
         .widget<SingleChildScrollView>(scroll)
         .controller!;
