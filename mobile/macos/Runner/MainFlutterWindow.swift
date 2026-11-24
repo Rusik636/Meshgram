@@ -3,6 +3,13 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
+    if let frameworkDir = Bundle.main.privateFrameworksURL {
+      let library = frameworkDir.appendingPathComponent("libserialport.framework/libserialport")
+      if FileManager.default.fileExists(atPath: library.path) {
+        setenv("LIBSERIALPORT_PATH", library.path, 0)
+      }
+    }
+
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController

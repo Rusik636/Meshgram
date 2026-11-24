@@ -45,6 +45,19 @@
     "url": "https://pub.dev/packages/flutter_blue_plus"
   },
   {
+    "title": "flutter_libserialport",
+    "license": "MIT",
+    "asset": "assets/about/flutter-libserialport-license.txt",
+    "url": "https://github.com/jpnurmi/flutter_libserialport"
+  },
+  {
+    "title": "libserialport",
+    "license": "LGPL-3.0-or-later",
+    "asset": "assets/about/lgpl-3.0.txt",
+    "text": "Динамическая библиотека последовательного порта и её привязки Dart.\n\nSerial port shared library and its Dart bindings. Copyright notices are included in the corresponding source files.",
+    "url": "https://github.com/jpnurmi/flutter_libserialport/tree/main/third_party"
+  },
+  {
     "title": "AndroidX, CameraX, Kotlin и библиотеки Android",
     "license": "Apache-2.0",
     "platform": "android",

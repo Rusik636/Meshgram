@@ -31,6 +31,8 @@ dependencies:
   html: ^0.15.6
   path_provider: ^2.1.6
   flutter_libserialport: ^0.6.0
+  archive: ^4.7.1
+  file_selector: ^1.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
