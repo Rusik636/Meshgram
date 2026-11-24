@@ -128,6 +128,26 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     super.dispose();
   }
 
+  List<double> _tabWidths(List<String> labels, double maxWidth) {
+    final painter = TextPainter(
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+      maxLines: 1,
+    );
+    final titleStyle = DefaultTextStyle.of(context).style.merge(_titleStyle);
+    final widths = List.generate(labels.length, (index) {
+      painter.text = TextSpan(text: labels[index], style: titleStyle);
+      painter.layout();
+      final extra = widget.editing && index >= widget.builtInLabels.length
+          ? 36
+          : 0;
+      return (painter.width.ceilToDouble() + 30 + extra).clamp(48.0, maxWidth);
+    });
+    painter.dispose();
+    return widths;
+  }
+
   Widget _nativeTabs(double height) {
     final style = MeshStyle.of(context);
     final labels = [
@@ -139,24 +159,61 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
       height: height,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final extent = labels.length == widget.builtInLabels.length
-              ? math.max(80.0, constraints.maxWidth / 3)
-              : math.max(104.0, constraints.maxWidth / 3);
-          final width = extent * labels.length;
+          final viewport = constraints.maxWidth;
+          final widths = _tabWidths(labels, math.max(48.0, viewport));
+          final contentWidth = widths.fold(0.0, (sum, width) => sum + width);
+          final extra = math.max(0.0, viewport - contentWidth) / labels.length;
+          final segmentWidths = [for (final width in widths) width + extra];
+          final edges = <double>[0];
+          for (final width in segmentWidths) {
+            edges.add(edges.last + width);
+          }
           final scroll = widget.scrollController;
           if (_revealSelected) {
             _revealSelected = false;
+            final selected = widget.selected.clamp(0, labels.length - 1);
+            final center = (edges[selected] + edges[selected + 1]) / 2;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted || widget.editing || !scroll.hasClients) return;
-              final center = (widget.selected + .5) * extent;
               scroll.jumpTo(
-                (center - constraints.maxWidth / 2).clamp(
+                (center - viewport / 2).clamp(
                   0.0,
                   scroll.position.maxScrollExtent,
                 ),
               );
             });
           }
+          void select(int index) {
+            if (index < 0 || index >= labels.length) return;
+            final changed = index != widget.selected;
+            widget.onSelect(index);
+            if (!changed || !scroll.hasClients) return;
+            // Telegram iOS HorizontalTabsComponent keeps the selected item
+            // visible with a small margin when it reaches either edge.
+            const lookahead = 16.0;
+            var offset = scroll.offset;
+            if (offset + viewport - lookahead < edges[index + 1]) {
+              offset = edges[index + 1] - viewport + lookahead;
+            }
+            if (offset > edges[index] - lookahead) {
+              offset = edges[index] - lookahead;
+            }
+            final target = offset.clamp(0.0, scroll.position.maxScrollExtent);
+            if (target == scroll.offset) return;
+            final duration = meshMotion(context);
+            if (duration == Duration.zero) {
+              scroll.jumpTo(target);
+            } else {
+              unawaited(
+                scroll.animateTo(
+                  target,
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                ),
+              );
+            }
+          }
+
           return SingleChildScrollView(
             key: const ValueKey('native-chat-folder-scroll'),
             controller: scroll,
@@ -166,54 +223,22 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
               parent: AlwaysScrollableScrollPhysics(),
             ),
             child: SizedBox(
-              width: width,
+              width: math.max(viewport, contentWidth),
               height: height,
-              child: ListenableBuilder(
-                listenable: scroll,
-                builder: (context, _) {
-                  final position = Scrollable.of(context).position;
-                  final offset = position.hasPixels ? position.pixels : 0.0;
-                  final first = (offset / extent).floor().clamp(
-                    0,
-                    labels.length - 1,
-                  );
-                  final last = ((offset + constraints.maxWidth) / extent)
-                      .ceil()
-                      .clamp(first + 1, labels.length);
-                  // UITabBarController displays up to five items without More.
-                  // Keep an offscreen item on the side of an offscreen selection.
-                  final start = widget.selected >= last
-                      ? first
-                      : math.max(0, first - 1);
-                  final end = math.min(labels.length, start + 5);
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      PositionedDirectional(
-                        start: extent * start,
-                        top: 0,
-                        bottom: 0,
-                        width: extent * (end - start),
-                        child: IosControl(
-                          kind: 'tabs',
-                          tapOnly: true,
-                          properties: {
-                            'textOnly': true,
-                            'titleSize': titleSize,
-                            'labels': labels.sublist(start, end),
-                            'index': (widget.selected - start).clamp(
-                              0,
-                              end - start - 1,
-                            ),
-                            'dark': style.dark,
-                            'accent': style.accent.toARGB32(),
-                          },
-                          onSelect: (index) => widget.onSelect(start + index),
-                        ),
-                      ),
-                    ],
-                  );
+              child: IosControl(
+                kind: 'folderTabs',
+                tapOnly: true,
+                properties: {
+                  'titleSize': titleSize,
+                  'labels': labels,
+                  'widths': segmentWidths,
+                  'index': widget.selected,
+                  'rtl': Directionality.of(context) == TextDirection.rtl,
+                  'dark': style.dark,
+                  'text': style.text.toARGB32(),
+                  'accent': style.accent.toARGB32(),
                 },
+                onSelect: select,
               ),
             ),
           );
@@ -232,21 +257,51 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     final style = MeshStyle.of(context);
     final selected = widget.selected == index;
     final rearranging = widget.editing && folder != null;
-    Widget label = Text(
-      title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: _titleStyle.copyWith(color: selected ? style.accent : style.text),
+    Widget content = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _titleStyle.copyWith(
+              color: selected ? style.accent : style.text,
+            ),
+          ),
+        ),
+        if (rearranging)
+          SizedBox(
+            width: 44,
+            child: IconButton(
+              tooltip: tr(
+                context,
+                'Удалить папку $title',
+                'Delete folder $title',
+              ),
+              alignment: AlignmentDirectional.centerStart,
+              padding: const EdgeInsetsDirectional.only(start: 8),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                overlayColor: Colors.transparent,
+                splashFactory: NoSplash.splashFactory,
+              ),
+              icon: const Icon(Icons.close_rounded, size: 17),
+              color: style.secondary,
+              onPressed: () => widget.onDelete(folder.id),
+            ),
+          ),
+      ],
     );
     if (rearranging && !MediaQuery.disableAnimationsOf(context)) {
       final phase = (folderIndex! % 4) * math.pi / 2;
-      label = AnimatedBuilder(
+      content = AnimatedBuilder(
         animation: _shake,
         builder: (_, child) => Transform.rotate(
           angle: math.sin(_shake.value * 2 * math.pi + phase) * .045,
           child: child,
         ),
-        child: label,
+        child: content,
       );
     }
     final tab = Semantics(
@@ -280,31 +335,10 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
             : () => widget.onEdit(folder.id),
         child: Padding(
           padding: EdgeInsetsDirectional.only(
-            start: rearranging ? 0 : 14,
-            end: 14,
+            start: 14,
+            end: rearranging ? 0 : 14,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (rearranging)
-                SizedBox(
-                  width: 44,
-                  child: IconButton(
-                    tooltip: tr(
-                      context,
-                      'Удалить папку $title',
-                      'Delete folder $title',
-                    ),
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.cancel_rounded, size: 17),
-                    color: style.secondary,
-                    onPressed: () => widget.onDelete(folder.id),
-                  ),
-                ),
-              Flexible(child: label),
-            ],
-          ),
+          child: content,
         ),
       ),
     );
@@ -354,24 +388,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                 48.0,
                 constraints.maxWidth - _padding * 2,
               );
-              final painter = TextPainter(
-                textDirection: Directionality.of(context),
-                textScaler: MediaQuery.textScalerOf(context),
-                locale: Localizations.maybeLocaleOf(context),
-                maxLines: 1,
-              );
-              final titleStyle = DefaultTextStyle.of(context).style
-                  .merge(_titleStyle);
-              final widths = List.generate(labels.length, (index) {
-                painter.text = TextSpan(text: labels[index], style: titleStyle);
-                painter.layout();
-                final extra = widget.editing && index >= count ? 36 : 0;
-                return (painter.width.ceilToDouble() + 30 + extra).clamp(
-                  48.0,
-                  maxWidth,
-                );
-              });
-              painter.dispose();
+              final widths = _tabWidths(labels, maxWidth);
               final selected = widget.selected.clamp(0, labels.length - 1);
               final start = widths
                   .take(selected)
