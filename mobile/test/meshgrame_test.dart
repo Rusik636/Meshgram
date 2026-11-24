@@ -6838,6 +6838,9 @@ void main() {
       await tester.tap(find.text('Поиск'));
       await tester.pumpAndSettle();
       expect(find.text('Поиск в чате'), findsOneWidget);
+      await tester.tap(find.byTooltip('Закрыть поиск'));
+      await tester.pumpAndSettle();
+      expect(find.text('Мира Соколова'), findsOneWidget);
       await tester.tap(find.byTooltip('Назад'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Настройки'));

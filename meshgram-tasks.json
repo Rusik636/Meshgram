@@ -389,7 +389,8 @@
       ],
       "status": "verified",
       "acceptance_criteria": [
-        "Каждый результат показывает фрагмент, автора и дату. Тап открывает его место в истории."
+        "Глобальный поиск показывает фрагмент, автора и дату. Внутри переписки совпадения отображаются теми же пузырями, что и в истории. Тап открывает точное место сообщения.",
+        "Удержание имени и кнопка «Поиск» в профиле открывают один режим поиска. На iOS поле поиска заменяет заголовок и использует нативный Liquid Glass."
       ],
       "evidence": [
         {
@@ -398,18 +399,49 @@
           "behavior": "Результат поиска выбирается как отдельное сообщение по точному индексу."
         },
         {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L6162-L6172",
+          "behavior": "Удержание заголовка вызывает beginMessageSearch в текущем чате."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ChatTitleView/Sources/ChatTitleView.swift#L1147-L1154",
+          "behavior": "Долгое нажатие обрабатывается при переходе распознавателя в состояние began."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ChatSearchNavigationContentNode/Sources/ChatSearchNavigationContentNode.swift#L155-L166",
+          "behavior": "Поле в панели навигации использует стеклянную подложку и отдельную кнопку закрытия."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L8702-L8719",
+          "behavior": "Совпадения выделяются в тех же компонентах сообщений, которые отображают историю."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L38072-L38082",
+          "behavior": "Для отфильтрованных сообщений используется обычная ячейка ChatMessageCell."
+        },
+        {
           "kind": "check",
           "result": "В тесте фильтр ссылок оставил одно совпадение; тап открыл исходное сообщение по ID."
         },
         {
+          "kind": "check",
+          "result": "В ветке задачи прошли 216 тестов Flutter и 4 теста UIKit. Удержание открывает поиск, кнопка профиля открывает тот же режим."
+        },
+        {
           "kind": "device_check",
           "device": "iPhone 18 Pro Simulator",
-          "result": "Результаты поиска в чате показывают автора, фрагмент и время."
+          "result": "Удержание имени открывает нативное поле Liquid Glass. Запрос «гребне» оставил исходный пузырь, тап вернул к нему в историю. Вход из профиля подтверждён в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-in-chat-search-glass.png"
         },
         {
           "kind": "device_check",
           "device": "Android Emulator API 24",
-          "result": "Поиск по всем чатам показал точное совпадение с автором и датой. Тап открыл оригинал."
+          "result": "Удержание имени и кнопка профиля открыли поле в шапке. Проверены пустой результат и переход из пузыря в историю. Глобальный поиск сохраняет отображение автора и даты.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-in-chat-search.png"
         }
       ]
     },

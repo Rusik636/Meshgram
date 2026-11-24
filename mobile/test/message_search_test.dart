@@ -23,7 +23,7 @@ void main() {
       adapters: const [MeshtasticAdapter()],
       preview: true,
     );
-    final peer = mesh.cache!.peers['ch:0']!;
+    final peer = mesh.cache!.peers['node:a']!;
     final time = DateTime(2026, 11, 24, 11, 20);
     const link = 'http://example.org/summit';
     mesh.cache!.messages
@@ -73,37 +73,42 @@ void main() {
       delivery: Delivery.received,
     );
     expect(compound.accepts(mesh, contact, ''), isTrue);
-    Widget page(int key) => MaterialApp(
+    Widget page(int key, {bool initialSearch = false}) => MaterialApp(
       home: MeshChatPage(
         key: ValueKey(key),
         controller: mesh,
         peer: peer,
-        initialSearch: true,
+        initialSearch: initialSearch,
       ),
     );
     await tester.pumpWidget(page(0));
     await tester.pumpAndSettle();
-    expect(find.byType(MessageSearchResultTile), findsNWidgets(2));
+    await tester.longPress(find.text(peer.name));
+    await tester.pumpAndSettle();
+    expect(find.text('Search messages'), findsOneWidget);
+    expect(find.text(peer.name), findsNothing);
+    expect(find.byKey(const ValueKey(('bubble', 'link'))), findsOneWidget);
+    expect(find.byKey(const ValueKey(('bubble', 'location'))), findsOneWidget);
     await tester.tap(find.byTooltip('Message filters'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Links'));
     await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();
-    expect(find.byType(MessageSearchResultTile), findsOneWidget);
-    expect(find.text('Mira'), findsOneWidget);
-    expect(find.textContaining('2026'), findsOneWidget);
-    await tester.tap(find.text(link));
+    expect(find.byKey(const ValueKey(('bubble', 'location'))), findsNothing);
+    await tester.tapAt(
+      tester.getCenter(find.byKey(const ValueKey(('bubble', 'link')))),
+    );
     await tester.pumpAndSettle();
-    expect(find.byType(MessageSearchResultTile), findsNothing);
+    expect(find.text('Search messages'), findsNothing);
     expect(find.byKey(const ValueKey('link')).hitTestable(), findsOneWidget);
 
-    await tester.pumpWidget(page(1));
+    await tester.pumpWidget(page(1, initialSearch: true));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Go to date'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    expect(find.byType(MessageSearchResultTile), findsNothing);
+    expect(find.text('Search messages'), findsNothing);
     expect(
       find.byKey(const ValueKey('location')).hitTestable(),
       findsOneWidget,
