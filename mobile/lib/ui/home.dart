@@ -21,6 +21,7 @@ import 'chat_archive.dart';
 import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
+import 'chat_workspace.dart';
 import 'emoji_text.dart';
 import 'haptics.dart';
 import 'radio_discovery.dart';
@@ -42,12 +43,41 @@ const _teal = Color(0xff168a87);
 const _violet = Color(0xff7b5bc3);
 
 class MeshHome extends StatefulWidget {
-  const MeshHome({super.key, required this.controller, this.notifications});
+  const MeshHome({
+    super.key,
+    required this.controller,
+    this.notifications,
+    this.tabletDisplay = false,
+  });
   final MeshController controller;
   final LocalMessageNotifications? notifications;
+  final bool tabletDisplay;
 
   @override
   State<MeshHome> createState() => _HomeState();
+}
+
+class _ChatDetailObserver extends NavigatorObserver {
+  _ChatDetailObserver(this.onTopChanged, this.onGesture);
+
+  final ValueChanged<Route<dynamic>> onTopChanged;
+  final ValueChanged<bool> onGesture;
+  Route<dynamic>? top;
+
+  @override
+  void didChangeTop(Route<dynamic> topRoute, Route<dynamic>? previousTopRoute) {
+    top = topRoute;
+    onTopChanged(topRoute);
+  }
+
+  @override
+  void didStartUserGesture(
+    Route<dynamic> route,
+    Route<dynamic>? previousRoute,
+  ) => onGesture(true);
+
+  @override
+  void didStopUserGesture() => onGesture(false);
 }
 
 class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
@@ -96,6 +126,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   Radio? _folderProfile;
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
+  final _detailKey = GlobalKey<NavigatorState>();
+  late final _detailObserver = _ChatDetailObserver(_detailTopChanged, (active) {
+    if (mounted) setState(() => _detailBackGesture = active);
+  });
+  bool _workspaceEnabled = false;
+  bool _split = false;
+  bool _desktopRail = false;
+  double? _resizedChatListWidth;
+  String? _detailPeer;
+  bool _detailOpen = false;
+  bool _detailBackGesture = false;
   MeshController get controller => widget.controller;
   @override
   void initState() {
@@ -182,7 +223,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     setState(() {
       final profile = controller.active;
       if (profile != _folderProfile) {
+        final previous = _folderProfile;
         _folderProfile = profile;
+        if (_detailOpen &&
+            (previous == null ||
+                profile == null ||
+                radioKey(previous) != radioKey(profile))) {
+          _detailPeer = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted &&
+                controller.active == profile &&
+                _detailPeer == null) {
+              _detailKey.currentState?.popUntil((route) => route.isFirst);
+            }
+          });
+        }
         _resetArchiveVisibility();
         if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
       } else if (controller.cache?.hiddenChats.isNotEmpty != true) {
@@ -233,7 +288,49 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       _exitSearch();
     }
     FocusScope.of(context).unfocus();
-    await showMeshChat(context, controller, peer);
+    await showMeshChat(context, controller, peer, open: _openDetail);
+  }
+
+  void _detailTopChanged(Route<dynamic> route) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _detailObserver.top != route) return;
+      final open = !route.isFirst;
+      if (_detailOpen == open) return;
+      setState(() {
+        _detailOpen = open;
+        if (!open) _detailPeer = null;
+      });
+    });
+  }
+
+  Future<void> _openDetail(
+    WidgetBuilder builder, {
+    String? peerId,
+    bool jump = false,
+  }) async {
+    final detail = _detailKey.currentState;
+    if (detail == null) {
+      await Navigator.of(context)
+          .push<void>(meshPageRoute(context, builder: builder));
+      return;
+    }
+    if (!jump && peerId != null && peerId == _detailPeer) {
+      detail.popUntil(
+        (route) => route.isFirst || route.settings.name == peerId,
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => _detailPeer = peerId);
+    await detail.pushAndRemoveUntil<void>(
+      meshPageRoute<void>(
+        context,
+        builder: builder,
+        settings: RouteSettings(name: peerId),
+        conversationPane: true,
+      ),
+      (route) => route.isFirst,
+    );
   }
 
   Future<void> _openProfile(Peer peer, {bool allowReadOnlyChat = false}) async {
@@ -818,64 +915,143 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final style = MeshStyle.of(context);
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final nativeNavigation = useIosControls;
+    final desktop = meshDesktop(context);
+    final size = MediaQuery.sizeOf(context);
+    final apple = Theme.of(context).platform == TargetPlatform.iOS;
+    final tablet =
+        widget.tabletDisplay || size.shortestSide >= (apple ? 700 : 600);
+    _split =
+        size.width >=
+            (desktop
+                ? 800
+                : apple
+                ? 740
+                : 840) &&
+        (desktop || tablet);
+    _workspaceEnabled |= desktop || _split || widget.tabletDisplay;
+    _desktopRail = desktop && _split;
+    final rail = _desktopRail ? ChatFolderRail.width : 0.0;
+    final divider = _split ? (_desktopRail ? 6.0 : 1.0) : 0.0;
+    final maximum = math.min(480.0, size.width - rail - divider - 400);
+    final sidebarWidth = _split
+        ? (_resizedChatListWidth ?? (size.width - rail) / 3)
+              .clamp(300.0, maximum)
+              .toDouble()
+        : size.width;
+    final sidebarCanGoBack =
+        (_split || !_detailOpen) &&
+        (_searchActive || _editingChats || _showHidden);
+    final sidebarCovered = !_split && _detailOpen;
     return PopScope(
-      canPop: !_searchActive && !_editingChats && !_showHidden,
+      canPop: !sidebarCanGoBack,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (_searchActive) {
-          _exitSearch();
-        } else if (_editingChats) {
-          _toggleChatEditing();
-        } else if (_showHidden) {
-          _showChats(false);
-        }
+        if (!didPop && sidebarCanGoBack) _dismissSidebarMode();
       },
-      child: Scaffold(
-        // The keyboard can resize the content without relocating the navigation.
-        resizeToAvoidBottomInset: false,
-        body: RepaintBoundary(
-          key: _previewBackground,
-          child: SafeArea(
-            top: false,
-            bottom: false,
+      child: CallbackShortcuts(
+        bindings: desktop
+            ? {
+                const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+                    _showWorkspaceSearch,
+                const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+                    _showWorkspaceSearch,
+                const SingleActivator(LogicalKeyboardKey.escape): () {
+                  if (_searchActive || _editingChats || _showHidden) {
+                    _dismissSidebarMode();
+                  } else {
+                    unawaited(_detailKey.currentState?.maybePop());
+                  }
+                },
+              }
+            : const {},
+        child: Focus(
+          autofocus: desktop,
+          child: RepaintBoundary(
+            key: _previewBackground,
             child: Stack(
               children: [
-                Positioned.fill(
-                  bottom: keyboard,
-                  child: IgnorePointer(
-                    ignoring: _tabs.shown != _tabs.selected,
-                    child: FadeTransition(
-                      opacity: _tabs.opacity,
-                      child: _tabs.shown == 0
-                          ? _chatScene(style, keyboard)
-                          : _settings(style),
+                if (_desktopRail)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width: rail,
+                    child: _folderRail(),
+                  ),
+                Positioned(
+                  left: rail,
+                  top: 0,
+                  bottom: 0,
+                  width: sidebarWidth,
+                  child: Offstage(
+                    offstage: sidebarCovered && !_detailBackGesture,
+                    child: ExcludeFocus(
+                      excluding: sidebarCovered,
+                      child: ExcludeSemantics(
+                        excluding: sidebarCovered,
+                        child: IgnorePointer(
+                          ignoring: sidebarCovered,
+                          child: MediaQuery.removePadding(
+                            context: context,
+                            removeLeft: _desktopRail,
+                            removeRight: _split,
+                            child: Builder(builder: _sidebar),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                if (_tabs.shown == 0 && _editingChats && !_searchActive)
+                if (_split)
                   Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: MeshNavigation.bottomContentInset(context),
-                    child: _chatActionsBar(),
-                  )
-                else if (!_searchActive)
+                    top: 0,
+                    bottom: 0,
+                    left: rail + sidebarWidth,
+                    width: divider,
+                    child: _desktopRail
+                        ? ChatWorkspaceResizeHandle(
+                            onResize: (delta) => setState(() {
+                              _resizedChatListWidth = (sidebarWidth + delta)
+                                  .clamp(300.0, maximum)
+                                  .toDouble();
+                            }),
+                          )
+                        : ColoredBox(color: MeshStyle.of(context).separator),
+                  ),
+                if (_workspaceEnabled)
                   Positioned(
-                    left: nativeNavigation ? 0 : 14,
-                    right: nativeNavigation ? 0 : 14,
-                    bottom: MeshNavigation.bottomBarOffset(context),
-                    child: ExcludeSemantics(
-                      excluding: keyboard > 0,
-                      child: IgnorePointer(
-                        ignoring: keyboard > 0,
-                        child: MeshNavigation(
-                          index: _tabs.selected,
-                          unread: controller.unreadTotal,
-                          settingsUnread: controller.unreadOnOtherRadios,
-                          onSelect: _selectTab,
+                    key: const ValueKey('conversation-pane'),
+                    left: _split ? rail + sidebarWidth + divider : 0,
+                    top: 0,
+                    bottom: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      ignoring: !_split && !_detailOpen,
+                      child: MediaQuery.removePadding(
+                        context: context,
+                        removeLeft: _split,
+                        child: ChatWorkspacePane(
+                          split: _split,
+                          visible: ModalRoute.isCurrentOf(context) != false,
+                          child: NavigatorPopHandler<void>(
+                            enabled: _detailOpen && !sidebarCanGoBack,
+                            onPopWithResult: (_) =>
+                                unawaited(_detailKey.currentState?.maybePop()),
+                            child: ScaffoldMessenger(
+                              child: Navigator(
+                                key: _detailKey,
+                                observers: [_detailObserver],
+                                onGenerateRoute: (_) => PageRouteBuilder<void>(
+                                  opaque: false,
+                                  transitionDuration: Duration.zero,
+                                  reverseTransitionDuration: Duration.zero,
+                                  pageBuilder: (context, _, _) =>
+                                      ChatWorkspacePane.of(context)!.split
+                                      ? _noConversation(context)
+                                      : const SizedBox.shrink(),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -888,8 +1064,143 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     );
   }
 
+  void _dismissSidebarMode() {
+    if (_searchActive) {
+      _exitSearch();
+    } else if (_editingChats) {
+      _toggleChatEditing();
+    } else if (_showHidden) {
+      _showChats(false);
+    }
+  }
+
+  void _showWorkspaceSearch() {
+    if (_editingChats) _toggleChatEditing();
+    if (_showHidden) _showChats(false);
+    if (_tabs.selected != 0) _selectTab(0);
+    _enterSearch();
+  }
+
+  Widget _noConversation(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      const MeshChatWallpaper(),
+      Center(
+        child: GlassSurface(
+          radius: 14,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            child: Text(tr(context, 'Выберите чат', 'Select a chat')),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  List<String> _builtInFolders(BuildContext context) => [
+    tr(context, 'Все', 'All'),
+    tr(context, 'Личные', 'Direct'),
+    tr(context, 'Каналы', 'Channels'),
+  ];
+
+  Widget _folderRail() {
+    final labels = [
+      ..._builtInFolders(context),
+      for (final folder in controller.chatFolders) folder.name,
+    ];
+    final unread = controller.cache?.unread;
+    final unreadPeers = controller.cache?.markedUnread;
+    final chats = controller.conversations;
+    return ChatFolderRail(
+      labels: labels,
+      selected: _tabs.selected == 0 ? _chatCategories.selected : null,
+      unread: [
+        for (var i = 0; i < labels.length; i++)
+          chats.where((peer) => _matchesChatTab(peer, i)).fold(0, (
+            count,
+            peer,
+          ) {
+            final value = unread?[peer.id] ?? 0;
+            return count +
+                (value == 0 && unreadPeers?.contains(peer.id) == true
+                    ? 1
+                    : value);
+          }),
+      ],
+      settingsUnread: controller.unreadOnOtherRadios,
+      onFolder: (index) {
+        _dismissSidebarMode();
+        if (_tabs.selected != 0) _selectTab(0);
+        _selectChatTab(index);
+      },
+      onSettings: () {
+        _dismissSidebarMode();
+        _openSettings();
+      },
+    );
+  }
+
+  Widget _sidebar(BuildContext context) {
+    final style = MeshStyle.of(context);
+    final keyboard = !_split || _searchActive
+        ? MediaQuery.viewInsetsOf(context).bottom
+        : 0.0;
+    final nativeNavigation = useIosControls;
+    return Scaffold(
+      // The keyboard can resize the content without relocating the navigation.
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              bottom: keyboard,
+              child: IgnorePointer(
+                ignoring: _tabs.shown != _tabs.selected,
+                child: FadeTransition(
+                  opacity: _tabs.opacity,
+                  child: _tabs.shown == 0
+                      ? _chatScene(style, keyboard)
+                      : _settings(style),
+                ),
+              ),
+            ),
+            if (_tabs.shown == 0 && _editingChats && !_searchActive)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: MeshNavigation.bottomContentInset(context),
+                child: _chatActionsBar(),
+              )
+            else if (!_searchActive && !_desktopRail)
+              Positioned(
+                left: nativeNavigation ? 0 : 14,
+                right: nativeNavigation ? 0 : 14,
+                bottom: MeshNavigation.bottomBarOffset(context),
+                child: ExcludeSemantics(
+                  excluding: keyboard > 0,
+                  child: IgnorePointer(
+                    ignoring: keyboard > 0,
+                    child: MeshNavigation(
+                      index: _tabs.selected,
+                      unread: controller.unreadTotal,
+                      settingsUnread: controller.unreadOnOtherRadios,
+                      onSelect: _selectTab,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   double get _scrollBottom =>
-      MeshNavigation.contentHeight(context) +
+      (_desktopRail && !_editingChats
+          ? 0
+          : MeshNavigation.contentHeight(context)) +
       MeshNavigation.bottomContentInset(context) +
       9;
 
@@ -921,9 +1232,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final normalFieldTop = safe.top + headingHeight + 3;
       final normalCategoriesTop = normalFieldTop + fieldHeight + 9;
       final categoryHeight = ChatFilters.contentHeight(context);
-      final categoriesInChats =
+      final hasChatCategories =
           !_showHidden &&
           (controller.active != null || controller.conversations.isNotEmpty);
+      final categoriesInChats =
+          hasChatCategories && (!_desktopRail || _editingChats);
       final categoriesInSearch =
           controller.peers.isNotEmpty || controller.conversations.isNotEmpty;
       final searchBottom = (keyboard > 0 ? 0 : safe.bottom) + 2;
@@ -960,7 +1273,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 label: _editingChats
                     ? tr(context, 'Готово', 'Done')
                     : tr(context, 'Изм.', 'Edit'),
-                onTap: _removingChats || (!categoriesInChats && !_editingChats)
+                onTap: _removingChats || (!hasChatCategories && !_editingChats)
                     ? null
                     : _toggleChatEditing,
               ),
@@ -998,11 +1311,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               onSelect: (index) => _select(_searchCategories, index),
             )
           : ChatFolderTabs(
-              builtInLabels: [
-                tr(context, 'Все', 'All'),
-                tr(context, 'Личные', 'Direct'),
-                tr(context, 'Каналы', 'Channels'),
-              ],
+              builtInLabels: _builtInFolders(context),
               folders: controller.chatFolders,
               scrollController: _folderTabsScroll,
               selected: _chatCategories.selected,
@@ -1805,12 +2114,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       onTap: () {
                         _dismissSearchKeyboard();
                         controller.rememberSearch(message.chat);
+                        if (_split) _exitSearch();
                         unawaited(
                           openMeshMessage(
                             context,
                             controller: controller,
                             chatId: message.chat,
                             messageId: message.id,
+                            open: _openDetail,
                           ),
                         );
                       },
@@ -1843,10 +2154,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ? '${tr(context, 'Черновик', 'Draft')}: $draft'
         : message?.text ??
               (peer.channel ? tr(context, 'Канал', 'Channel') : '');
+    final current = _split && _detailOpen && _detailPeer == peer.id;
     Widget row(BuildContext rowContext, {bool preview = false}) => InkWell(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       onTap: preview ? null : onTap ?? () => unawaited(_openChat(peer)),
+      onSecondaryTapDown:
+          !preview && !editing && !_searchActive && meshDesktop(context)
+          ? (details) =>
+                unawaited(_showChatContextMenu(peer, details.globalPosition))
+          : null,
       onLongPress: preview || editing || _searchActive
           ? null
           : () async {
@@ -2029,7 +2346,42 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
       ),
     );
-    return Builder(builder: row);
+    final chat = Builder(builder: row);
+    if (!_split || editing) return chat;
+    return Semantics(
+      selected: current,
+      child: Material(
+        color: current ? style.selection : Colors.transparent,
+        child: chat,
+      ),
+    );
+  }
+
+  Future<void> _showChatContextMenu(Peer peer, Offset position) async {
+    final actions = _previewActions(peer, _chatFolder, controller.active);
+    if (actions.isEmpty) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final selection = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromSize(
+        overlay.globalToLocal(position) & Size.zero,
+        overlay.size,
+      ),
+      items: [
+        for (var i = 0; i < actions.length; i++)
+          PopupMenuItem(
+            value: i,
+            child: Text(
+              actions[i].label,
+              style: actions[i].destructive
+                  ? TextStyle(color: MeshStyle.of(context).error)
+                  : null,
+            ),
+          ),
+      ],
+    );
+    if (mounted && selection != null) actions[selection].onTap();
   }
 
   String? get _status => switch (controller.linkState) {
@@ -2188,7 +2540,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             title: tr(context, 'Избранное', 'Saved Messages'),
             icon: Icons.bookmark_border_rounded,
             tint: _blue,
-            onTap: () => unawaited(showSavedChat(context, controller)),
+            onTap: () => unawaited(
+              showSavedChat(context, controller, open: _openDetail),
+            ),
           ),
         ]),
       ],

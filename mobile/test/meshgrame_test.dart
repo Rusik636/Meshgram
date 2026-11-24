@@ -5,9 +5,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' show ImageByteFormat;
+import 'dart:ui' show ImageByteFormat, PointerDeviceKind;
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/rendering.dart'
@@ -50,6 +51,7 @@ import 'package:meshgrame/ui/notification_settings.dart';
 import 'package:meshgrame/ui/node_actions.dart';
 import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/chat_folders.dart';
+import 'package:meshgrame/ui/chat_workspace.dart';
 import 'package:meshgrame/ui/channel_avatars.dart';
 import 'package:meshgrame/ui/emoji_picker.dart';
 import 'package:meshgrame/ui/emoji_text.dart';
@@ -2306,6 +2308,117 @@ void main() {
     variant: const TargetPlatformVariant({
       TargetPlatform.iOS,
       TargetPlatform.android,
+    }),
+  );
+
+  testWidgets(
+    'chat workspace keeps the list and conversation across window resizes',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1150, 820);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      const paneKey = ValueKey('conversation-pane');
+      final pane = find.byKey(paneKey);
+      final chat = find.byType(MeshChatPage);
+      Finder chatButton(String name) => find.descendant(
+        of: chat,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GlassButton && widget.label == name,
+        ),
+      );
+      final trail = find.text('Тропа').first;
+      final mira = find.text('Мира Соколова').first;
+      expect(find.text('Select a chat'), findsOneWidget);
+      expect(
+        tester.getTopLeft(pane).dx,
+        greaterThan(tester.getTopRight(trail).dx),
+      );
+
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        expect(find.byType(ChatFolderRail), findsOneWidget);
+        final before = tester.getTopLeft(pane).dx;
+        await tester.drag(
+          find.byType(ChatWorkspaceResizeHandle),
+          const Offset(50, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(pane).dx, greaterThan(before));
+        await tester.tap(
+          trail,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Pin chat'), findsOneWidget);
+        await tester.tapAt(const Offset(1000, 700));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Done'), findsOneWidget);
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Close search'), findsOneWidget);
+        await tester.tap(find.byTooltip('Close search'));
+        await tester.pumpAndSettle();
+      } else {
+        expect(find.byType(ChatFolderTabs), findsOneWidget);
+      }
+
+      await tester.tap(trail);
+      await tester.pumpAndSettle();
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      expect(mira.hitTestable(), findsOneWidget);
+      await tester.tap(mira);
+      await tester.pumpAndSettle();
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Мира Соколова');
+      final conversation = tester.state(chat);
+
+      tester.view.physicalSize = const Size(590, 820);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(pane).dx, 0);
+      expect(tester.state(chat), same(conversation));
+      expect(chatButton('Back'), findsOneWidget);
+      tester.view.physicalSize = const Size(1150, 820);
+      await tester.pumpAndSettle();
+      expect(tester.state(chat), same(conversation));
+      expect(mira.hitTestable(), findsOneWidget);
+      final close = chatButton('Close chat');
+      if (useIosControls) {
+        final native = find.descendant(
+          of: close,
+          matching: find.byType(IosControl),
+        );
+        tester.widget<IosControl>(native).onSelect!(0);
+      } else {
+        await tester.tap(close);
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Select a chat'), findsOneWidget);
+      expect(chat, findsNothing);
+      expect(mira.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+      TargetPlatform.windows,
     }),
   );
 
