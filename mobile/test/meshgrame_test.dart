@@ -2415,17 +2415,32 @@ void main() {
         tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
       }
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 120));
+      final settingsFade = find.byKey(const ValueKey('settings-fade'));
       expect(
-        find.descendant(of: pane, matching: find.text('Add a radio')),
+        tester.widget<FadeTransition>(settingsFade).opacity.value,
+        inExclusiveRange(0, 1),
+      );
+      expect(trail, findsWidgets);
+      await tester.pump(const Duration(milliseconds: 400));
+      final settings = find.byType(ProfilePage);
+      final title = find.descendant(
+        of: settings,
+        matching: find.text('Settings'),
+      );
+      expect(
+        find.descendant(of: settings, matching: find.text('Add a radio')),
         findsOneWidget,
       );
-      final title = find.descendant(of: pane, matching: find.text('Settings'));
+      expect(
+        tester.getTopRight(settings).dx,
+        lessThanOrEqualTo(tester.getTopLeft(pane).dx),
+      );
       expect(
         DefaultTextStyle.of(tester.element(title)).style.decoration,
         isNot(TextDecoration.underline),
       );
-      expect(trail.hitTestable(), findsOneWidget);
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
       if (desktop) {
         await tester.tap(find.descendant(of: rail, matching: find.text('All')));
       } else {

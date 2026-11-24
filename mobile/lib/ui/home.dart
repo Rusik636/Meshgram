@@ -94,7 +94,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     }
   }
 
-  late final _tabs = MeshNavigationFade(this);
+  late final _settingsFade = AnimationController(vsync: this);
+  int _selectedTab = 0;
   late final _chatCategories = MeshNavigationFade(this);
   late final _searchCategories = MeshNavigationFade(this);
   String? _revealedRadio;
@@ -139,7 +140,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   String? _detailPeer;
   bool _detailOpen = false;
   bool _detailBackGesture = false;
-  Route<void>? _workspaceSettings;
+  Route<void>? _settingsDetail;
   Route<void>? _workspaceConversation;
   MeshController get controller => widget.controller;
   @override
@@ -239,7 +240,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 controller.active == profile &&
                 _detailPeer == null) {
               final detail = _detailKey.currentState;
-              if (_workspaceSettings?.isActive == true) {
+              if (_settingsDetail?.isActive == true) {
                 if (_workspaceConversation case final route?
                     when route.isActive) {
                   detail?.removeRoute(route);
@@ -269,43 +270,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _searchMotion.dispose();
     _archiveDwell?.cancel();
     _archiveProgress.dispose();
-    _tabs.opacity.dispose();
+    _settingsFade.dispose();
     _chatCategories.opacity.dispose();
     _searchCategories.opacity.dispose();
     super.dispose();
   }
 
-  void _openSettings() {
-    if (_flashingFirmware) return;
-    if (_workspaceEnabled && _detailKey.currentState != null) {
-      final detail = _detailKey.currentState!;
-      if (_workspaceSettings case final existing? when existing.isActive) {
-        detail.popUntil((route) => route.isFirst || route == existing);
-        return;
-      }
-      final route = meshPageRoute<void>(
-        context,
-        conversationPane: true,
-        builder: (panelContext) => Scaffold(
-          body: ListenableBuilder(
-            listenable: controller,
-            builder: (context, _) =>
-                _settings(MeshStyle.of(context), panelContext: panelContext),
-          ),
-        ),
-      );
-      setState(() => _workspaceSettings = route);
-      unawaited(
-        detail.push(route).whenComplete(() {
-          if (mounted && _workspaceSettings == route) {
-            setState(() => _workspaceSettings = null);
-          }
-        }),
-      );
-      return;
-    }
-    _selectTab(1);
-  }
+  void _openSettings() => _selectTab(1);
 
   bool get _flashingFirmware =>
       _detailObserver.top?.settings.name == firmwareBoardRoute &&
@@ -313,10 +284,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) async {
     if (_flashingFirmware) return null;
-    final inWorkspace = _split || _workspaceSettings?.isActive == true;
-    final navigation =
-        (inWorkspace ? _detailKey.currentState : null) ?? Navigator.of(context);
-    return navigation.push<T>(route);
+    final detail = _split ? _detailKey.currentState : null;
+    if (detail == null) return Navigator.of(context).push<T>(route);
+    if (_selectedTab == 1 && _settingsDetail?.isActive != true) {
+      _settingsDetail = route;
+    }
+    try {
+      return await detail.push<T>(route);
+    } finally {
+      if (_settingsDetail == route) _settingsDetail = null;
+    }
   }
 
   Future<void> _openWorkspacePage(WidgetBuilder builder) async {
@@ -326,23 +303,22 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }
 
   void _selectTab(int index) {
+    if (_flashingFirmware || index == _selectedTab) return;
     FocusScope.of(context).unfocus();
-    if (_workspaceEnabled && _detailKey.currentState != null) {
-      if (index == 1) {
-        _openSettings();
-        return;
-      }
-      _closeWorkspaceSettings();
+    _dismissSidebarMode();
+    if (index == 0 && _settingsDetail?.isActive == true) {
+      _detailKey.currentState?.popUntil(
+        (route) => route.isFirst || route == _workspaceConversation,
+      );
     }
-    _select(_tabs, index);
-  }
-
-  void _closeWorkspaceSettings() {
-    if (_flashingFirmware || _workspaceSettings?.isActive != true) return;
-    _detailKey.currentState?.popUntil(
-      (route) =>
-          route.isFirst ||
-          (_detailPeer != null && route.settings.name == _detailPeer),
+    setState(() => _selectedTab = index);
+    final duration = meshMotion(context);
+    unawaited(
+      _settingsFade.animateTo(
+        index.toDouble(),
+        duration: duration,
+        curve: Curves.easeInOutCubic,
+      ),
     );
   }
 
@@ -1014,6 +990,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         (_split || !_detailOpen) &&
         (_searchActive || _editingChats || _showHidden);
     final sidebarCovered = !_split && _detailOpen;
+    final top = _detailObserver.top;
+    final detailMotion = top is TransitionRoute<dynamic> ? top.animation : null;
     return PopScope(
       canPop: !sidebarCanGoBack,
       onPopInvokedWithResult: (didPop, _) {
@@ -1054,8 +1032,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   top: 0,
                   bottom: 0,
                   width: sidebarWidth,
-                  child: Offstage(
-                    offstage: sidebarCovered && !_detailBackGesture,
+                  child: AnimatedBuilder(
+                    animation:
+                        detailMotion ?? const AlwaysStoppedAnimation(1.0),
+                    builder: (context, child) => Offstage(
+                      offstage:
+                          sidebarCovered &&
+                          !_detailBackGesture &&
+                          detailMotion?.isCompleted == true,
+                      child: child,
+                    ),
                     child: ExcludeFocus(
                       excluding: sidebarCovered,
                       child: ExcludeSemantics(
@@ -1158,7 +1144,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   void _showWorkspaceSearch() {
     if (_editingChats) _toggleChatEditing();
     if (_showHidden) _showChats(false);
-    if (_tabs.selected != 0) _selectTab(0);
+    if (_selectedTab != 0) _selectTab(0);
     _enterSearch();
   }
 
@@ -1194,8 +1180,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final chats = controller.conversations;
     return ChatFolderRail(
       labels: labels,
-      selected: _tabs.selected == 0 ? _chatCategories.selected : null,
-      settingsSelected: _workspaceSettings?.isActive == true,
+      selected: _selectedTab == 0 ? _chatCategories.selected : null,
+      settingsSelected: _selectedTab == 1,
       unread: [
         for (var i = 0; i < labels.length; i++)
           chats.where((peer) => _matchesChatTab(peer, i)).fold(0, (
@@ -1213,8 +1199,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       onFolder: (index) {
         if (_flashingFirmware) return;
         _dismissSidebarMode();
-        _closeWorkspaceSettings();
-        if (_tabs.selected != 0) _selectTab(0);
+        if (_selectedTab != 0) _selectTab(0);
         _selectChatTab(index);
       },
       onSettings: () {
@@ -1230,7 +1215,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ? MediaQuery.viewInsetsOf(context).bottom
         : 0.0;
     final nativeNavigation = useIosControls;
-    final showingChats = _tabs.shown == 0;
+    final showingChats = _selectedTab == 0;
     return Scaffold(
       // The keyboard can resize the content without relocating the navigation.
       resizeToAvoidBottomInset: false,
@@ -1241,29 +1226,49 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           children: [
             Positioned.fill(
               bottom: keyboard,
-              child: IgnorePointer(
-                ignoring: _tabs.shown != _tabs.selected,
-                child: FadeTransition(
-                  opacity: _tabs.opacity,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Keep the list's scroll position attached to the header
-                      // while settings is visible.
-                      Offstage(
-                        offstage: !showingChats,
-                        child: ExcludeFocus(
+              child: AnimatedBuilder(
+                animation: _settingsFade,
+                child: _chatScene(style, keyboard),
+                builder: (context, chats) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Keep the list and its scroll controller attached.
+                    Offstage(
+                      offstage: _settingsFade.value == 1,
+                      child: ExcludeFocus(
+                        excluding: !showingChats,
+                        child: ExcludeSemantics(
                           excluding: !showingChats,
-                          child: _chatScene(style, keyboard),
+                          child: IgnorePointer(
+                            ignoring: !showingChats,
+                            child: chats,
+                          ),
                         ),
                       ),
-                      if (!showingChats) _settings(style),
-                    ],
-                  ),
+                    ),
+                    if (!showingChats || _settingsFade.value > 0)
+                      FadeTransition(
+                        key: const ValueKey('settings-fade'),
+                        opacity: _settingsFade,
+                        child: ExcludeFocus(
+                          excluding: showingChats,
+                          child: ExcludeSemantics(
+                            excluding: showingChats,
+                            child: IgnorePointer(
+                              ignoring: showingChats,
+                              child: ColoredBox(
+                                color: style.canvas,
+                                child: _settings(style),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
-            if (_tabs.shown == 0 && _editingChats && !_searchActive)
+            if (showingChats && _editingChats && !_searchActive)
               Positioned(
                 left: 12,
                 right: 12,
@@ -1280,9 +1285,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   child: IgnorePointer(
                     ignoring: keyboard > 0,
                     child: MeshNavigation(
-                      index: _split && _workspaceSettings?.isActive == true
-                          ? 1
-                          : _tabs.selected,
+                      index: _selectedTab,
                       unread: controller.unreadTotal,
                       settingsUnread: controller.unreadOnOtherRadios,
                       onSelect: _selectTab,
@@ -2499,7 +2502,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     LinkState.offline => tr(context, 'Не подключено', 'Disconnected'),
   };
 
-  Widget _settings(MeshStyle style, {BuildContext? panelContext}) {
+  Widget _settings(MeshStyle style) {
     final profile = controller.profileName.isEmpty
         ? appName
         : controller.profileName;
@@ -2516,13 +2519,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           active?.name ?? tr(context, 'Локальный профиль', 'Local profile'),
       avatar: MeshAvatar(profile, size: 90),
       avatarSize: 90,
-      leading: panelContext == null
-          ? null
-          : GlassButton(
-              icon: Icons.arrow_back_rounded,
-              label: tr(context, 'Назад', 'Back'),
-              onTap: () => Navigator.of(panelContext).maybePop(),
-            ),
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top,
         bottom: _scrollBottom,

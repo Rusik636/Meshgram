@@ -20,23 +20,63 @@ PageRoute<T> meshPageRoute<T>(
     ? _MeshCupertinoRoute<T>(
         builder: builder,
         settings: settings,
+        duration: _pageMotion(context),
         useNativeSnapshot:
             !conversationPane && ChatWorkspacePane.of(context) == null,
       )
-    : MaterialPageRoute<T>(
+    : _MeshFadeRoute<T>(
         builder: builder,
         settings: settings,
-        allowSnapshotting: false,
+        duration: _pageMotion(context),
       );
+
+Duration _pageMotion(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context)
+    ? Duration.zero
+    : const Duration(milliseconds: 240);
+
+Widget _fadePage(Animation<double> animation, Widget child) => FadeTransition(
+  opacity: animation.drive(CurveTween(curve: Curves.easeInOutCubic)),
+  child: child,
+);
+
+class _MeshFadeRoute<T> extends MaterialPageRoute<T> {
+  _MeshFadeRoute({
+    required super.builder,
+    super.settings,
+    required this.duration,
+  }) : super(allowSnapshotting: false);
+
+  final Duration duration;
+
+  @override
+  Duration get transitionDuration => duration;
+
+  @override
+  Duration get reverseTransitionDuration => duration;
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition => null;
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => _fadePage(animation, child);
+}
 
 class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
   _MeshCupertinoRoute({
     required super.builder,
     required super.settings,
+    required this.duration,
     required this.useNativeSnapshot,
   }) : super(allowSnapshotting: false);
 
   final bool useNativeSnapshot;
+  final Duration duration;
   static const _channel = MethodChannel('meshgrame/back_swipe');
   static int _nextSnapshotId = 0;
   final _snapshot = ValueNotifier<_SnapshotPhase>(_SnapshotPhase.idle);
@@ -152,13 +192,11 @@ class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
     super.dispose();
   }
 
-  // Tap navigation swaps the two screens in one frame, keeping UIKit views
-  // from both pages out of the same animated compositor stack.
   @override
-  Duration get transitionDuration => Duration.zero;
+  Duration get transitionDuration => duration;
 
   @override
-  Duration get reverseTransitionDuration => Duration.zero;
+  Duration get reverseTransitionDuration => duration;
 
   @override
   bool didPop(T? result) {
@@ -195,19 +233,24 @@ class _MeshCupertinoRoute<T> extends CupertinoPageRoute<T> {
     );
     if (cupertino is! CupertinoPageTransition) return cupertino;
     return ClipRect(
-      child: ValueListenableBuilder(
-        valueListenable: _snapshot,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          _snapshot,
+          navigator?.userGestureInProgressNotifier,
+        ]),
         // Keep the stock edge recognizer mounted even while the page is hidden.
         child: cupertino.child,
-        builder: (_, phase, gestureDetector) => SlideTransition(
-          position: phase == _SnapshotPhase.idle
-              ? animation.drive(
-                  Tween(begin: const Offset(1, 0), end: Offset.zero),
-                )
-              : const AlwaysStoppedAnimation(Offset.zero),
-          textDirection: Directionality.of(context),
-          child: gestureDetector,
-        ),
+        builder: (_, gestureDetector) => popGestureInProgress
+            ? SlideTransition(
+                position: _snapshot.value == _SnapshotPhase.idle
+                    ? animation.drive(
+                        Tween(begin: const Offset(1, 0), end: Offset.zero),
+                      )
+                    : const AlwaysStoppedAnimation(Offset.zero),
+                textDirection: Directionality.of(context),
+                child: gestureDetector,
+              )
+            : _fadePage(animation, gestureDetector!),
       ),
     );
   }
