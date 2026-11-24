@@ -7764,6 +7764,93 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets(
+    'Android fills folder slots and animates selection without splash',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      const labels = ['All', 'DM', 'Ops'];
+      late StateSetter updateTabs;
+      var selected = 0;
+      var folders = <ChatFolder>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (_, setState) {
+                updateTabs = setState;
+                return ChatFolderTabs(
+                  builtInLabels: labels,
+                  folders: folders,
+                  scrollController: scrollController,
+                  selected: selected,
+                  editing: false,
+                  onSelect: (index) => setState(() => selected = index),
+                  onReorder: (_, _) {},
+                  onEdit: (_) {},
+                  onDelete: (_) {},
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+      final indicator = find.byKey(const ValueKey('chat-folder-indicator'));
+      Finder tab(String label) =>
+          find.ancestor(of: find.text(label), matching: find.byType(InkWell));
+
+      expect(scrollController.position.maxScrollExtent, 0);
+      expect(
+        tester.getTopLeft(tab(labels.first)).dx,
+        tester.getTopLeft(scroll).dx,
+      );
+      expect(
+        tester.getTopRight(tab(labels.last)).dx,
+        tester.getTopRight(scroll).dx,
+      );
+      expect(
+        tester.getSize(tab('DM')).width,
+        closeTo(tester.getSize(tab('All')).width, .01),
+      );
+      final target = tester.widget<InkWell>(tab('Ops'));
+      expect(target.splashFactory, NoSplash.splashFactory);
+      expect(target.highlightColor, Colors.transparent);
+
+      final start = tester.getCenter(indicator).dx;
+      final finish = tester.getCenter(tab('Ops')).dx;
+      await tester.tap(find.text('Ops'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(tester.getCenter(indicator).dx, inExclusiveRange(start, finish));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(indicator).dx, closeTo(finish, .01));
+
+      updateTabs(() {
+        folders = [
+          for (var i = 0; i < 4; i++)
+            ChatFolder(
+              id: '$i',
+              name: 'Field survey group $i',
+              chats: const {},
+            ),
+        ];
+      });
+      await tester.pumpAndSettle();
+      expect(scrollController.position.maxScrollExtent, greaterThan(0));
+      await tester.drag(scroll, const Offset(-240, 0));
+      await tester.pumpAndSettle();
+      expect(scrollController.offset, greaterThan(0));
+      expect(selected, 2);
+      await tester.pumpWidget(const SizedBox());
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
   testWidgets('iOS scrolls folder tabs without changing the selection', (
     tester,
   ) async {

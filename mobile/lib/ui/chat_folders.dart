@@ -106,6 +106,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
   );
   bool _revealSelected = false;
 
+  bool get _android => Theme.of(context).platform == TargetPlatform.android;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -153,6 +155,20 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     });
     painter.dispose();
     return widths;
+  }
+
+  List<double> _fillTabWidths(List<double> minimums, double available) {
+    var remainingWidth = available;
+    var remainingTabs = minimums.length;
+    for (final minimum in [...minimums]..sort((a, b) => b.compareTo(a))) {
+      final equalWidth = remainingWidth / remainingTabs;
+      if (minimum <= equalWidth) {
+        return [for (final width in minimums) math.max(width, equalWidth)];
+      }
+      remainingWidth -= minimum;
+      remainingTabs--;
+    }
+    return minimums;
   }
 
   Widget _nativeTabs(double height) {
@@ -333,6 +349,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
           : null,
       child: InkWell(
         borderRadius: BorderRadius.circular(32),
+        splashFactory: _android ? NoSplash.splashFactory : null,
+        highlightColor: _android ? Colors.transparent : null,
         onTap: rearranging && selected
             ? () => widget.onEdit(folder.id)
             : () => widget.onSelect(index),
@@ -350,7 +368,13 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     );
     return Padding(
       key: folder == null ? null : ValueKey(folder.id),
-      padding: const EdgeInsetsDirectional.only(end: _gap),
+      padding: EdgeInsetsDirectional.only(
+        end:
+            _android &&
+                index == widget.builtInLabels.length + widget.folders.length - 1
+            ? 0
+            : _gap,
+      ),
       child: SizedBox(
         width: width,
         child: rearranging
@@ -414,6 +438,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
 
   Widget _flutterTabs(double height) {
     final style = MeshStyle.of(context);
+    final android = _android;
+    final motion = meshMotion(context);
     return SizedBox(
       height: height,
       child: LayoutBuilder(
@@ -424,7 +450,14 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
             for (final folder in widget.folders) folder.name,
           ];
           final maxWidth = math.max(48.0, constraints.maxWidth);
-          final widths = _tabWidths(labels, maxWidth);
+          final minimums = _tabWidths(labels, maxWidth);
+          final available = constraints.maxWidth - _gap * (labels.length - 1);
+          final filled =
+              android &&
+              minimums.fold(0.0, (sum, width) => sum + width) <= available;
+          final widths = filled
+              ? _fillTabWidths(minimums, available)
+              : minimums;
           final selected = widget.selected.clamp(0, labels.length - 1);
           final start = widths
               .take(selected)
@@ -461,19 +494,33 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                       clipBehavior: Clip.none,
                       children: [
                         AnimatedPositionedDirectional(
-                          duration: meshMotion(context),
-                          curve: Curves.easeOutCubic,
+                          duration: android && motion != Duration.zero
+                              ? const Duration(milliseconds: 280)
+                              : motion,
+                          curve: android
+                              ? Curves.easeInOutCubic
+                              : Curves.easeOutCubic,
                           start: start,
                           top: 4,
                           bottom: 4,
                           width: widths[selected],
-                          child: GlassSurface(
-                            key: const ValueKey('chat-folder-indicator'),
-                            nativeButtonMaterial: true,
-                            radius: height / 2,
-                            color: style.field,
-                            child: const SizedBox.expand(),
-                          ),
+                          child: android
+                              ? DecoratedBox(
+                                  key: const ValueKey('chat-folder-indicator'),
+                                  decoration: BoxDecoration(
+                                    color: style.selection,
+                                    borderRadius: BorderRadius.circular(
+                                      height / 2,
+                                    ),
+                                  ),
+                                )
+                              : GlassSurface(
+                                  key: const ValueKey('chat-folder-indicator'),
+                                  nativeButtonMaterial: true,
+                                  radius: height / 2,
+                                  color: style.field,
+                                  child: const SizedBox.expand(),
+                                ),
                         ),
                       ],
                     ),
@@ -484,6 +531,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                 controller: widget.scrollController,
                 primary: false,
                 scrollDirection: Axis.horizontal,
+                physics: filled ? const NeverScrollableScrollPhysics() : null,
                 slivers: [
                   SliverToBoxAdapter(
                     child: Row(
