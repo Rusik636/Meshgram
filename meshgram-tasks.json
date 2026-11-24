@@ -2921,6 +2921,80 @@
           "result": "Добавлены проекты Flutter. Компиляция и нативная проверка требуют соответствующих хостов. На Linux прямое подключение по TCP предусмотрено с ручным вводом адреса."
         }
       ]
+    },
+    {
+      "id": "49",
+      "parent_id": null,
+      "title": "Положение списка после возврата из настроек",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/49-chat-header-restore",
+      "depends_on": [
+        "46",
+        "47"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Положение списка и панели папок согласовано после переключения между чатами и настройками.",
+        "Первый чат остаётся под панелью папок после возврата при свёрнутом поиске."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-after-settings-106.png",
+          "result": "При свёрнутом поиске повторный вход возвращает список и папки на прежние позиции."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-chat-after-settings-106.png",
+          "result": "Проверены координаты первого чата и панели до и после перехода."
+        },
+        {
+          "kind": "check",
+          "result": "Регрессионный тест воспроизводил смещение панели на 57 логических пикселей на iOS и Android. После исправления тест проходит на обеих платформах. Всего 254 теста Flutter и статический анализ прошли."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (106) установлена и запущена."
+        },
+        {
+          "kind": "build",
+          "device": "Android",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-106-arm64.apk",
+          "result": "Номер APK 106 подтверждён. Redmi отсутствовал в ADB."
+        }
+      ]
+    },
+    {
+      "id": "50",
+      "parent_id": null,
+      "title": "Зона нажатия предупреждения повторной отправки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/50-retry-touch-area",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Вокруг значка повторной отправки есть невидимая область нажатия 48 × 48.",
+        "Действие доступно для экранного диктора и срабатывает для текста, одиночного эмодзи и координат."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тесты нажимают на 18 логических пикселей выше центра 15-пиксельного значка. Для текста, эмодзи и координат отправка повторяется через тестовый транспорт, черновик сохраняется, после подтверждения действие исчезает."
+        },
+        {
+          "kind": "check",
+          "result": "254 теста Flutter и статический анализ прошли."
+        }
+      ]
     }
   ]
 }
