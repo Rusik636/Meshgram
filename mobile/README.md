@@ -37,7 +37,7 @@
 
 Проект использует Flutter 3.47.9. `flutter test` проверяет протокольные кадры, заменяемость адаптера, раздельную историю раций и основные переходы. `flutter build apk --release --target-platform android-arm64` собирает тестовый APK. Для установки на iOS используется development-подпись Xcode с идентификатором `dev.meshgrame.client`.
 
-Для настольной сборки запустите `flutter build macos`, `flutter build windows` или `flutter build linux` на соответствующей ОС. На macOS для сборки USB-библиотеки через CocoaPods установите `automake` и GNU `libtool`. В Linux адрес рации для Wi-Fi вводится вручную.
+Для настольной сборки запустите `flutter build macos`, `flutter build windows` или `flutter build linux` на соответствующей ОС. В Linux адрес рации для Wi-Fi вводится вручную.
 
 Флаг `--dart-define=MESHGRAME_PREVIEW=true` используется для отдельной сборки макетов. В обычной сборке список заполняется после подключения своих устройств.
 

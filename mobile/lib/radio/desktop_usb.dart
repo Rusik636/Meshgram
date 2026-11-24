@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_libserialport/flutter_libserialport.dart';
+import 'package:libserialport_plus/libserialport_plus.dart';
 
 import '../mesh/network.dart';
 import 'framed_radio_link.dart';
@@ -20,22 +20,20 @@ class DesktopUsbTransport implements RadioUsbTransport {
   List<UsbPort> ports() {
     if (!supported) return const [];
     final result = <UsbPort>[];
-    for (final path in SerialPort.availablePorts) {
+    for (final path in SerialPort.getAvailablePorts()) {
       SerialPort? port;
       try {
         port = SerialPort(path);
-        if (port.transport == SerialPortTransport.usb ||
+        final info = port.getInfo();
+        if (info.transport == SerialPortTransport.usb ||
             path.startsWith('/dev/ttyACM') ||
             path.startsWith('/dev/ttyUSB') ||
             path.startsWith('/dev/cu.usb') ||
             path.startsWith('/dev/cu.SLAB_USB')) {
-          final name = port.productName ?? port.description;
-          result.add((
-            path: path,
-            name: name?.trim().isNotEmpty == true ? name! : path,
-          ));
+          final name = info.usbProduct ?? info.description;
+          result.add((path: path, name: name.trim().isNotEmpty ? name : path));
         }
-      } on SerialPortError {
+      } on SerialPortException {
         // A device may disappear between listing ports and reading metadata.
         continue;
       } finally {
@@ -69,46 +67,53 @@ class DesktopUsbTransport implements RadioUsbTransport {
   Future<RadioLink> connect(String path, UsbRadioProtocol protocol) async {
     _reserve(path);
     SerialPort? port;
+    var opened = false;
     try {
       port = SerialPort(path);
-      if (!port.openReadWrite()) {
-        throw SerialPort.lastError ?? StateError('Could not open $path');
-      }
-      final config = SerialPortConfig()
-        ..baudRate = protocol.baudRate
-        ..bits = 8
-        ..parity = SerialPortParity.none
-        ..stopBits = 1
-        ..setFlowControl(SerialPortFlowControl.none);
-      try {
-        port.config = config;
-      } finally {
-        config.dispose();
-      }
-      final io = _SerialPortStream(port, () => _leased.remove(path));
+      port.open();
+      opened = true;
+      port.setConfig(
+        SerialPortConfig(
+          baudRate: protocol.baudRate,
+          bits: 8,
+          parity: SerialPortParity.none,
+          stopBits: 1,
+          rts: SerialPortRts.off,
+          cts: SerialPortCts.ignore,
+          dsr: SerialPortDsr.ignore,
+          xonXoff: SerialPortXonXoff.disabled,
+        ),
+      );
+      final io = _SerialPortStream(port, path, () => _leased.remove(path));
       return FramedRadioLink(protocol.framing, io.input, io.write, io.close);
     } catch (_) {
-      if (port?.isOpen == true) port!.close();
-      port?.dispose();
-      _leased.remove(path);
+      try {
+        if (opened) port!.close();
+      } on SerialPortException {
+        // Preserve the connection error if the device was unplugged.
+      } finally {
+        port?.dispose();
+        _leased.remove(path);
+      }
       rethrow;
     }
   }
 }
 
 class _SerialPortStream {
-  _SerialPortStream(this.port, this.release) {
+  _SerialPortStream(this.port, this.path, this.release) {
     _poll = Timer.periodic(const Duration(milliseconds: 20), (_) => _read());
     _presence = Timer.periodic(const Duration(seconds: 2), (_) {
       try {
-        if (!SerialPort.availablePorts.contains(port.name)) close();
-      } on SerialPortError {
+        if (!SerialPort.getAvailablePorts().contains(path)) close();
+      } on SerialPortException {
         close();
       }
     });
   }
 
   final SerialPort port;
+  final String path;
   final void Function() release;
   final _input = StreamController<Uint8List>();
   late final Timer _poll, _presence;
@@ -117,14 +122,9 @@ class _SerialPortStream {
 
   void _read() {
     try {
-      final available = port.bytesAvailable;
-      if (available < 0) {
-        close();
-      } else if (available > 0) {
-        final bytes = port.read(available.clamp(1, 8192));
-        if (bytes.isNotEmpty) _input.add(bytes);
-      }
-    } on SerialPortError {
+      final bytes = port.read(4096, timeout: -1);
+      if (bytes.isNotEmpty) _input.add(bytes);
+    } on SerialPortException {
       close();
     }
   }
@@ -135,10 +135,10 @@ class _SerialPortStream {
     var offset = 0;
     while (offset < data.length) {
       if (_closed) throw StateError('USB port was disconnected');
-      final count = port.write(Uint8List.sublistView(data, offset));
-      if (count < 0) {
-        throw SerialPort.lastError ?? StateError('USB write failed');
-      }
+      final count = port.write(
+        Uint8List.sublistView(data, offset),
+        timeout: -1,
+      );
       offset += count;
       if (offset == data.length) return;
       if (elapsed.elapsed >= const Duration(seconds: 3)) {
@@ -155,6 +155,8 @@ class _SerialPortStream {
     _presence.cancel();
     try {
       port.close();
+    } on SerialPortException {
+      // An unplugged serial port can fail to close.
     } finally {
       port.dispose();
       release();
