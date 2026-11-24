@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import 'style.dart';
+import 'macos_glass.dart';
 
 bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
   TargetPlatform.macOS ||
@@ -86,78 +87,85 @@ class ChatFolderRail extends StatelessWidget {
       68.0,
       132.0,
     );
-    return ColoredBox(
-      color: style.surface,
-      child: SafeArea(
-        right: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Stack(
-                    children: [
-                      AnimatedPositioned(
-                        key: const ValueKey('folder-rail-indicator'),
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : const Duration(milliseconds: 240),
-                        curve: Curves.easeOutCubic,
-                        top: (selected ?? 0) * row,
-                        left: 0,
-                        right: 0,
-                        height: row - 5,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: style.selection,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+    final content = SafeArea(
+      right: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Stack(
+                  children: [
+                    AnimatedPositioned(
+                      key: const ValueKey('folder-rail-indicator'),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      top: (selected ?? 0) * row,
+                      left: 0,
+                      right: 0,
+                      height: row - 5,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: style.selection,
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
-                      Column(
-                        children: [
-                          for (var index = 0; index < labels.length; index++)
-                            SizedBox(
-                              height: row,
-                              child: _destination(
-                                context,
-                                title: labels[index],
-                                icon: switch (index) {
-                                  0 => Icons.forum_outlined,
-                                  1 => Icons.person_outline_rounded,
-                                  2 => Icons.tag_rounded,
-                                  _ => Icons.folder_outlined,
-                                },
-                                active: index == selected,
-                                count: unread[index],
-                                onTap: () => onFolder(index),
-                              ),
+                    ),
+                    Column(
+                      children: [
+                        for (var index = 0; index < labels.length; index++)
+                          SizedBox(
+                            height: row,
+                            child: _destination(
+                              context,
+                              title: labels[index],
+                              icon: switch (index) {
+                                0 => Icons.forum_outlined,
+                                1 => Icons.person_outline_rounded,
+                                2 => Icons.tag_rounded,
+                                _ => Icons.folder_outlined,
+                              },
+                              active: index == selected,
+                              count: unread[index],
+                              onTap: () => onFolder(index),
                             ),
-                        ],
-                      ),
-                    ],
-                  ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(
-                height: row,
-                child: _destination(
-                  context,
-                  title: tr(context, 'Настройки', 'Settings'),
-                  icon: Icons.settings_outlined,
-                  active: settingsSelected,
-                  count: settingsUnread,
-                  fill: settingsSelected,
-                  onTap: onSettings,
-                ),
+            ),
+            SizedBox(
+              height: row,
+              child: _destination(
+                context,
+                title: tr(context, 'Настройки', 'Settings'),
+                icon: Icons.settings_outlined,
+                active: settingsSelected,
+                count: settingsUnread,
+                fill: settingsSelected,
+                onTap: onSettings,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+    if (!MacGlass.enabled(context)) {
+      return ColoredBox(color: style.surface, child: content);
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        MacGlassBackground(radius: 20, dark: style.dark),
+        content,
+      ],
     );
   }
 
@@ -197,14 +205,14 @@ class ChatFolderRail extends StatelessWidget {
                       child: Icon(icon, color: foreground, size: 24),
                     ),
                     const SizedBox(height: 4),
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: foreground, fontSize: 11),
-                    ),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: foreground, fontSize: 11),
+                      ),
                     ),
                   ],
                 ),

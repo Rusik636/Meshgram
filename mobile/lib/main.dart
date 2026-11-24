@@ -19,10 +19,12 @@ import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
 import 'ui/home.dart';
 import 'ui/legal_consent.dart';
+import 'ui/macos_glass.dart';
 import 'ui/style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MacGlass.initialize();
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }

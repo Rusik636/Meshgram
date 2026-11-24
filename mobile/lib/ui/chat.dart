@@ -3031,6 +3031,7 @@ class _ChatState extends State<MeshChatPage>
             ? editor
             : GlassSurface(
                 radius: 23,
+                nativeDesktopMaterial: true,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
