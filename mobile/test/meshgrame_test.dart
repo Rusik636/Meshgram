@@ -2355,9 +2355,15 @@ void main() {
       );
       expect(materials.map((control) => control.kind), [
         'modalGlass',
-        'button',
+        'tabs',
+        'tabLens',
       ]);
-      expect(materials.last.properties['readOnly'], isTrue);
+      final indicator = materials.elementAt(1);
+      expect(indicator.properties['indicatorOnly'], isTrue);
+      expect(indicator.horizontalDrag, isFalse);
+      expect(indicator.onSelect, isNull);
+      expect(materials.last.horizontalDrag, isFalse);
+      expect(materials.last.onSelect, isNull);
       expect(tester.widget<ChatFolderTabs>(picker).builtInLabels, [
         'All',
         'Direct',
@@ -7637,6 +7643,56 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
+
+  testWidgets('iOS folder scrolling changes selection only on tap', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    controller.saveChatFolder(name: 'Field team', chats: {'node:a'});
+    controller.saveChatFolder(name: 'Survey crew', chats: {'ch:0'});
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+    final tabs = tester.widget<CustomScrollView>(scroll).controller!;
+    int selected() =>
+        tester.widget<ChatFolderTabs>(find.byType(ChatFolderTabs)).selected;
+    Object? lensTap() => tester
+        .widget<IosControl>(
+          find.byWidgetPredicate(
+            (widget) => widget is IosControl && widget.kind == 'tabLens',
+          ),
+        )
+        .properties['tap'];
+    await tester.drag(scroll, const Offset(-510, 0));
+    await tester.pumpAndSettle();
+    expect(tabs.offset, greaterThan(0));
+    expect(selected(), 0);
+    expect(lensTap(), 0);
+    final folder = find.text('Survey crew');
+    expect(folder.hitTestable(), findsOneWidget);
+    await tester.tap(folder);
+    await tester.pumpAndSettle();
+    expect(selected(), 4);
+    expect(lensTap(), 1);
+    await tester.drag(scroll, const Offset(330, 0));
+    await tester.pumpAndSettle();
+    expect(selected(), 4);
+    expect(lensTap(), 1);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
 
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
     testWidgets('chat preview expands from the row on ${platform.name}', (

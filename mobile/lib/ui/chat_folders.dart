@@ -10,6 +10,7 @@ import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import '../mesh/network.dart';
 import '../mesh/store.dart';
 import 'haptics.dart';
+import 'ios_control.dart';
 import 'navigation.dart';
 import 'page_route.dart';
 import 'style.dart';
@@ -96,6 +97,9 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     vsync: this,
     duration: const Duration(milliseconds: 380),
   );
+  int _indicatorTap = 0;
+  bool _lensActive = false;
+  Timer? _lensTimer;
 
   @override
   void didChangeDependencies() {
@@ -122,8 +126,32 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
   @override
   void dispose() {
     _shake.dispose();
+    _lensTimer?.cancel();
     super.dispose();
   }
+
+  void _selectTab(int index) {
+    if (useIosControls && !widget.editing) {
+      _lensTimer?.cancel();
+      setState(() {
+        _indicatorTap++;
+        _lensActive = !MediaQuery.disableAnimationsOf(context);
+      });
+      if (_lensActive) {
+        _lensTimer = Timer(const Duration(milliseconds: 420), () {
+          setState(() => _lensActive = false);
+        });
+      }
+    }
+    widget.onSelect(index);
+  }
+
+  Widget _title(String title, Color color) => Text(
+    title,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: _titleStyle.copyWith(color: color),
+  );
 
   Widget _tab({
     required int index,
@@ -135,12 +163,11 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     final style = MeshStyle.of(context);
     final selected = widget.selected == index;
     final rearranging = widget.editing && folder != null;
-    Widget label = Text(
-      title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: _titleStyle.copyWith(color: selected ? style.accent : style.text),
-    );
+    final usesNativeLens = useIosControls && !widget.editing;
+    Widget label = _title(title, selected ? style.accent : style.text);
+    if (selected && _lensActive && !widget.editing) {
+      label = Opacity(opacity: 0, alwaysIncludeSemantics: true, child: label);
+    }
     if (rearranging && !MediaQuery.disableAnimationsOf(context)) {
       final phase = (folderIndex! % 4) * math.pi / 2;
       label = AnimatedBuilder(
@@ -171,7 +198,11 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
           : null,
       child: InkWell(
         borderRadius: BorderRadius.circular(32),
-        onTap: () => widget.onSelect(index),
+        splashFactory: usesNativeLens ? NoSplash.splashFactory : null,
+        overlayColor: usesNativeLens
+            ? const WidgetStatePropertyAll(Colors.transparent)
+            : null,
+        onTap: () => _selectTab(index),
         onLongPress: folder == null || rearranging
             ? null
             : () => widget.onEdit(folder.id),
@@ -275,92 +306,128 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                 );
               }
 
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (!widget.editing)
-                    IgnorePointer(
-                      child: ListenableBuilder(
-                        listenable: widget.scrollController,
-                        builder: (context, indicator) {
-                          final scroll = widget.scrollController;
-                          final offset = scroll.hasClients
-                              ? scroll.offset
-                              : 0.0;
-                          final rtl =
-                              Directionality.of(context) == TextDirection.rtl;
-                          return Transform.translate(
-                            offset: Offset(rtl ? offset : -offset, 0),
-                            child: indicator,
-                          );
-                        },
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            AnimatedPositionedDirectional(
-                              duration: meshMotion(context),
-                              curve: Curves.easeOutCubic,
-                              start: start,
-                              top: 4,
-                              bottom: 4,
-                              width: widths[selected],
-                              child: GlassSurface(
-                                key: const ValueKey('chat-folder-indicator'),
-                                nativeButtonMaterial: true,
-                                radius: height / 2,
-                                color: style.field,
-                                child: const SizedBox.expand(),
-                              ),
+              final scrollView = CustomScrollView(
+                key: const ValueKey('chat-folder-scroll'),
+                controller: widget.scrollController,
+                primary: false,
+                scrollDirection: Axis.horizontal,
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsetsDirectional.only(start: _padding),
+                    sliver: SliverToBoxAdapter(
+                      child: Row(
+                        children: [
+                          for (var index = 0; index < count; index++)
+                            _tab(
+                              index: index,
+                              width: widths[index],
+                              title: labels[index],
                             ),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
-                  CustomScrollView(
-                    key: const ValueKey('chat-folder-scroll'),
-                    controller: widget.scrollController,
-                    primary: false,
-                    scrollDirection: Axis.horizontal,
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsetsDirectional.only(
-                          start: _padding,
-                        ),
-                        sliver: SliverToBoxAdapter(
-                          child: Row(
-                            children: [
-                              for (var index = 0; index < count; index++)
-                                _tab(
-                                  index: index,
-                                  width: widths[index],
-                                  title: labels[index],
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (widget.editing && widget.folders.isNotEmpty)
-                        SliverReorderableList(
-                          key: const ValueKey('chat-folder-reorder'),
-                          itemBuilder: folderTab,
-                          itemCount: widget.folders.length,
-                          onReorderItem: widget.onReorder,
-                          onReorderStart: (_) =>
-                              unawaited(playMeshHaptic(MeshHaptic.selection)),
-                          proxyDecorator: (child, index, animation) => Material(
-                            color: style.surface,
-                            borderRadius: BorderRadius.circular(height / 2),
-                            child: child,
-                          ),
-                        )
-                      else
-                        SliverList.builder(
-                          itemCount: widget.folders.length,
-                          itemBuilder: folderTab,
-                        ),
-                    ],
                   ),
+                  if (widget.editing && widget.folders.isNotEmpty)
+                    SliverReorderableList(
+                      key: const ValueKey('chat-folder-reorder'),
+                      itemBuilder: folderTab,
+                      itemCount: widget.folders.length,
+                      onReorderItem: widget.onReorder,
+                      onReorderStart: (_) =>
+                          unawaited(playMeshHaptic(MeshHaptic.selection)),
+                      proxyDecorator: (child, index, animation) => Material(
+                        color: style.surface,
+                        borderRadius: BorderRadius.circular(height / 2),
+                        child: child,
+                      ),
+                    )
+                  else
+                    SliverList.builder(
+                      itemCount: widget.folders.length,
+                      itemBuilder: folderTab,
+                    ),
                 ],
+              );
+              final native = useIosControls;
+              final resting = native
+                  ? IosControl(
+                      kind: 'tabs',
+                      properties: {
+                        'indicatorOnly': true,
+                        'labels': const [''],
+                        'index': 0,
+                        'dark': style.dark,
+                        'lensActive': _lensActive,
+                      },
+                    )
+                  : GlassSurface(
+                      radius: height / 2,
+                      color: style.field,
+                      child: const SizedBox.expand(),
+                    );
+              final lens = native && !widget.editing
+                  ? IosControl(
+                      kind: 'tabLens',
+                      properties: {
+                        'tap': _indicatorTap,
+                        'dark': style.dark,
+                        'reduceMotion': MediaQuery.disableAnimationsOf(context),
+                      },
+                    )
+                  : null;
+              return TweenAnimationBuilder<Rect?>(
+                tween: RectTween(
+                  end: Rect.fromLTWH(start, 0, widths[selected], 0),
+                ),
+                duration: meshMotion(context),
+                curve: const Cubic(.22, .88, .31, 1),
+                child: scrollView,
+                builder: (context, frame, scrollView) => ListenableBuilder(
+                  listenable: widget.scrollController,
+                  child: scrollView,
+                  builder: (context, scrollView) {
+                    final scroll = widget.scrollController;
+                    final offset = scroll.hasClients ? scroll.offset : 0.0;
+                    Widget placeIndicator(Widget surface) =>
+                        PositionedDirectional(
+                          start: frame!.left - offset,
+                          top: 4,
+                          bottom: 4,
+                          width: frame.width,
+                          child: IgnorePointer(child: surface),
+                        );
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (!widget.editing) placeIndicator(resting),
+                        scrollView!,
+                        if (lens != null) placeIndicator(lens),
+                        if (lens != null && _lensActive)
+                          PositionedDirectional(
+                            start: start - offset,
+                            top: 0,
+                            bottom: 0,
+                            width: widths[selected],
+                            child: IgnorePointer(
+                              child: ExcludeSemantics(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  child: Center(
+                                    child: _title(
+                                      labels[selected],
+                                      style.accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               );
             },
           ),
