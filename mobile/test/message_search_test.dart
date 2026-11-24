@@ -12,6 +12,8 @@ import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/message_search.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   testWidgets('message filter results and date jump open the exact entries', (
     tester,
@@ -89,7 +91,7 @@ void main() {
     expect(find.text(peer.name), findsNothing);
     expect(find.byKey(const ValueKey(('bubble', 'link'))), findsOneWidget);
     expect(find.byKey(const ValueKey(('bubble', 'location'))), findsOneWidget);
-    await tester.tap(find.byTooltip('Message filters'));
+    await tester.tap(findControl('Message filters'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Links'));
     await tester.tap(find.text('Apply'));
@@ -104,7 +106,7 @@ void main() {
 
     await tester.pumpWidget(page(1, initialSearch: true));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Go to date'));
+    await tester.tap(findControl('Go to date'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();

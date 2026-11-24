@@ -295,8 +295,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
         if (rearranging)
           SizedBox(
             width: 44,
-            child: IconButton(
-              tooltip: tr(
+            child: MeshIconButton(
+              label: tr(
                 context,
                 'Удалить папку $title',
                 'Delete folder $title',

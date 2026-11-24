@@ -287,6 +287,29 @@ class GlassSurface extends StatelessWidget {
   }
 }
 
+class MeshIconButton extends IconButton {
+  const MeshIconButton({
+    super.key,
+    required this.label,
+    required super.icon,
+    required super.onPressed,
+    super.alignment,
+    super.color,
+    super.constraints,
+    super.isSelected,
+    super.onLongPress,
+    super.padding,
+    super.style,
+    super.visualDensity,
+  });
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) =>
+      Semantics(label: label, child: super.build(context));
+}
+
 class GlassButton extends StatelessWidget {
   const GlassButton({
     super.key,
@@ -322,9 +345,8 @@ class GlassButton extends StatelessWidget {
         ),
       );
     }
-    final button = Tooltip(
-      message: label,
-      triggerMode: onLongPress == null ? null : TooltipTriggerMode.manual,
+    final button = Semantics(
+      label: label,
       child: GlassSurface(
         nativeDesktopMaterial: true,
         color: primary ? style.accent : null,
@@ -585,8 +607,8 @@ class MeshAvatar extends StatelessWidget {
     );
     final action = onTap;
     if (action == null) return avatar;
-    return Tooltip(
-      message: tr(context, 'Профиль $name', '$name profile'),
+    return Semantics(
+      label: tr(context, 'Профиль $name', '$name profile'),
       child: InkWell(
         customBorder: const CircleBorder(),
         splashFactory: NoSplash.splashFactory,

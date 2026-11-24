@@ -191,6 +191,7 @@ class ChatFolderRail extends StatelessWidget {
           borderRadius: shape,
           child: InkWell(
             borderRadius: shape,
+            hoverColor: Colors.transparent,
             onTap: onTap,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 60),

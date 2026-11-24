@@ -73,7 +73,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
+  Widget build(BuildContext context) =>
+      Material(type: MaterialType.transparency, child: _layout());
+
+  Widget _layout() => LayoutBuilder(
     builder: (context, constraints) {
       final style = MeshStyle.of(context);
       final android = Theme.of(context).platform == TargetPlatform.android;

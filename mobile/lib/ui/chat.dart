@@ -2161,8 +2161,8 @@ class _ChatState extends State<MeshChatPage>
           prefixIcon: const Icon(Icons.search_rounded),
           hintText: placeholder,
           border: InputBorder.none,
-          suffixIcon: IconButton(
-            tooltip: tr(context, 'Закрыть поиск', 'Close search'),
+          suffixIcon: MeshIconButton(
+            label: tr(context, 'Закрыть поиск', 'Close search'),
             onPressed: _closeSearch,
             icon: const Icon(Icons.close_rounded),
           ),
@@ -2197,8 +2197,8 @@ class _ChatState extends State<MeshChatPage>
               onTap: () => unawaited(_revealMessage(id)),
             ),
           ),
-          IconButton(
-            tooltip: tr(context, 'Открепить', 'Unpin message'),
+          MeshIconButton(
+            label: tr(context, 'Открепить', 'Unpin message'),
             icon: const Icon(Icons.close_rounded, size: 18),
             onPressed: () => widget.controller.setPinnedMessage(peer.id, null),
           ),
@@ -2780,7 +2780,7 @@ class _ChatState extends State<MeshChatPage>
                     child: _measure(
                       _footerKey,
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 7, 12, 4),
+                        padding: const EdgeInsets.fromLTRB(12, 7, 12, 12),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -3151,14 +3151,6 @@ class _ChatState extends State<MeshChatPage>
             ),
           ),
           const SizedBox(width: 9),
-          if (split) ...[
-            GlassButton(
-              icon: Icons.search_rounded,
-              label: tr(context, 'Поиск в чате', 'Search in chat'),
-              onTap: _beginMessageSearch,
-            ),
-            const SizedBox(width: 8),
-          ],
           if (native)
             SizedBox.square(
               dimension: 48,
@@ -3188,8 +3180,8 @@ class _ChatState extends State<MeshChatPage>
               ),
             )
           else
-            IconButton(
-              tooltip: tr(context, 'Профиль чата', 'Chat profile'),
+            MeshIconButton(
+              label: tr(context, 'Профиль чата', 'Chat profile'),
               padding: EdgeInsets.zero,
               onPressed: () => unawaited(_profile(peer)),
               icon: MeshAvatar(
@@ -3698,15 +3690,10 @@ class _RetryMessageArea extends StatelessWidget {
               child: Semantics(
                 button: true,
                 label: label,
-                child: Tooltip(
-                  message: label,
-                  excludeFromSemantics: true,
-                  triggerMode: TooltipTriggerMode.manual,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onTap,
-                    child: const SizedBox.square(dimension: _size),
-                  ),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: const SizedBox.square(dimension: _size),
                 ),
               ),
             ),
@@ -4417,7 +4404,7 @@ class _MessageStamp extends StatelessWidget {
           if (retryAnchor case final anchor?)
             CompositedTransformTarget(link: anchor, child: status)
           else
-            Tooltip(message: stateLabel, child: status),
+            Semantics(label: stateLabel, child: status),
         ],
       ],
     );
@@ -4493,6 +4480,7 @@ class _ChatTitle extends StatelessWidget {
             )
           : GlassSurface(
               radius: 100,
+              nativeDesktopMaterial: true,
               child: InkWell(
                 onTap: onTap,
                 onLongPress: onLongPress,
@@ -4683,9 +4671,9 @@ class _ComposerAccessoryRow extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
+          MeshIconButton(
             constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-            tooltip: accessory.link
+            label: accessory.link
                 ? tr(context, 'Убрать предпросмотр', 'Remove preview')
                 : tr(context, 'Отменить ответ', 'Cancel reply'),
             onPressed: onDismiss,
@@ -5296,8 +5284,8 @@ class _AdminAccessState extends State<_AdminAccessDialog> {
                 'Пароль администратора',
                 'Administrator password',
               ),
-              suffixIcon: IconButton(
-                tooltip: _visible
+              suffixIcon: MeshIconButton(
+                label: _visible
                     ? tr(context, 'Скрыть пароль', 'Hide password')
                     : tr(context, 'Показать пароль', 'Show password'),
                 onPressed: () => setState(() => _visible = !_visible),

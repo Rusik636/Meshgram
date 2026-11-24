@@ -135,8 +135,9 @@ class MeshGrame extends StatelessWidget {
         _ => ThemeMode.system,
       },
       builder: (context, child) {
+        final app = TooltipVisibility(visible: false, child: child!);
         if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-          return child!;
+          return app;
         }
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
@@ -147,7 +148,7 @@ class MeshGrame extends StatelessWidget {
                 ? Brightness.light
                 : Brightness.dark,
           ),
-          child: child!,
+          child: app,
         );
       },
       home: MeshHome(

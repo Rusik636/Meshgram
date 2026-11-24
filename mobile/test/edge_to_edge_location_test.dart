@@ -7,6 +7,8 @@ import 'package:meshgrame/ui/chat_attachments.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/navigation.dart';
 
+import 'find_control.dart';
+
 const _position = (latitude: 55.75, longitude: 49.14);
 const _size = Size(390, 844);
 
@@ -17,7 +19,7 @@ void main() {
     await _open(tester, (context) => openMeshLocation(context, _position));
 
     expect(tester.getRect(find.byType(MeshMap)), Offset.zero & _size);
-    final copy = find.byTooltip('Copy coordinates');
+    final copy = findControl('Copy coordinates');
     final attribution = find.byType(MeshMapAttribution);
     expect(tester.getRect(attribution).bottom, _size.height);
     expect(tester.getRect(copy).bottom, lessThan(_size.height - 34));
@@ -57,12 +59,12 @@ void main() {
     expect(layers.children[1], isA<PositionedDirectional>());
     expect(layers.children[2], isA<Positioned>());
 
-    await tester.tap(find.byTooltip('Expand'));
+    await tester.tap(findControl('Expand'));
     await tester.pumpAndSettle();
     final expanded = tester.getRect(map);
     expect(expanded.bottom, _size.height);
     expect(
-      expanded.contains(tester.getCenter(find.byTooltip('Collapse'))),
+      expanded.contains(tester.getCenter(findControl('Collapse'))),
       isTrue,
     );
     expect(expanded.contains(tester.getCenter(action)), isTrue);

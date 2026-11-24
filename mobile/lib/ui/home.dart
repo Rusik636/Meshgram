@@ -37,7 +37,6 @@ import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
 import 'message_search.dart';
 import 'style.dart';
-import 'usb_radio_page.dart';
 import 'swipe_actions.dart';
 import 'page_route.dart';
 
@@ -2545,19 +2544,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             showChevron: false,
             onTap: busy ? null : _discoverRadios,
           ),
-          if (controller.usbTransport != null)
-            MeshRow(
-              title: tr(context, 'Подключить по USB', 'Connect over USB'),
-              icon: Icons.usb_rounded,
-              tint: _teal,
-              onTap: busy
-                  ? null
-                  : () => unawaited(
-                      _openWorkspacePage(
-                        (_) => UsbRadioPage(controller: controller),
-                      ),
-                    ),
-            ),
           if (controller.usbTransport case final DesktopUsbTransport usb)
             MeshRow(
               title: tr(context, 'Прошивки', 'Firmware'),
@@ -2617,6 +2603,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         _settingsGroup([
           MeshRow(
+            title: tr(context, 'Избранное', 'Saved Messages'),
+            icon: Icons.bookmark_border_rounded,
+            tint: _blue,
+            onTap: () => unawaited(
+              showSavedChat(context, controller, open: _openDetail),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        _settingsGroup([
+          MeshRow(
             title: tr(context, 'Узлы', 'Nodes'),
             icon: Icons.hub_outlined,
             tint: _violet,
@@ -2654,17 +2651,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             tint: _teal,
             onTap: () =>
                 unawaited(_openWorkspacePage((_) => const AboutPage())),
-          ),
-        ]),
-        const SizedBox(height: 14),
-        _settingsGroup([
-          MeshRow(
-            title: tr(context, 'Избранное', 'Saved Messages'),
-            icon: Icons.bookmark_border_rounded,
-            tint: _blue,
-            onTap: () => unawaited(
-              showSavedChat(context, controller, open: _openDetail),
-            ),
           ),
         ]),
       ],

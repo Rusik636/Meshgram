@@ -12,6 +12,8 @@ import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/message_menu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -114,10 +116,10 @@ void main() {
     );
     await tester.tap(find.text(start));
     await tester.pumpAndSettle();
-    final thumbs = find.byTooltip('React 👍');
+    final thumbs = findControl('React 👍');
     expect(
       tester.getCenter(thumbs).dx,
-      lessThan(tester.getCenter(find.byTooltip('React ❤️')).dx),
+      lessThan(tester.getCenter(findControl('React ❤️')).dx),
     );
     await tester.tap(thumbs);
     await tester.pumpAndSettle();
@@ -125,10 +127,10 @@ void main() {
     recent = ['👍🏾', '❤', '🫱🏻‍🫲🏼'];
     await tester.tap(find.text(start));
     await tester.pumpAndSettle();
-    final tone = find.byTooltip('React 👍🏾');
-    final heart = find.byTooltip('React ❤');
-    final handshake = find.byTooltip('React 🫱🏻‍🫲🏼');
-    expect(find.byTooltip('React ❤️'), findsNothing);
+    final tone = findControl('React 👍🏾');
+    final heart = findControl('React ❤');
+    final handshake = findControl('React 🫱🏻‍🫲🏼');
+    expect(findControl('React ❤️'), findsNothing);
     final positions = [
       tone,
       heart,

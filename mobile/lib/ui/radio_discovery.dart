@@ -11,6 +11,7 @@ import '../mesh/network.dart';
 import 'radio_settings.dart';
 import 'style.dart';
 import 'page_route.dart';
+import 'usb_radio_page.dart';
 
 String bluetoothProblemMessage(
   BuildContext context,
@@ -81,6 +82,16 @@ class _RadioDiscoveryState extends State<RadioDiscoveryPage> {
   Future<void> _scan() async {
     setState(() => _failed = null);
     await widget.controller.scan();
+  }
+
+  Future<void> _openUsb() async {
+    final connected = await Navigator.of(context).push<bool>(
+      meshPageRoute<bool>(
+        context,
+        builder: (_) => UsbRadioPage(controller: widget.controller),
+      ),
+    );
+    if (connected == true && mounted) Navigator.of(context).pop();
   }
 
   Future<void> _manualLan(Map<String, LanRadioProtocol> protocols) async {
@@ -411,23 +422,37 @@ class _RadioDiscoveryState extends State<RadioDiscoveryPage> {
                             },
                     ),
                   ),
-                if (protocols.isNotEmpty)
+                if (protocols.isNotEmpty || controller.usbTransport != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                     child: MeshGroup(
                       children: [
-                        MeshRow(
-                          title: tr(
-                            context,
-                            'Подключить по Wi-Fi',
-                            'Connect over Wi-Fi',
+                        if (protocols.isNotEmpty)
+                          MeshRow(
+                            title: tr(
+                              context,
+                              'Подключить по Wi-Fi',
+                              'Connect over Wi-Fi',
+                            ),
+                            icon: Icons.wifi_rounded,
+                            tint: const Color(0xff3276bd),
+                            onTap: _connecting == null
+                                ? () => unawaited(_manualLan(protocols))
+                                : null,
                           ),
-                          icon: Icons.wifi_rounded,
-                          tint: const Color(0xff3276bd),
-                          onTap: _connecting == null
-                              ? () => unawaited(_manualLan(protocols))
-                              : null,
-                        ),
+                        if (controller.usbTransport != null)
+                          MeshRow(
+                            title: tr(
+                              context,
+                              'Подключить по USB',
+                              'Connect over USB',
+                            ),
+                            icon: Icons.usb_rounded,
+                            tint: const Color(0xff168a87),
+                            onTap: _connecting == null
+                                ? () => unawaited(_openUsb())
+                                : null,
+                          ),
                       ],
                     ),
                   ),

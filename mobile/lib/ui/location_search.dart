@@ -91,8 +91,8 @@ class _AttachmentLocationSearchState extends State<_AttachmentLocationSearch> {
                       onTap: () => Navigator.pop(context),
                     )
                   else
-                    IconButton(
-                      tooltip: tr(context, 'Закрыть поиск', 'Close search'),
+                    MeshIconButton(
+                      label: tr(context, 'Закрыть поиск', 'Close search'),
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),

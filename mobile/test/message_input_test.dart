@@ -15,6 +15,8 @@ import 'package:meshgrame/ui/message_links.dart';
 import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   testWidgets('iOS keeps replies and link previews with the same editor', (
     tester,
@@ -69,8 +71,8 @@ void main() {
 
     expect(tester.widget<MessageInput>(input).accessory?.title, 'Route');
     expect(tester.widget<MessageInput>(input).accessory?.link, isTrue);
-    expect(find.byTooltip('Cancel reply'), findsNothing);
-    expect(find.byTooltip('Remove preview'), findsNothing);
+    expect(findControl('Cancel reply'), findsNothing);
+    expect(findControl('Remove preview'), findsNothing);
     expect(tester.getRect(input).bottom, bottom);
     expect(tester.element(editor), same(original));
 
@@ -221,12 +223,12 @@ void main() {
     await tester.drag(find.text(first.text), const Offset(-88, 0));
     await tester.pump();
     expect(mesh.replyDraft(peer.id)?.id, first.id);
-    expect(find.byTooltip('Cancel reply'), findsNothing);
+    expect(findControl('Cancel reply'), findsNothing);
     expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
 
     tester.view.viewInsets = const FakeViewPadding(bottom: 260);
     await tester.pumpAndSettle();
-    final reply = find.byTooltip('Cancel reply');
+    final reply = findControl('Cancel reply');
     expect(reply.hitTestable(), findsOneWidget);
     expect(
       find
@@ -246,7 +248,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getSize(input).height, greaterThan(originalHeight));
     expect(reply, findsNothing);
-    final preview = find.byTooltip('Remove preview');
+    final preview = findControl('Remove preview');
     expect(preview.hitTestable(), findsOneWidget);
     expect(
       find
@@ -285,7 +287,7 @@ void main() {
       const Offset(-88, 0),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Send'));
+    await tester.tap(findControl('Send'));
     await tester.pumpAndSettle();
     expect(mesh.messages(peer.id).last.replyTo, mesh.referenceFor(first));
     expect(mesh.messages(peer.id).last.text, draft);

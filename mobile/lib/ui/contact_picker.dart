@@ -260,7 +260,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
     final placeholder = tr(context, 'Поиск узлов', 'Search nodes');
     const side = 16.0;
     const gap = 6.0;
-    const headingTop = 7.0;
+    const headingTop = 11.0;
     const searchBottomGap = 8.0;
     final headingHeight =
         math.max(
@@ -322,7 +322,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
               child: MeshScrollEdge(top: false, tint: surface),
             ),
             Positioned(
-              top: 0,
+              top: 4,
               left: side + meshSearchButtonSize + 12,
               right: lerpDouble(
                 side + 2 * meshSearchButtonSize + 2 * gap,
@@ -355,7 +355,7 @@ class _AttachmentContactsState extends State<AttachmentContacts>
             Positioned(
               left: side,
               right: side,
-              top: 0,
+              top: 4,
               height: headingHeight,
               child: Row(
                 children: [

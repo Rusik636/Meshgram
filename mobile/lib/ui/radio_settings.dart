@@ -604,10 +604,10 @@ class _RadioSettingsState extends State<RadioSettingsPage> {
         prefixIcon: const Icon(Icons.search_rounded, size: 21),
         suffixIcon: _query.isEmpty
             ? null
-            : IconButton(
+            : MeshIconButton(
                 onPressed: () => setState(_search.clear),
                 icon: const Icon(Icons.close_rounded, size: 18),
-                tooltip: tr(context, 'Очистить поиск', 'Clear search'),
+                label: tr(context, 'Очистить поиск', 'Clear search'),
               ),
         filled: true,
         fillColor: style.searchField,
@@ -1683,8 +1683,8 @@ class _DeviceInfoRow extends StatelessWidget {
               ),
             ),
             if (key != null)
-              IconButton(
-                tooltip: tr(
+              MeshIconButton(
+                label: tr(
                   context,
                   'Скопировать публичный ключ',
                   'Copy public key',

@@ -56,7 +56,7 @@ class _UsbRadioPageState extends State<UsbRadioPage> {
       await widget.controller.connect(radio);
       if (!mounted) return;
       if (widget.controller.isConnectedTo(radio)) {
-        await Navigator.of(context).maybePop();
+        await Navigator.of(context).maybePop(true);
         return;
       }
       setState(

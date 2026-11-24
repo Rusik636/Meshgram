@@ -522,7 +522,11 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let reduced = UIAccessibility.isReduceTransparencyEnabled
     var configuration: UIButton.Configuration
     if #available(iOS 26.0, *), !reduced {
-      configuration = primary ? .prominentGlass() : .glass()
+      if kind == "chatTitle" {
+        configuration = .clearGlass()
+      } else {
+        configuration = primary ? .prominentGlass() : .glass()
+      }
       configuration.background.shadowProperties.opacity = 0
       if primary {
         configuration.baseBackgroundColor = accent

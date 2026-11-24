@@ -281,8 +281,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: tr(context, 'Свернуть эмодзи', 'Collapse emoji'),
+                MeshIconButton(
+                  label: tr(context, 'Свернуть эмодзи', 'Collapse emoji'),
                   onPressed: widget.onCollapse,
                   icon: const Icon(Icons.keyboard_arrow_up_rounded),
                 ),
@@ -296,8 +296,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
               child: Row(
                 children: [
                   for (final category in _categories)
-                    IconButton(
-                      tooltip: category.title(context),
+                    MeshIconButton(
+                      label: category.title(context),
                       isSelected: category == _category,
                       style: IconButton.styleFrom(
                         foregroundColor: category == _category
@@ -380,8 +380,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
                       final entry = emoji[index];
                       final variants = catalog._variants[entry];
                       return Builder(
-                        builder: (context) => IconButton(
-                          tooltip: entry.label(context),
+                        builder: (context) => MeshIconButton(
+                          label: entry.label(context),
                           onPressed: () => _select(
                             entry.glyph,
                             reactionGlyphBounds(context, 24),
@@ -429,8 +429,8 @@ class _ToneMenuState extends State<_ToneMenu> {
   Widget build(BuildContext context) => Wrap(
     children: [
       for (final emoji in widget.choices)
-        IconButton(
-          tooltip: emoji.label(context),
+        MeshIconButton(
+          label: emoji.label(context),
           constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           onPressed: () => Navigator.of(context).pop(emoji.glyph),
           icon: Text(

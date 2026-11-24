@@ -347,13 +347,9 @@ class _MessageMenuState extends State<_MessageMenu> {
     mainAxisSize: MainAxisSize.min,
     children: [
       ListTile(
-        leading: IconButton(
+        leading: MeshIconButton(
           icon: Icon(Icons.arrow_back_rounded, color: style.text, size: 21),
-          tooltip: tr(
-            context,
-            'Назад к меню сообщения',
-            'Back to message menu',
-          ),
+          label: tr(context, 'Назад к меню сообщения', 'Back to message menu'),
           onPressed: () => _show(_MenuPanel.actions),
         ),
         title: Text(
@@ -593,8 +589,8 @@ class _QuickReactions extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final emoji = options[index];
                   return Builder(
-                    builder: (context) => IconButton(
-                      tooltip: '${tr(context, 'Реакция', 'React')} $emoji',
+                    builder: (context) => MeshIconButton(
+                      label: '${tr(context, 'Реакция', 'React')} $emoji',
                       onPressed: () =>
                           onSelect(emoji, reactionGlyphBounds(context, 25)),
                       icon: Text(
@@ -612,8 +608,8 @@ class _QuickReactions extends StatelessWidget {
                 color: style.field,
                 shape: BoxShape.circle,
               ),
-              child: IconButton(
-                tooltip: tr(context, 'Все эмодзи', 'All emoji'),
+              child: MeshIconButton(
+                label: tr(context, 'Все эмодзи', 'All emoji'),
                 onPressed: onExpand,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),

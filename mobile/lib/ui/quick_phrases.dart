@@ -151,7 +151,7 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
         ),
         SizedBox.square(
           dimension: 48,
-          child: IconButton(
+          child: MeshIconButton(
             icon: AnimatedSwitcher(
               duration: reduceMotion
                   ? Duration.zero
@@ -173,7 +173,7 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
                     ),
             ),
             color: style.text,
-            tooltip: tr(
+            label: tr(
               context,
               'Развернуть быстрые фразы',
               'Expand quick phrases',

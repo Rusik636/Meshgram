@@ -416,7 +416,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   }
 
   Widget _locationHeading(String location) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
     child: LayoutBuilder(
       builder: (context, constraints) {
         const buttonSize = 48.0;
@@ -520,7 +520,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     double attributionHeight,
   ) {
     final showingMap = _tab == _AttachmentTab.location;
-    final navigationBottom = MeshTabBar.bottomOffset(context);
+    final navigationBottom = MeshTabBar.bottomOffset(context) + 6;
     final panelExtent = MeshTabBar.heightOf(context) + navigationBottom + 6;
     final footer = math.max(
       MediaQuery.paddingOf(context).bottom,
@@ -599,8 +599,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
           ),
           if (panelProgress > 0)
             PositionedDirectional(
-              start: useIosControls ? 0 : 16,
-              end: useIosControls ? 0 : 16,
+              start: 16,
+              end: 16,
               bottom: navigationBottom - panelExtent * (1 - panelProgress),
               child: IgnorePointer(
                 ignoring: _expanded,

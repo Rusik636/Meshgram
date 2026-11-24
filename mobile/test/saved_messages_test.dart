@@ -12,6 +12,8 @@ import 'package:meshgrame/ui/chat.dart';
 import 'package:meshgrame/ui/radio_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   testWidgets('saved messages survive local history clearing without a radio', (
     tester,
@@ -136,7 +138,7 @@ void main() {
     const note = 'Keep this for later';
     await tester.enterText(find.byType(EditableText), note);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Save note'));
+    await tester.tap(findControl('Save note'));
     await tester.pumpAndSettle();
     expect(find.text(note), findsOneWidget);
     expect(store.savedMessages.single.isNote, isTrue);

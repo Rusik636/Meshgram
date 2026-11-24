@@ -621,8 +621,8 @@ class _MessageLinkCard extends StatelessWidget {
             ),
           ),
           if (onDismiss case final dismiss?)
-            IconButton(
-              tooltip: tr(context, 'Убрать предпросмотр', 'Remove preview'),
+            MeshIconButton(
+              label: tr(context, 'Убрать предпросмотр', 'Remove preview'),
               onPressed: dismiss,
               color: color,
               icon: const Icon(Icons.close_rounded, size: 20),

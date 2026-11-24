@@ -19,6 +19,8 @@ import 'package:meshgrame/ui/sheet_control_clip.dart';
 import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 const _contacts = [
   (
     peer: (
@@ -48,7 +50,7 @@ void main() {
     final chat = find.byType(MeshChatPage);
     final back = useIosControls
         ? _nativeControl('button', symbol: 'chevron.left')
-        : find.byTooltip('Back');
+        : findControl('Back');
     final title = useIosControls
         ? _nativeControl('chatTitle')
         : find.descendant(of: chat, matching: find.text('Тропа'));
@@ -243,7 +245,7 @@ void main() {
       await tester.pumpAndSettle();
 
       Future<List<String>> sortedBy(String option) async {
-        await tester.tap(find.byTooltip('Sort by'));
+        await tester.tap(findControl('Sort by'));
         await tester.pumpAndSettle();
         await tester.tap(find.text(option));
         await tester.pumpAndSettle();
@@ -266,13 +268,13 @@ void main() {
       await tester.tap(find.text('Contact'));
       await tester.pumpAndSettle();
 
-      final button = find.byTooltip('Search nodes');
+      final button = findControl('Search nodes');
       final control = find.byKey(
         const ValueKey('attachment-contact-search-control'),
       );
       final compact = tester.getRect(control);
       expect(compact.size, const Size.square(48));
-      expect(find.byTooltip('Expand'), findsNothing);
+      expect(findControl('Expand'), findsNothing);
       expect(find.byType(MeshSearchLauncher), findsNothing);
       await tester.tap(button);
       await tester.pump();
@@ -280,7 +282,7 @@ void main() {
       final opening = tester.getRect(control);
       expect(opening.width, greaterThan(compact.width));
       expect(opening.left, lessThan(compact.left));
-      final cancel = find.byTooltip('Close search');
+      final cancel = findControl('Close search');
       final movingCancel = tester.getRect(cancel);
 
       await tester.pumpAndSettle();
@@ -290,7 +292,7 @@ void main() {
       expect(tester.getRect(cancel).left, lessThan(movingCancel.left));
       expect(_contactEditor, findsOneWidget);
       expect(find.text('Contacts'), findsOneWidget);
-      expect(find.byTooltip('Close').hitTestable(), findsOneWidget);
+      expect(findControl('Close').hitTestable(), findsOneWidget);
       expect(find.byType(MeshTabBar), findsNothing);
       await tester.tap(cancel);
       await tester.pump();
@@ -323,7 +325,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getSize(map).height, greaterThan(compact));
       expect(find.byType(MeshTabBar), findsNothing);
-      await tester.tap(find.byTooltip('Collapse'));
+      await tester.tap(findControl('Collapse'));
       await tester.pumpAndSettle();
       expect(tester.getSize(map).height, closeTo(compact, .01));
       expect(find.byType(MeshTabBar), findsOneWidget);
@@ -356,7 +358,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.byTooltip('Close search'));
+      await tester.tap(findControl('Close search'));
       tester.view.resetViewInsets();
       await tester.pumpAndSettle();
       expect(find.text('Илья Ветров'), findsOneWidget);
@@ -366,7 +368,7 @@ void main() {
     },
   );
 
-  testWidgets('aligns both attachment tabs with the iPhone home tabs', (
+  testWidgets('insets both attachment tabs from the iPhone sheet edges', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -407,12 +409,28 @@ void main() {
     );
     for (final index in [1, 0]) {
       final tabs = tester.widget<IosControl>(pickerTabs);
-      expect(tester.getRect(pickerTabs), homeRect);
+      expect(
+        tester.getRect(pickerTabs),
+        Rect.fromLTRB(
+          homeRect.left + 16,
+          homeRect.top - 6,
+          homeRect.right - 16,
+          homeRect.bottom - 6,
+        ),
+      );
       tabs.onSelect!(index);
       await tester.pumpAndSettle();
       expect(tester.widget<IosControl>(pickerTabs).properties['index'], index);
     }
-    expect(tester.getRect(pickerTabs), homeRect);
+    expect(
+      tester.getRect(pickerTabs),
+      Rect.fromLTRB(
+        homeRect.left + 16,
+        homeRect.top - 6,
+        homeRect.right - 16,
+        homeRect.bottom - 6,
+      ),
+    );
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox());
@@ -440,7 +458,7 @@ void main() {
 
     await tester.fling(grip, const Offset(0, -85), 650);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Collapse'), findsOneWidget);
+    expect(findControl('Collapse'), findsOneWidget);
     await tester.fling(grip, const Offset(0, 65), 600);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(grip).dy, closeTo(top, .1));
@@ -530,7 +548,7 @@ void main() {
       expect(find.byType(MeshTabBar), findsNothing);
       final expandedTop = tester.getTopLeft(grip).dy;
       await _startContactSearch(tester);
-      await tester.tap(find.byTooltip('Close search'));
+      await tester.tap(findControl('Close search'));
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(grip).dy, closeTo(expandedTop, .1));
       expect(find.byType(MeshTabBar), findsNothing);
@@ -609,14 +627,14 @@ void main() {
   ) async {
     String? result;
     await _openPicker(tester, (value) => result = value);
-    final search = find.byTooltip('Search locations');
+    final search = findControl('Search locations');
 
     await tester.tap(search);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '56.25, 51.50');
     await tester.pumpAndSettle();
     expect(find.text('Coordinates'), findsOneWidget);
-    await tester.tap(find.byTooltip('Close search'));
+    await tester.tap(findControl('Close search'));
     await tester.pumpAndSettle();
     expect(find.text('55.725000, 52.401000'), findsOneWidget);
 
@@ -661,11 +679,11 @@ bool _sourceHidden(WidgetTester tester, Finder button) => !tester
 
 Finder get _attachmentSource => useIosControls
     ? _nativeControl('button', symbol: 'paperclip')
-    : find.byTooltip('Attachments');
+    : findControl('Attachments');
 
 Finder get _attachmentClose => useIosControls
     ? _nativeControl('button', symbol: 'xmark')
-    : find.byTooltip('Close');
+    : findControl('Close');
 
 Future<void> _tapAttachmentControl(WidgetTester tester, Finder control) async {
   if (tester.widget(control) case IosControl native) {
@@ -724,7 +742,7 @@ Finder get _contactEditor => find.descendant(
 );
 
 Future<void> _startContactSearch(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Search nodes'));
+  await tester.tap(findControl('Search nodes'));
   await tester.pumpAndSettle();
 }
 

@@ -63,6 +63,8 @@ import 'package:meshgrame/ui/qr_scanner.dart';
 import 'package:meshgrame/ui/search_field.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import 'find_control.dart';
+
 class _TestEmojiBundle extends CachingAssetBundle {
   _TestEmojiBundle(this.catalog);
 
@@ -1535,7 +1537,7 @@ void main() {
       final peer = controller.nodes.first;
       await tester.drag(find.text(peer.name), const Offset(-240, 0));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Delete'));
+      await tester.tap(findControl('Delete'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
@@ -1543,7 +1545,7 @@ void main() {
 
       expect(find.byType(SegmentedButton<bool>), findsNothing);
       expect(find.text(controller.cache!.peers['ch:0']!.name), findsNothing);
-      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(findControl('Sort by'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     } finally {
       controller.dispose();
@@ -2126,7 +2128,7 @@ void main() {
       await tester.tap(find.text('Archive'));
       await tester.pumpAndSettle();
       expect(find.text('Мира Соколова'), findsOneWidget);
-      await tester.tap(find.byTooltip('Back'));
+      await tester.tap(findControl('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Archive'), findsOneWidget);
       await tester.drag(find.text('Тропа'), const Offset(0, -200));
@@ -2393,8 +2395,8 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pumpAndSettle();
-        expect(find.byTooltip('Close search'), findsOneWidget);
-        await tester.tap(find.byTooltip('Close search'));
+        expect(findControl('Close search'), findsOneWidget);
+        await tester.tap(findControl('Close search'));
         await tester.pumpAndSettle();
       } else {
         expect(find.byType(ChatFolderTabs), findsOneWidget);
@@ -2557,7 +2559,7 @@ void main() {
       final field = find.byType(TextField);
       expect(tester.widget<TextField>(field).obscureText, isTrue);
       await tester.enterText(field, 'test-admin');
-      await tester.tap(find.byTooltip('Show password'));
+      await tester.tap(findControl('Show password'));
       await tester.pump();
       expect(tester.widget<TextField>(field).obscureText, isFalse);
       await tester.tap(find.text('Remember password'));
@@ -2749,10 +2751,10 @@ void main() {
       );
       categories().onSelect!(2);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Мира Соколова profile'), findsNothing);
+      expect(findControl('Мира Соколова profile'), findsNothing);
       categories().onSelect!(0);
       await tester.pumpAndSettle();
-      final avatar = find.byTooltip('Мира Соколова profile');
+      final avatar = findControl('Мира Соколова profile');
       await tester.tap(avatar);
       await tester.pumpAndSettle();
       expect(find.byType(MeshChatProfile), findsOneWidget);
@@ -2784,6 +2786,8 @@ void main() {
       tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Nodes'));
+      await tester.drag(find.byType(ProfilePage), const Offset(0, -90));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Nodes'));
       await tester.pumpAndSettle();
       await tester.tap(avatar);
@@ -2977,6 +2981,8 @@ void main() {
     await tester.tap(find.text('Настройки'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Узлы'));
+    await tester.drag(find.byType(ProfilePage), const Offset(0, -90));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Узлы'));
     await tester.pumpAndSettle();
     final page = find.byType(MeshNodesPage);
@@ -2994,20 +3000,20 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(find.byTooltip('Сортировка'));
+    await tester.tap(findControl('Сортировка'));
     await tester.pumpAndSettle();
     expect(find.text('По расстоянию'), findsOneWidget);
     expect(find.text('По последней переписке'), findsNothing);
     await tester.tap(find.text('По имени'));
     await tester.pumpAndSettle();
     expect(controller.nodes.first.name, 'Илья Ветров');
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(findControl('Назад'));
     await tester.pumpAndSettle();
     await controller.connect(controller.radios.last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Узлы'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Сортировка'));
+    await tester.tap(findControl('Сортировка'));
     await tester.pumpAndSettle();
     expect(find.text('По последней переписке'), findsOneWidget);
     expect(find.text('По расстоянию'), findsNothing);
@@ -3501,7 +3507,7 @@ void main() {
       );
       if (useIosControls) {
         expect(nativeClose, findsOneWidget);
-        expect(find.byTooltip('Close'), findsNothing);
+        expect(findControl('Close'), findsNothing);
       }
       await tester.pumpAndSettle();
       expect(find.text('Mira'), findsOneWidget);
@@ -3522,7 +3528,7 @@ void main() {
         );
         tester.widget<IosControl>(share).onSelect!(0);
       } else {
-        await tester.tap(find.byTooltip('Share'));
+        await tester.tap(findControl('Share'));
       }
       await tester.pumpAndSettle();
       expect(shared?.method, 'share');
@@ -3531,7 +3537,7 @@ void main() {
       if (useIosControls) {
         tester.widget<IosControl>(nativeClose).onSelect!(0);
       } else {
-        await tester.tap(find.byTooltip('Close'));
+        await tester.tap(findControl('Close'));
       }
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.qr_code_2_rounded), findsOneWidget);
@@ -3723,7 +3729,7 @@ void main() {
       }
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Профиль Мира Соколова'));
+      await tester.tap(findControl('Профиль Мира Соколова'));
       await tester.pumpAndSettle();
       final profile = find.byType(MeshChatProfile);
       expect(tester.widget<MeshChatProfile>(profile).peer.id, 'node:a');
@@ -4820,7 +4826,7 @@ void main() {
     );
     final key = find.text(prefix);
     expect(tester.getTopLeft(name).dx, tester.getTopLeft(key).dx);
-    final copy = find.byTooltip('Copy public key');
+    final copy = findControl('Copy public key');
     await tester.ensureVisible(copy);
     await tester.tap(copy);
     await tester.pump();
@@ -5084,9 +5090,9 @@ void main() {
     );
     await tester.drag(find.text('Radio'), const Offset(-245, 0));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Hide'), findsOneWidget);
+    expect(findControl('Hide'), findsOneWidget);
     expect(deletes, 0);
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(findControl('Delete'));
     expect(deletes, 1);
   });
 
@@ -5231,7 +5237,7 @@ void main() {
         });
       }
 
-      final back = find.byTooltip('Back');
+      final back = findControl('Back');
       final avatarView = find.byKey(avatar);
       final wallpaper = find.byType(ProfileWallpaper);
       SliverPaintOrder paintOrder() => tester
@@ -5440,7 +5446,7 @@ void main() {
     expect(find.textContaining('Прокшин Руслан Владимирович'), findsOneWidget);
     expect(find.textContaining('## 1. Стороны'), findsNothing);
     expect(find.text('1. Стороны и предмет соглашения'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(findControl('Back'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Licenses'));
     await tester.runAsync(() async {
@@ -5503,9 +5509,9 @@ void main() {
       expect(stamp, findsOneWidget);
       expect(tester.getRect(stamp).right, lessThan(320));
 
-      final map = find.byTooltip('Node map');
+      final map = findControl('Node map');
       expect(map, findsOneWidget);
-      final sort = find.byTooltip('Sort by');
+      final sort = findControl('Sort by');
       expect(sort, findsOneWidget);
       expect(tester.getRect(map).right, lessThan(tester.getRect(sort).left));
 
@@ -5640,7 +5646,7 @@ void main() {
     await tester.tap(find.text('Open map'));
     await tester.pumpAndSettle();
     expect(find.text('Map position'), findsNothing);
-    expect(find.byTooltip('Close'), findsOneWidget);
+    expect(findControl('Close'), findsOneWidget);
     expect(find.text('55.750000, 37.625000'), findsOneWidget);
     final credit = find.text('© OpenStreetMap contributors');
     final creditButton = find.ancestor(
@@ -5688,7 +5694,7 @@ void main() {
       ),
     );
     final title = find.text('Radio settings');
-    final back = find.byTooltip('Back');
+    final back = findControl('Back');
     final titlePosition = tester.getTopLeft(title);
     final backPosition = tester.getTopLeft(back);
     await tester.drag(find.byType(ListView), const Offset(0, -420));
@@ -5738,11 +5744,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Wi-Fi password'), findsOneWidget);
       expect(link.wifiEnabled, isFalse);
-      await tester.tap(find.byTooltip('Save to radio'));
+      await tester.tap(findControl('Save to radio'));
       await tester.pumpAndSettle();
       expect(link.wifiEnabled, isTrue);
       expect(find.text('Wi-Fi password'), findsOneWidget);
-      await tester.tap(find.byTooltip('Clear search'));
+      await tester.tap(findControl('Clear search'));
       await tester.pumpAndSettle();
       expect(find.text('Wi-Fi network'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -5780,7 +5786,7 @@ void main() {
     await tester.tap(find.text('LoRa settings'));
     await tester.pumpAndSettle();
     expect(find.text('Frequency'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back').last);
+    await tester.tap(findControl('Back').last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Telemetry'),
@@ -5848,7 +5854,7 @@ void main() {
           expect(button.properties['enabled'], isTrue);
           button.onSelect!(0);
         } else {
-          final tooltip = find.byTooltip(label);
+          final tooltip = findControl(label);
           await tester.tap(
             tooltip.evaluate().isEmpty ? find.text(label) : tooltip,
           );
@@ -6094,7 +6100,7 @@ void main() {
       expect(adapter.sessions.single.radioName, 'Field router');
       await tester.tap(find.text('Chats'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('New chat'));
+      await tester.tap(findControl('New chat'));
       await tester.pumpAndSettle();
       expect(
         find.descendant(
@@ -6238,8 +6244,8 @@ void main() {
       await tester.tap(bubble);
       await tester.pump(const Duration(milliseconds: 360));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('All emoji'), findsOneWidget);
-      await tester.drag(find.byTooltip('React 👍'), const Offset(-90, 0));
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.drag(findControl('React 👍'), const Offset(-90, 0));
       await tester.pumpAndSettle();
       expect(menu, findsOneWidget);
       final previewLayer = find.byKey(const ValueKey('message-menu-preview'));
@@ -6265,14 +6271,14 @@ void main() {
       final profile = find.byType(MeshChatProfile);
       expect(tester.widget<MeshChatProfile>(profile).peer.id, 'node:a');
       await tester.tap(
-        find.descendant(of: profile, matching: find.byTooltip('Back')),
+        find.descendant(of: profile, matching: findControl('Back')),
       );
       await tester.pumpAndSettle();
       expect(author, findsOneWidget);
       await tester.tap(find.widgetWithText(ChoiceChip, '🔥 1'));
       await tester.pumpAndSettle();
       expect(find.text('Unknown node'), findsOneWidget);
-      await tester.tap(find.byTooltip('Back to message menu'));
+      await tester.tap(findControl('Back to message menu'));
       await tester.pumpAndSettle();
       expect(find.text('Message info'), findsOneWidget);
       await tester.tapAt(const Offset(6, 6));
@@ -6298,8 +6304,8 @@ void main() {
       expect(tag('👍'), findsOneWidget);
       await tester.longPress(bubble);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('All emoji'), findsOneWidget);
-      await tester.tap(find.byTooltip('All emoji'));
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.tap(findControl('All emoji'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byKey(const ValueKey('emoji-catalog')), findsOneWidget);
@@ -6352,7 +6358,7 @@ void main() {
       );
       await tester.longPress(bubble);
       await tester.pumpAndSettle();
-      final option = find.byTooltip('React 👍');
+      final option = findControl('React 👍');
       final source = tester.getCenter(option);
       await tester.tap(option);
       for (var frame = 0; frame < 8 && flight.evaluate().isEmpty; frame++) {
@@ -6389,7 +6395,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.longPress(bubble);
       await tester.pumpAndSettle();
-      final heart = find.byTooltip('React ❤️');
+      final heart = findControl('React ❤️');
       await tester.ensureVisible(heart);
       await tester.tap(heart);
       await tester.pumpAndSettle();
@@ -6665,7 +6671,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), '👋');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send'));
+      await tester.tap(findControl('Send'));
       await tester.pumpAndSettle();
       final sent = controller.messages(peer.id).last;
       expect(sent.text, '👋');
@@ -7145,7 +7151,7 @@ void main() {
     for (var frame = 0; frame < 12; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.text('About'), findsOneWidget);
+    expect(find.text('Saved Messages'), findsOneWidget);
     expect(tester.element(nav), same(navElement));
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
@@ -7264,7 +7270,7 @@ void main() {
           matching: find.byType(GlassSurface),
         );
         final width = tester.getSize(capsule).width;
-        await tester.tap(find.byTooltip('Back'));
+        await tester.tap(findControl('Back'));
         await tester.pumpAndSettle();
         return width;
       }
@@ -7310,7 +7316,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'On the ridge');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send'));
+      await tester.tap(findControl('Send'));
       await tester.pump();
       await tester.pump();
       final flight = find.byKey(const ValueKey('sending-text-flight'));
@@ -7332,7 +7338,7 @@ void main() {
       session.autoAcknowledge = true;
       await tester.enterText(find.byType(TextField), 'Ready');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send'));
+      await tester.tap(findControl('Send'));
       await tester.pumpAndSettle();
       expect(flight, findsNothing);
       expect(controller.messages(_peer.id), hasLength(2));
@@ -7462,14 +7468,14 @@ void main() {
     await tester.pumpAndSettle();
     await controller.disconnectRadio(profile);
     await tester.pumpAndSettle();
-    await tester.longPress(find.byTooltip('Send'));
+    await tester.longPress(findControl('Send'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send when the radio connects'));
     await tester.pumpAndSettle();
     expect(controller.draft(peer.id), isEmpty);
     expect(controller.messages(peer.id), hasLength(messages));
     expect(store.loadOutbox().single.text, 'Ready at the pass');
-    await tester.tap(find.byTooltip('Radio outbox'));
+    await tester.tap(findControl('Radio outbox'));
     await tester.pumpAndSettle();
     expect(find.text('Waiting to send'), findsOneWidget);
     expect(find.text('Radio disconnected'), findsOneWidget);
@@ -7541,7 +7547,7 @@ void main() {
         expect(restored.replyExcerpts[peer.id]?.offset, offset);
         await tester.enterText(find.byType(TextField), 'OK');
         await tester.pump();
-        await tester.tap(find.byTooltip('Send'));
+        await tester.tap(findControl('Send'));
         await tester.pumpAndSettle();
         final sent = controller.messages(peer.id).last;
         expect(sent.replyTo, controller.referenceFor(source));
@@ -7558,7 +7564,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.draft('ch:0'), '${source.author}:\n${source.text}');
       expect(controller.messages('ch:0'), hasLength(1));
-      await tester.tap(find.byTooltip('Back'));
+      await tester.tap(findControl('Back'));
       await tester.pumpAndSettle();
       await tester.longPress(sourceBubble);
       await tester.pumpAndSettle();
@@ -7609,8 +7615,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final phraseButton = find.byTooltip('Quick phrases');
-    final attachmentButton = find.byTooltip('Attachments');
+    final phraseButton = findControl('Quick phrases');
+    final attachmentButton = findControl('Attachments');
     final counter = find.text('5 chars · 5/200 B');
     void expectCenteredCounter() {
       expect(
@@ -7630,7 +7636,7 @@ void main() {
     expectCenteredCounter();
     controller.setReplyDraft(peer.id, controller.messages(peer.id).first);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Cancel reply'), findsOneWidget);
+    expect(findControl('Cancel reply'), findsOneWidget);
     expectAlignedButtons();
     controller.setReplyDraft(peer.id, null);
     await tester.pumpAndSettle();
@@ -7643,7 +7649,7 @@ void main() {
       tester.getBottomLeft(counter).dy,
       lessThan(tester.getTopLeft(strip).dy),
     );
-    expect(find.byTooltip('Collapse quick phrases'), findsNothing);
+    expect(findControl('Collapse quick phrases'), findsNothing);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
     await tester.tapAt(const Offset(7, 140));
     await tester.pumpAndSettle();
@@ -7659,7 +7665,7 @@ void main() {
 
     await tester.tap(phraseButton);
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Expand quick phrases'));
+    await tester.tap(findControl('Expand quick phrases'));
     await tester.pumpAndSettle();
     final sheet = find.byType(BottomSheet);
     Finder inSheet(Finder child) => find.descendant(of: sheet, matching: child);
@@ -7699,7 +7705,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final trigger = find.byTooltip('Quick phrases');
+    final trigger = findControl('Quick phrases');
     final strip = find.byType(QuickPhraseStrip);
     final phrase = find.descendant(of: strip, matching: find.text('I’m here'));
     await tester.tap(trigger);
@@ -7867,7 +7873,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Quick phrases'));
+    await tester.tap(findControl('Quick phrases'));
     await tester.pumpAndSettle();
     final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
     expect(
@@ -7931,7 +7937,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(sheet, findsOneWidget);
     expect(readyHaptics, 2);
-    await tester.tap(find.byTooltip('Add phrase'));
+    await tester.tap(findControl('Add phrase'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'Added from the list');
     await tester.pump();
@@ -7977,7 +7983,7 @@ void main() {
     await tester.pumpAndSettle();
     final folder = controller.chatFolders.single.id;
     expect(find.text('Field team'), findsOneWidget);
-    expect(find.byTooltip('Delete folder Field team'), findsOneWidget);
+    expect(findControl('Delete folder Field team'), findsOneWidget);
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     controller.toggleFolderPin(folder, peer.id);
@@ -8004,7 +8010,7 @@ void main() {
       find.byKey(ValueKey(('bubble', message.id))).hitTestable(),
       findsOneWidget,
     );
-    await tester.tap(find.byTooltip('Unpin message'));
+    await tester.tap(findControl('Unpin message'));
     await tester.pumpAndSettle();
     expect(controller.pinnedMessageId(peer.id), isNull);
     expect(transport.links, isEmpty);
@@ -8067,7 +8073,7 @@ void main() {
 
     tabs.jumpTo(tabs.position.maxScrollExtent);
     await tester.pumpAndSettle();
-    final deleteButton = find.byTooltip('Delete folder Field team');
+    final deleteButton = findControl('Delete folder Field team');
     final close = find.descendant(
       of: deleteButton,
       matching: find.byIcon(Icons.close_rounded),
@@ -8539,11 +8545,11 @@ void main() {
     await tester.tap(preview);
     await tester.pumpAndSettle();
     expect(find.byType(MeshChatPage), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(findControl('Back'));
     await tester.pumpAndSettle();
     await tester.drag(row, const Offset(-160, 0));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Delete').hitTestable(), findsOneWidget);
+    expect(findControl('Delete').hitTestable(), findsOneWidget);
     expect(preview, findsNothing);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
@@ -8610,21 +8616,21 @@ void main() {
       final target = find.text('Вижу метку. Скоро будем.');
       await tester.drag(target, const Offset(-115, 0));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Отменить ответ'), findsOneWidget);
-      await tester.tap(find.byTooltip('Отменить ответ'));
+      expect(findControl('Отменить ответ'), findsOneWidget);
+      await tester.tap(findControl('Отменить ответ'));
       await tester.pumpAndSettle();
       await tester.longPress(target);
       await tester.pumpAndSettle();
       expect(find.text('Ответить'), findsOneWidget);
-      await tester.tap(find.byTooltip('Реакция 👍'));
+      await tester.tap(findControl('Реакция 👍'));
       await tester.pumpAndSettle();
       expect(find.text('👍'), findsOneWidget);
       await tester.longPress(target);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Все эмодзи'));
+      await tester.tap(findControl('Все эмодзи'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('Флаги'));
-      await tester.tap(find.byTooltip('Флаги'));
+      await tester.ensureVisible(findControl('Флаги'));
+      await tester.tap(findControl('Флаги'));
       await tester.pumpAndSettle();
       expect(find.text('Флаги'), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, 'Россия');
@@ -8633,27 +8639,27 @@ void main() {
       await tester.tap(find.text('🇷🇺'));
       await tester.pumpAndSettle();
       expect(find.text('🇷🇺'), findsOneWidget);
-      await tester.tap(find.byTooltip('Профиль чата'));
+      await tester.tap(findControl('Профиль чата'));
       await tester.pumpAndSettle();
       expect(find.text('Идентификатор'), findsOneWidget);
       await tester.tap(find.text('Поиск'));
       await tester.pumpAndSettle();
       expect(find.text('Поиск в чате'), findsOneWidget);
-      await tester.tap(find.byTooltip('Закрыть поиск'));
+      await tester.tap(findControl('Закрыть поиск'));
       await tester.pumpAndSettle();
       expect(find.text('Мира Соколова'), findsOneWidget);
-      await tester.tap(find.byTooltip('Назад'));
+      await tester.tap(findControl('Назад'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Настройки'));
       await tester.pumpAndSettle();
       expect(find.text('Heltec V3'), findsWidgets);
       expect(find.text('≈-59 dBm'), findsOneWidget);
-      expect(find.byTooltip('Отключить').hitTestable(), findsNothing);
+      expect(findControl('Отключить').hitTestable(), findsNothing);
       await tester.drag(find.text('Heltec V3').last, const Offset(-145, 0));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Отключить').hitTestable(), findsOneWidget);
-      expect(find.byTooltip('Удалить').hitTestable(), findsOneWidget);
-      await tester.tap(find.byTooltip('Отключить'));
+      expect(findControl('Отключить').hitTestable(), findsOneWidget);
+      expect(findControl('Удалить').hitTestable(), findsOneWidget);
+      await tester.tap(findControl('Отключить'));
       await tester.pumpAndSettle();
       expect(find.text('≈-59 dBm'), findsNothing);
       await tester.tap(find.text('T-Deck Plus'));

@@ -11,6 +11,8 @@ import 'package:meshgrame/ui/node_list.dart';
 import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 
+import 'find_control.dart';
+
 const _size = Size(390, 844);
 const _contactCount = 18;
 
@@ -78,14 +80,14 @@ void main() {
   ) async {
     await _openContacts(tester, (_) {});
 
-    expect(find.byTooltip('Search nodes'), findsOneWidget);
+    expect(findControl('Search nodes'), findsOneWidget);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -175));
     await tester.pumpAndSettle();
 
-    final search = find.byTooltip('Search nodes');
+    final search = findControl('Search nodes');
     expect(find.byType(MeshSearchLauncher), findsNothing);
     expect(search.hitTestable(), findsOneWidget);
-    expect(find.byTooltip('Close').hitTestable(), findsOneWidget);
+    expect(findControl('Close').hitTestable(), findsOneWidget);
     final picker = find.byType(AttachmentContacts);
     final bounds = tester.getRect(picker);
     final surfaces = find.descendant(

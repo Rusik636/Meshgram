@@ -576,8 +576,8 @@ class _LocationMapPage extends StatelessWidget {
             child: Center(
               child: GlassSurface(
                 radius: 20,
-                child: Tooltip(
-                  message: tr(
+                child: Semantics(
+                  label: tr(
                     context,
                     'Скопировать координаты',
                     'Copy coordinates',

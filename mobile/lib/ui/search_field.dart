@@ -296,8 +296,8 @@ class MeshSearchEditor extends StatelessWidget {
         border: InputBorder.none,
         suffixIcon: controller.text.trim().isEmpty
             ? const SizedBox.shrink()
-            : IconButton(
-                tooltip: tr(context, 'Очистить запрос', 'Clear query'),
+            : MeshIconButton(
+                label: tr(context, 'Очистить запрос', 'Clear query'),
                 onPressed: () {
                   controller.clear();
                   onChanged('');
@@ -321,8 +321,8 @@ class MeshSearchEditor extends StatelessWidget {
           if (constraints.maxWidth >= 120) {
             return IgnorePointer(ignoring: !active, child: editor());
           }
-          return Tooltip(
-            message: placeholder,
+          return Semantics(
+            label: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
               icon: Icon(Icons.search_rounded, color: style.text, size: 20),
