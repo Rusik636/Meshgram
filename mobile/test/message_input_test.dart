@@ -67,27 +67,31 @@ void main() {
     composer.onChanged(draft);
     await tester.pumpAndSettle();
 
-    final link = find.byTooltip('Remove preview');
-    expect(tester.widget<MessageInput>(input).reply?.text, message.text);
+    expect(tester.widget<MessageInput>(input).accessory?.title, 'Route');
+    expect(tester.widget<MessageInput>(input).accessory?.link, isTrue);
     expect(find.byTooltip('Cancel reply'), findsNothing);
-    expect(tester.getRect(link).bottom, lessThan(tester.getRect(input).top));
+    expect(find.byTooltip('Remove preview'), findsNothing);
     expect(tester.getRect(input).bottom, bottom);
     expect(tester.element(editor), same(original));
 
     expect(viewId, isNotNull);
-    await messenger.handlePlatformMessage(
+    Future<void> dismissAccessory() => messenger.handlePlatformMessage(
       'meshgrame/composer/$viewId',
       const StandardMethodCodec().encodeMethodCall(
-        const MethodCall('cancelReply'),
+        const MethodCall('dismissAccessory'),
       ),
       (_) {},
     );
+    await dismissAccessory();
+    await tester.pumpAndSettle();
+    expect(mesh.replyDraft(peer.id)?.id, message.id);
+    expect(tester.widget<MessageInput>(input).accessory?.text, message.text);
+    expect(tester.widget<MessageInput>(input).accessory?.link, isFalse);
+    expect(tester.element(editor), same(original));
+    await dismissAccessory();
     await tester.pumpAndSettle();
     expect(mesh.replyDraft(peer.id), isNull);
-    expect(tester.widget<MessageInput>(input).reply, isNull);
-    await tester.tap(link);
-    await tester.pumpAndSettle();
-    expect(link, findsNothing);
+    expect(tester.widget<MessageInput>(input).accessory, isNull);
     expect(tester.element(editor), same(original));
     expect(mesh.draft(peer.id), draft);
     expect(tester.takeException(), isNull);
@@ -241,6 +245,21 @@ void main() {
     await tester.enterText(field, draft);
     await tester.pumpAndSettle();
     expect(tester.getSize(input).height, greaterThan(originalHeight));
+    expect(reply, findsNothing);
+    final preview = find.byTooltip('Remove preview');
+    expect(preview.hitTestable(), findsOneWidget);
+    expect(
+      find
+          .ancestor(of: preview, matching: find.byType(GlassSurface))
+          .evaluate()
+          .first,
+      same(
+        find
+            .ancestor(of: field, matching: find.byType(GlassSurface))
+            .evaluate()
+            .first,
+      ),
+    );
     final editor = tester.widget<TextField>(field).controller!;
     const selection = TextSelection(baseOffset: 1, extentOffset: 5);
     editor.selection = selection;
@@ -258,7 +277,7 @@ void main() {
     expect(mesh.replyDraft(peer.id), isNull);
     expect(editor.selection, selection);
     expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
-    expect(find.byTooltip('Remove preview').hitTestable(), findsOneWidget);
+    expect(preview.hitTestable(), findsOneWidget);
     expect(tester.element(field), same(original));
 
     await tester.drag(

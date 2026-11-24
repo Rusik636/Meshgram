@@ -61,6 +61,7 @@ class _ChatState extends State<MeshChatPage>
   );
   final _search = TextEditingController();
   final _input = GlobalKey<MessageInputState>();
+  final _inputSurface = GlobalKey();
   final _scroll = ScrollController(keepScrollOffset: false);
   final _history = ListController();
   AssetBundle? _emojiBundle;
@@ -82,6 +83,7 @@ class _ChatState extends State<MeshChatPage>
   bool _sending = false;
   Timer? _replyRevealTimer;
   Uri? _dismissedDraftLink;
+  Uri? _linkBehindReply;
   bool _menuVisible = false;
   bool _attachmentOpen = false;
   bool _openingContact = false;
@@ -707,6 +709,7 @@ class _ChatState extends State<MeshChatPage>
       _search.clear();
       setState(() => _searching = false);
     }
+    _linkBehindReply = firstMessageLink(_draft.text);
     controller.setReplyDraft(peer.id, message);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _input.currentState?.focusInput();
@@ -1410,67 +1413,91 @@ class _ChatState extends State<MeshChatPage>
   }) {
     final controller = widget.controller;
     final native = useIosControls;
-    Widget accessory(Widget child) => Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: GlassSurface(radius: 16, child: child),
-    );
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final replyAccessory = native || reply == null
-        ? const SizedBox.shrink()
-        : Padding(
-            padding: const EdgeInsetsDirectional.only(start: 12, end: 3),
-            child: Row(
-              children: [
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 120),
-                    layoutBuilder: (current, previous) => Stack(
-                      alignment: AlignmentDirectional.centerStart,
-                      children: [
-                        for (final child in previous)
-                          ExcludeSemantics(child: IgnorePointer(child: child)),
-                        ?current,
-                      ],
-                    ),
-                    child: _MessageQuote(
-                      key: ValueKey(reply.id),
-                      message: reply,
-                      onTap: () => unawaited(_revealQuote(reply)),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  constraints: BoxConstraints.tightFor(width: 48, height: 48),
-                  tooltip: tr(context, 'Отменить ответ', 'Cancel reply'),
-                  onPressed: () => controller.setReplyDraft(peer.id, null),
-                  icon: const Icon(Icons.close_rounded, size: 18),
-                ),
-              ],
-            ),
-          );
-    final editor = MessageInput(
-      key: _input,
-      coveredByModal:
-          _controlsCovered || ModalRoute.isCurrentOf(context) == false,
-      controller: _draft,
-      reply: !native || reply == null
+    Widget editorFor(DraftLinkPreview? preview) {
+      final showLink =
+          preview != null && (reply == null || _linkBehindReply != previewLink);
+      final MessageInputAccessory? accessory = showLink
+          ? (
+              title: preview.title,
+              text: preview.text,
+              image: preview.image,
+              link: true,
+            )
+          : reply == null
           ? null
-          : (author: _quoteAuthor(context, reply), text: reply.text),
-      onOpenReply: reply == null ? null : () => unawaited(_revealQuote(reply)),
-      onCancelReply: reply == null
-          ? null
-          : () => controller.setReplyDraft(peer.id, null),
-      onChanged: (value) {
-        controller.setDraft(peer.id, value);
-        setState(() {
-          if (firstMessageLink(value) != _dismissedDraftLink) {
-            _dismissedDraftLink = null;
-          }
-        });
-      },
-    );
+          : (
+              title: _quoteAuthor(context, reply),
+              text: reply.text,
+              image: null,
+              link: false,
+            );
+      void open() {
+        if (showLink) {
+          unawaited(openMessageLink(context, previewLink!));
+        } else if (reply != null) {
+          unawaited(_revealQuote(reply));
+        }
+      }
+
+      void dismiss() {
+        if (showLink) {
+          setState(() => _dismissedDraftLink = previewLink);
+        } else {
+          controller.setReplyDraft(peer.id, null);
+        }
+      }
+
+      final editor = MessageInput(
+        key: _input,
+        coveredByModal:
+            _controlsCovered || ModalRoute.isCurrentOf(context) == false,
+        controller: _draft,
+        accessory: native ? accessory : null,
+        onOpenAccessory: open,
+        onDismissAccessory: dismiss,
+        onChanged: (value) {
+          controller.setDraft(peer.id, value);
+          setState(() {
+            final link = firstMessageLink(value);
+            if (link != _dismissedDraftLink) _dismissedDraftLink = null;
+            if (link != _linkBehindReply) _linkBehindReply = null;
+          });
+        },
+      );
+      final accessoryRow = accessory == null
+          ? const SizedBox.shrink()
+          : _ComposerAccessoryRow(
+              key: ValueKey(showLink ? previewLink : reply?.id),
+              accessory: accessory,
+              onOpen: open,
+              onDismiss: dismiss,
+            );
+      return KeyedSubtree(
+        key: _inputSurface,
+        child: native
+            ? editor
+            : GlassSurface(
+                radius: 23,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (reduceMotion)
+                      accessoryRow
+                    else
+                      AnimatedSize(
+                        alignment: Alignment.bottomCenter,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: accessoryRow,
+                      ),
+                    editor,
+                  ],
+                ),
+              ),
+      );
+    }
+
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -1495,25 +1522,13 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: native
-              ? editor
-              : GlassSurface(
-                  radius: 23,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (reduceMotion)
-                        replyAccessory
-                      else
-                        AnimatedSize(
-                          alignment: Alignment.bottomCenter,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          child: replyAccessory,
-                        ),
-                      editor,
-                    ],
-                  ),
+          child: previewLink == null
+              ? editorFor(null)
+              : MessageLinkPreview(
+                  uri: previewLink,
+                  compact: true,
+                  autoLoad: _canPreviewLinks,
+                  draftBuilder: editorFor,
                 ),
         ),
         const SizedBox(width: 8),
@@ -1526,25 +1541,7 @@ class _ChatState extends State<MeshChatPage>
         ),
       ],
     );
-    final footer = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (previewLink != null)
-          MessageLinkPreview(
-            uri: previewLink,
-            compact: true,
-            autoLoad: _canPreviewLinks,
-            onDismiss: () => setState(() => _dismissedDraftLink = previewLink),
-            builder: (card) => card == null
-                ? const SizedBox.shrink()
-                : accessory(
-                    Padding(padding: const EdgeInsets.all(7), child: card),
-                  ),
-          ),
-        row,
-      ],
-    );
-    return native ? footer : TextFieldTapRegion(child: footer);
+    return native ? row : TextFieldTapRegion(child: row);
   }
 
   Widget _heading(Peer peer, MeshStyle style) {
@@ -2653,8 +2650,103 @@ String _quoteAuthor(BuildContext context, MeshMessage? source) =>
     ? source!.author
     : tr(context, 'Ответ', 'Reply');
 
+class _ComposerAccessoryRow extends StatelessWidget {
+  const _ComposerAccessoryRow({
+    super.key,
+    required this.accessory,
+    required this.onOpen,
+    required this.onDismiss,
+  });
+
+  final MessageInputAccessory accessory;
+  final VoidCallback onOpen, onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MeshStyle.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              hint: accessory.link
+                  ? tr(context, 'Открыть ссылку', 'Open link')
+                  : tr(
+                      context,
+                      'Перейти к исходному сообщению',
+                      'Go to original message',
+                    ),
+              child: InkWell(
+                onTap: onOpen,
+                child: Container(
+                  padding: const EdgeInsetsDirectional.fromSTEB(7, 3, 0, 3),
+                  decoration: BoxDecoration(
+                    border: BorderDirectional(
+                      start: BorderSide(color: style.accent, width: 2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              accessory.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: style.accent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            EmojiText(
+                              accessory.text,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: style.text, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (accessory.image case final image?)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.memory(
+                            image,
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.cover,
+                            cacheWidth: 96,
+                            excludeFromSemantics: true,
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+            tooltip: accessory.link
+                ? tr(context, 'Убрать предпросмотр', 'Remove preview')
+                : tr(context, 'Отменить ответ', 'Cancel reply'),
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close_rounded, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MessageQuote extends StatelessWidget {
-  const _MessageQuote({super.key, required this.message, this.onTap});
+  const _MessageQuote({required this.message, this.onTap});
   final MeshMessage? message;
   final VoidCallback? onTap;
 

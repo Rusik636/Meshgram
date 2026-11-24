@@ -63,14 +63,16 @@ private final class ComposerSurface: UIView {
   }
 }
 
-private final class ComposerReply: UIView {
+private final class ComposerAccessory: UIView {
   let open = UIControl()
   let cancel = UIButton(type: .system)
   private let author = UILabel()
   private let excerpt = UILabel()
   private let accentLine = UIView()
+  private let thumbnail = UIImageView()
   private let content = UIView()
   private var contentHeight: NSLayoutConstraint?
+  private var thumbnailWidth: NSLayoutConstraint?
 
   var preferredHeight: CGFloat {
     guard !isHidden else { return 0 }
@@ -90,6 +92,9 @@ private final class ComposerReply: UIView {
       for: .systemFont(ofSize: 12, weight: .semibold))
     accentLine.layer.cornerRadius = 1
     accentLine.isUserInteractionEnabled = false
+    thumbnail.contentMode = .scaleAspectFill
+    thumbnail.clipsToBounds = true
+    thumbnail.layer.cornerRadius = 6
     open.isAccessibilityElement = true
     open.accessibilityTraits = .button
     cancel.setImage(UIImage(systemName: "xmark",
@@ -98,14 +103,17 @@ private final class ComposerReply: UIView {
     labels.axis = .vertical
     labels.isUserInteractionEnabled = false
     for (view, parent) in [(content, self), (open, content), (cancel, content),
-      (accentLine, open), (labels, open)] {
+      (accentLine, open), (labels, open), (thumbnail, open)] {
       view.translatesAutoresizingMaskIntoConstraints = false
       parent.addSubview(view)
     }
     let height = content.heightAnchor.constraint(equalToConstant: 44)
     contentHeight = height
+    let thumbnailWidth = thumbnail.widthAnchor.constraint(equalToConstant: 0)
+    self.thumbnailWidth = thumbnailWidth
     NSLayoutConstraint.activate([
       height,
+      thumbnailWidth,
       content.leadingAnchor.constraint(equalTo: leadingAnchor),
       content.trailingAnchor.constraint(equalTo: trailingAnchor),
       content.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -122,8 +130,11 @@ private final class ComposerReply: UIView {
       accentLine.topAnchor.constraint(equalTo: labels.topAnchor),
       accentLine.bottomAnchor.constraint(equalTo: labels.bottomAnchor),
       labels.leadingAnchor.constraint(equalTo: accentLine.trailingAnchor, constant: 7),
-      labels.trailingAnchor.constraint(equalTo: open.trailingAnchor),
+      labels.trailingAnchor.constraint(equalTo: thumbnail.leadingAnchor, constant: -4),
       labels.centerYAnchor.constraint(equalTo: open.centerYAnchor),
+      thumbnail.trailingAnchor.constraint(equalTo: open.trailingAnchor),
+      thumbnail.centerYAnchor.constraint(equalTo: open.centerYAnchor),
+      thumbnail.heightAnchor.constraint(equalTo: thumbnail.widthAnchor),
     ])
   }
 
@@ -136,12 +147,15 @@ private final class ComposerReply: UIView {
   }
 
   func update(_ input: [String: Any]) {
-    isHidden = input["author"] == nil
-    author.text = input["author"] as? String
+    isHidden = input["title"] == nil
+    author.text = input["title"] as? String
     excerpt.text = input["text"] as? String
+    let image = (input["image"] as? FlutterStandardTypedData).flatMap { UIImage(data: $0.data) }
+    thumbnail.image = image
+    thumbnailWidth?.constant = image == nil ? 0 : 32
     open.accessibilityLabel = [author.text, excerpt.text].compactMap { $0 }.joined(separator: ", ")
     open.accessibilityHint = input["openLabel"] as? String
-    cancel.accessibilityLabel = input["cancelLabel"] as? String
+    cancel.accessibilityLabel = input["dismissLabel"] as? String
   }
 
   func applyColors(accent: UIColor, foreground: UIColor, secondary: UIColor) {
@@ -158,12 +172,12 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
   private var glass = MeshInputGlass(effect: nil)
   private var nativeInteractive: Bool?
   private let textView: ComposerTextView
-  private let reply = ComposerReply()
+  private let accessory = ComposerAccessory()
   private let placeholder = UILabel()
   private let channel: FlutterMethodChannel
   private var reportedHeight: CGFloat = 0
   private var textHeight: CGFloat = 46
-  private var reservesReplySpace = false
+  private var reservesAccessorySpace = false
   private var surface: UIColor = .secondarySystemBackground
   private var highContrast = false
   private var press: UILongPressGestureRecognizer?
@@ -211,10 +225,10 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       self?.focusWhenReady()
     }
     fieldContainer.onLayout = { [weak self] in self?.layoutEditor() }
-    reply.open.addTarget(self, action: #selector(openReply), for: .touchUpInside)
-    reply.cancel.addTarget(self, action: #selector(cancelReply), for: .touchUpInside)
-    reply.update(input["reply"] as? [String: Any] ?? [:])
-    reservesReplySpace = !reply.isHidden
+    accessory.open.addTarget(self, action: #selector(openAccessory), for: .touchUpInside)
+    accessory.cancel.addTarget(self, action: #selector(dismissAccessory), for: .touchUpInside)
+    accessory.update(input["accessory"] as? [String: Any] ?? [:])
+    reservesAccessorySpace = !accessory.isHidden
 
     let press = UILongPressGestureRecognizer(target: self, action: #selector(pressChanged))
     press.minimumPressDuration = 0
@@ -250,9 +264,9 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
           // The initial height may have been measured before Flutter connected the channel.
           self.updateHeight(force: true)
         }
-      case "reply":
-        self.reply.update(call.arguments as? [String: Any] ?? [:])
-        if !self.reply.isHidden { self.reservesReplySpace = true }
+      case "accessory":
+        self.accessory.update(call.arguments as? [String: Any] ?? [:])
+        if !self.accessory.isHidden { self.reservesAccessorySpace = true }
         self.fieldContainer.setNeedsLayout()
         self.updateHeight()
       default:
@@ -307,22 +321,22 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     }
   }
 
-  @objc private func openReply() {
-    channel.invokeMethod("openReply", arguments: nil)
+  @objc private func openAccessory() {
+    channel.invokeMethod("openAccessory", arguments: nil)
   }
 
-  @objc private func cancelReply() {
-    channel.invokeMethod("cancelReply", arguments: nil)
+  @objc private func dismissAccessory() {
+    channel.invokeMethod("dismissAccessory", arguments: nil)
   }
 
   private func layoutEditor() {
     let bounds = fieldContainer.bounds
-    if reply.isHidden && bounds.height <= textHeight + 0.5 {
-      reservesReplySpace = false
+    if accessory.isHidden && bounds.height <= textHeight + 0.5 {
+      reservesAccessorySpace = false
     }
-    let editorHeight = reservesReplySpace ? min(bounds.height, textHeight) : bounds.height
+    let editorHeight = reservesAccessorySpace ? min(bounds.height, textHeight) : bounds.height
     let editorTop = bounds.height - editorHeight
-    reply.frame = CGRect(x: 0, y: 0, width: bounds.width, height: editorTop)
+    accessory.frame = CGRect(x: 0, y: 0, width: bounds.width, height: editorTop)
     textView.frame = CGRect(x: 0, y: editorTop, width: bounds.width, height: editorHeight)
   }
 
@@ -355,7 +369,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       let wasFocused = textView.isFirstResponder
       let selection = textView.selectedRange
       let parent = interactive ? replacement.contentView : fieldContainer
-      parent.addSubview(reply)
+      parent.addSubview(accessory)
       parent.addSubview(textView)
       layoutEditor()
       glass.removeFromSuperview()
@@ -422,7 +436,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       textHeight = editorHeight
       fieldContainer.setNeedsLayout()
     }
-    let desired = editorHeight + reply.preferredHeight
+    let desired = editorHeight + accessory.preferredHeight
     if textView.isScrollEnabled != (measured > maximum) { textView.isScrollEnabled = measured > maximum }
     guard force || desired != reportedHeight else { return }
     reportedHeight = desired
@@ -455,7 +469,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     textView.textColor = foreground
     textView.tintColor = accent
     placeholder.textColor = secondary
-    reply.applyColors(accent: accent, foreground: foreground, secondary: secondary)
+    accessory.applyColors(accent: accent, foreground: foreground, secondary: secondary)
     placeholder.text = input["placeholder"] as? String
     textView.accessibilityLabel = placeholder.text
     updatePressAvailability()
