@@ -111,7 +111,7 @@ Future<ChatFolderEdit?> editChatFolder(
                   ),
                   trailing: GlassActionButton(
                     fitContent: true,
-                    label: tr(context, 'Сохранить', 'Save'),
+                    label: tr(context, 'Готово', 'Save'),
                     onTap: name.trim().isEmpty
                         ? null
                         : () => Navigator.pop(context, (
