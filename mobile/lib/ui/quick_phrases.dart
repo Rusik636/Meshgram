@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../mesh/store.dart';
 import 'style.dart';
@@ -134,7 +135,7 @@ Future<String?> pickQuickPhrase(BuildContext context, MeshStore store) {
   var phrases = _phrases(context, store);
   return showMeshSheet<String>(
     context: context,
-    liquidGlass: true,
+    dragArea: MeshSheetGrip.height,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
         Future<void> edit(int? index) async {
@@ -203,23 +204,33 @@ Future<String?> pickQuickPhrase(BuildContext context, MeshStore store) {
                   ),
                 ),
                 Flexible(
-                  child: ListView.builder(
+                  child: ListView.separated(
                     shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     itemCount: phrases.length,
+                    separatorBuilder: (context, _) => Divider(
+                      height: 1,
+                      indent: 16,
+                      endIndent: 16,
+                      color: MeshStyle.of(context).separator,
+                    ),
                     itemBuilder: (context, index) {
                       final phrase = phrases[index];
-                      return ListTile(
-                        title: Text(
-                          phrase,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => Navigator.pop(context, phrase),
-                        trailing: IconButton(
-                          tooltip: tr(context, 'Изменить фразу', 'Edit phrase'),
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => edit(index),
+                      void editPhrase() => edit(index);
+                      return Semantics(
+                        customSemanticsActions: {
+                          CustomSemanticsAction(
+                            label: tr(context, 'Изменить фразу', 'Edit phrase'),
+                          ): editPhrase,
+                        },
+                        child: ListTile(
+                          title: Text(
+                            phrase,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => Navigator.pop(context, phrase),
+                          onLongPress: editPhrase,
                         ),
                       );
                     },

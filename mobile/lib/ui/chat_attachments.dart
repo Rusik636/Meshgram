@@ -755,7 +755,6 @@ class _AttachmentPaperclipMorph extends StatelessWidget {
       media.size.height - bottom - size.height,
     );
     final style = MeshStyle.of(context);
-    final native = useIosControls && !media.highContrast;
     return AnimatedBuilder(
       animation: animation,
       child: child,
@@ -817,21 +816,7 @@ class _AttachmentPaperclipMorph extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (native)
-                            IosControl(
-                              kind: 'modalGlass',
-                              properties: {
-                                'panel': true,
-                                'dark': style.dark,
-                                'radius': radius,
-                              },
-                            )
-                          else
-                            ColoredBox(
-                              color: media.highContrast
-                                  ? style.surface
-                                  : style.pill,
-                            ),
+                          ColoredBox(color: style.surface),
                           if (glyphOpacity > 0)
                             Center(
                               child: Opacity(

@@ -7175,7 +7175,9 @@ void main() {
     await tester.pumpAndSettle();
     final sheet = find.byType(BottomSheet);
     Finder inSheet(Finder child) => find.descendant(of: sheet, matching: child);
-    await tester.tap(inSheet(find.byTooltip('Edit phrase')).first);
+    expect(inSheet(find.byType(Divider)), findsNWidgets(2));
+    expect(inSheet(find.byIcon(Icons.edit_outlined)), findsNothing);
+    await tester.longPress(inSheet(find.text('I’m here')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'At the ridge');
     await tester.pump();
@@ -7573,6 +7575,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(preview, findsOneWidget);
     final menu = find.byKey(const ValueKey('chat-preview-actions'));
+    final previewHistory = find.descendant(
+      of: preview,
+      matching: find.byType(ListView),
+    );
+    expect(tester.widget<ListView>(previewHistory).clipBehavior, Clip.none);
     expect(
       tester.getTopLeft(menu).dy,
       greaterThan(tester.getBottomLeft(preview).dy),
