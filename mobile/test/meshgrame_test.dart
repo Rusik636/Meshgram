@@ -2332,26 +2332,10 @@ void main() {
       const snapshot = MethodChannel('meshgrame/back_swipe');
       messenger.setMockMethodCallHandler(snapshot, (_) async => false);
       addTearDown(() => messenger.setMockMethodCallHandler(snapshot, null));
-      int? categoryViewId;
-      messenger.setMockMethodCallHandler(SystemChannels.platform_views, (
-        call,
-      ) async {
-        if (call.method != 'create') return null;
-        if (call.arguments case {
-          'id': final int id,
-          'params': final Uint8List parameters,
-          'gestureBlockingPolicy': final String policy,
-        }) {
-          final input = const StandardMessageCodec().decodeMessage(
-            ByteData.sublistView(parameters),
-          );
-          if (input case {'kind': 'tabs', 'textOnly': true}) {
-            categoryViewId = id;
-            expect(policy, 'doNotBlockGesture');
-          }
-        }
-        return null;
-      });
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
       addTearDown(() {
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
@@ -2371,27 +2355,25 @@ void main() {
           matching: find.byType(IosControl),
         ),
       );
-      expect(categories.kind, 'tabs');
-      expect(categories.eagerGestures, isTrue);
-      expect(categories.properties['textOnly'], isTrue);
-      expect(categories.properties['labels'], ['All', 'Direct', 'Channels']);
-      expect(categories.properties['titleSize'], 15);
-      expect(tester.getSize(find.byType(ChatFilters)).height, 48);
-      expect(categoryViewId, isNotNull);
-      Future<void> selectCategory(int index) async {
-        await messenger.handlePlatformMessage(
-          'meshgrame/controls/$categoryViewId',
-          const StandardMethodCodec().encodeMethodCall(
-            MethodCall('select', index),
-          ),
-          (_) {},
-        );
-        await tester.pumpAndSettle();
-      }
-
-      await selectCategory(2);
+      expect(categories.kind, 'modalGlass');
+      final picker = find.byType(ChatFilters);
+      expect(tester.widget<ChatFilters>(picker).labels, [
+        'All',
+        'Direct',
+        'Channels',
+        'Unread',
+      ]);
+      expect(tester.getSize(picker).height, 48);
+      final scroll = find.descendant(
+        of: picker,
+        matching: find.byType(ListView),
+      );
+      expect(tester.widget<ListView>(scroll).scrollDirection, Axis.horizontal);
+      await tester.tap(find.text('Channels'));
+      await tester.pumpAndSettle();
       expect(find.byTooltip('Мира Соколова profile'), findsNothing);
-      await selectCategory(0);
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
       final avatar = find.byTooltip('Мира Соколова profile');
       await tester.tap(avatar);
       await tester.pumpAndSettle();
@@ -7144,7 +7126,10 @@ void main() {
       await tester.tap(find.text('Тропа'));
       await tester.tap(find.text('Contacts'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, peer.name.split(' ').first);
+      await tester.enterText(
+        find.byType(TextField).last,
+        peer.name.split(' ').first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, peer.name));
       await tester.pumpAndSettle();
