@@ -734,28 +734,28 @@
       },
       {
         "board": "69",
-        "role": "Companion Bluetooth",
+        "role": "Companion Bluetooth · No display",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
         "pattern": "Heltec_t114_without_display_companion_radio_ble.*?\\.uf2"
       },
       {
         "board": "69",
-        "role": "Companion USB",
+        "role": "Companion USB · No display",
         "chip": "nrf52840",
         "releasePrefix": "companion-v",
         "pattern": "Heltec_t114_without_display_companion_radio_usb.*?\\.uf2"
       },
       {
         "board": "69",
-        "role": "Repeater",
+        "role": "Repeater · No display",
         "chip": "nrf52840",
         "releasePrefix": "repeater-v",
         "pattern": "Heltec_t114_without_display_[rR]epeater.*?\\.uf2"
       },
       {
         "board": "69",
-        "role": "Room Server",
+        "role": "Room Server · No display",
         "chip": "nrf52840",
         "releasePrefix": "room-server-v",
         "pattern": "Heltec_t114_without_display_room_server.*?\\.uf2"

@@ -102,27 +102,7 @@ class FirmwareFlasher {
       if (!RegExp(r'^[\w.-]+/[\w.-]+$').hasMatch(slug)) {
         throw const FormatException('Invalid release repository');
       }
-      final prefix = target.releasePrefix;
-      final uri = Uri.https(
-        'api.github.com',
-        '/repos/$slug/releases${prefix == null ? '/latest' : ''}',
-        prefix == null ? null : {'per_page': '50'},
-      );
-      final jsonResponse = await _request(client, uri);
-      final jsonBytes = await jsonResponse
-          .fold<List<int>>([], (buffer, data) {
-            if (buffer.length + data.length > 8 * 1024 * 1024) {
-              throw const FormatException('Release metadata is too large');
-            }
-            return buffer..addAll(data);
-          })
-          .timeout(const Duration(seconds: 25));
-      final decoded = jsonDecode(utf8.decode(jsonBytes));
-      final releases = decoded is List ? decoded : [decoded];
-      final asset = selectFirmwareAsset(
-        target,
-        releases.cast<Map<String, dynamic>>(),
-      );
+      final asset = await _findFirmwareAsset(client, target);
       if (asset == null) {
         throw StateError('No compatible stable firmware release found');
       }
@@ -295,6 +275,40 @@ class FirmwareFlasher {
         Directory(location).absolute.uri.resolve(name),
       );
       if (candidate.existsSync()) return candidate.path;
+    }
+    return null;
+  }
+
+  static Future<FirmwareAsset?> _findFirmwareAsset(
+    HttpClient client,
+    FirmwareTarget target,
+  ) async {
+    const pageSize = 5;
+    final latestOnly = target.releasePrefix == null;
+    final path = '/repos/${target.repository}/releases';
+    for (var page = 1; page <= (latestOnly ? 1 : 10); page++) {
+      final uri = latestOnly
+          ? Uri.https('api.github.com', '$path/latest')
+          : Uri.https('api.github.com', path, {
+              'page': '$page',
+              'per_page': '$pageSize',
+            });
+      final response = await _request(client, uri);
+      final bytes = await response
+          .fold(BytesBuilder(copy: false), (buffer, chunk) {
+            if (buffer.length + chunk.length > 8 * 1024 * 1024) {
+              throw const FormatException('Release metadata is too large');
+            }
+            return buffer..add(chunk);
+          })
+          .timeout(const Duration(seconds: 25));
+      final decoded = jsonDecode(utf8.decode(bytes.takeBytes()));
+      final releases = decoded is List ? decoded : [decoded];
+      final asset = selectFirmwareAsset(
+        target,
+        releases.cast<Map<String, dynamic>>(),
+      );
+      if (asset != null || releases.length < pageSize) return asset;
     }
     return null;
   }
