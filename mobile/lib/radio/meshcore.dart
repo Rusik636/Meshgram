@@ -25,6 +25,7 @@ class MeshCoreAdapter
     implements
         NetworkAdapter,
         NetworkLanAdapter,
+        NetworkUsbAdapter,
         NetworkBufferedMessages,
         NetworkMessageBudget,
         NetworkMessageReferences,
@@ -50,6 +51,8 @@ class MeshCoreAdapter
     rx: _CoreSession._rx,
     tx: _CoreSession._tx,
   );
+  @override
+  UsbRadioProtocol get usb => (framing: lan, baudRate: 115200);
   @override
   NetworkSession createSession(RadioLink link) => _CoreSession(link);
 

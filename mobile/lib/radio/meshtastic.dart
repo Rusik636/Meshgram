@@ -24,6 +24,7 @@ class MeshtasticAdapter
     implements
         NetworkAdapter,
         NetworkLanAdapter,
+        NetworkUsbAdapter,
         NetworkBufferedMessages,
         NetworkMessageBudget,
         NetworkMessageReferences,
@@ -58,6 +59,8 @@ class MeshtasticAdapter
     wake: [0x94, 0x94, 0x94, 0x94],
     heartbeat: [0x3a, 0x02, 0x08, 0x01],
   );
+  @override
+  UsbRadioProtocol get usb => (framing: lan, baudRate: 115200);
   @override
   NetworkSession createSession(RadioLink link) => _TasticSession(link);
   @override

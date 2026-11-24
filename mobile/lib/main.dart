@@ -14,6 +14,7 @@ import 'local_notifications.dart';
 import 'mesh/controller.dart';
 import 'mesh/store.dart';
 import 'radio/ble_transport.dart';
+import 'radio/desktop_usb.dart';
 import 'radio/lan_transport.dart';
 import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
@@ -66,6 +67,7 @@ Future<void> _startMessenger(SharedPreferences preferences) async {
     store: MeshStore(preferences),
     transport: BleTransport(),
     lanTransport: LanTransport(),
+    usbTransport: DesktopUsbTransport.supported ? DesktopUsbTransport() : null,
     adapters: const [MeshCoreAdapter(), MeshtasticAdapter()],
     preview: const bool.fromEnvironment('MESHGRAME_PREVIEW'),
     onIncomingMessage: notifications.received,

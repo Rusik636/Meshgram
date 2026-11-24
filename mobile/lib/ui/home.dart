@@ -35,6 +35,7 @@ import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
 import 'message_search.dart';
 import 'style.dart';
+import 'usb_radio_page.dart';
 import 'swipe_actions.dart';
 import 'page_route.dart';
 
@@ -2517,6 +2518,19 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             showChevron: false,
             onTap: busy ? null : _discoverRadios,
           ),
+          if (controller.usbTransport != null)
+            MeshRow(
+              title: tr(context, 'Подключить по USB', 'Connect over USB'),
+              icon: Icons.usb_rounded,
+              tint: _teal,
+              onTap: busy
+                  ? null
+                  : () => unawaited(
+                      _openWorkspacePage(
+                        (_) => UsbRadioPage(controller: controller),
+                      ),
+                    ),
+            ),
         ]),
         if (busy || controller.scanning)
           Padding(
@@ -2631,7 +2645,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final opened = _revealedRadio == id;
     final canConfigure = controller.canConfigureRadio(radio);
     final unread = selected ? 0 : controller.unreadFor(radio);
-    final local = lanEndpoint(controller.connectionRoute(radio)) != null;
+    final route = controller.connectionRoute(radio);
+    final local = lanEndpoint(route) != null;
+    final usb = usbPortOf(route) != null;
     final (iconTint, glyphColor) = switch ((connected, selected)) {
       (true, true) => (const Color(0xffd5e88b), const Color(0xff253315)),
       (true, false) => (const Color(0xffa9e0b4), const Color(0xff173c26)),
@@ -2640,6 +2656,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final status = selected ? _status : null;
     final connectionLabel = [
       controller.label(radio.network),
+      if (usb) 'USB',
       ?status,
     ].join(' · ');
     void close() => setState(() => _revealedRadio = null);
@@ -2663,9 +2680,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         child: MeshRow(
           title: radio.name,
           leading: Semantics(
-            label: local ? 'Wi-Fi' : 'Bluetooth',
+            label: usb
+                ? 'USB'
+                : local
+                ? 'Wi-Fi'
+                : 'Bluetooth',
             child: MeshRowIcon(
-              icon: local ? Icons.wifi_rounded : Icons.bluetooth_rounded,
+              icon: usb
+                  ? Icons.usb_rounded
+                  : local
+                  ? Icons.wifi_rounded
+                  : Icons.bluetooth_rounded,
               tint: iconTint,
               glyphColor: glyphColor,
             ),

@@ -41,6 +41,19 @@ LanEndpoint? lanEndpoint(Radio radio) {
   return (host: uri.host, port: uri.port);
 }
 
+String? usbPortOf(Radio radio) {
+  final uri = Uri.tryParse(radio.device);
+  return uri?.scheme == 'usb' && uri!.path.isNotEmpty ? uri.path : null;
+}
+
+typedef UsbPort = ({String path, String name});
+
+Radio usbRadio(String network, UsbPort port) => (
+  network: network,
+  device: Uri(scheme: 'usb', path: port.path).toString(),
+  name: port.name,
+);
+
 Radio lanRadio(String network, String host, int port, {String? name}) {
   final input = host.trim();
   final address = input.startsWith('[') && input.endsWith(']')
@@ -264,6 +277,17 @@ class LanRadioProtocol {
 
 abstract interface class NetworkLanAdapter {
   LanRadioProtocol get lan;
+}
+
+typedef UsbRadioProtocol = ({LanRadioProtocol framing, int baudRate});
+
+abstract interface class NetworkUsbAdapter {
+  UsbRadioProtocol get usb;
+}
+
+abstract interface class RadioUsbTransport {
+  List<UsbPort> ports();
+  Future<RadioLink> connect(String port, UsbRadioProtocol protocol);
 }
 
 abstract interface class NetworkBufferedMessages {
