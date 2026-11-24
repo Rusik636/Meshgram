@@ -81,6 +81,7 @@ class ChatCache {
   final hiddenChats = <String>{};
   final keptChats = <String>{};
   final chatOrder = <String>[];
+  final pinnedChats = <String>[];
   final folders = <String, ChatFolder>{};
   final pinnedMessages = <String, String>{};
   final searchHistory = <String>[];
@@ -138,6 +139,7 @@ class ChatCache {
     'hiddenChats': hiddenChats.toList(),
     'keptChats': keptChats.toList(),
     'chatOrder': chatOrder,
+    if (pinnedChats.isNotEmpty) 'pinnedChats': pinnedChats,
     if (folders.isNotEmpty)
       'folders': folders.values.map((folder) => folder.toJson()).toList(),
     if (pinnedMessages.isNotEmpty) 'pinnedMessages': pinnedMessages,
@@ -274,6 +276,9 @@ class ChatCache {
     cache.chatOrder.addAll(
       (json['chatOrder'] as List? ?? const []).cast<String>(),
     );
+    cache.pinnedChats.addAll(
+      (json['pinnedChats'] as List? ?? const []).whereType<String>().toSet(),
+    );
     for (final entry in (json['folders'] as List? ?? const [])) {
       if (ChatFolder.fromJson(entry) case final folder?) {
         cache.folders[folder.id] = folder;
@@ -312,6 +317,12 @@ class ChatCache {
   void addUnread(MeshMessage message) {
     _unreadIds[message.chat] = {...unreadIds(message.chat), message.id};
     unread.update(message.chat, (count) => count + 1, ifAbsent: () => 1);
+  }
+
+  void promoteChat(String id) {
+    chatOrder
+      ..remove(id)
+      ..insert(0, id);
   }
 
   void markRead(String chat) {
@@ -458,6 +469,9 @@ class ChatCache {
     keptChats.addAll(other.keptChats);
     chatOrder.addAll(
       other.chatOrder.where((id) => !chatOrder.contains(id)).toList(),
+    );
+    pinnedChats.addAll(
+      other.pinnedChats.where((id) => !pinnedChats.contains(id)).toList(),
     );
     for (final entry in other.folders.entries) {
       folders.putIfAbsent(entry.key, () => entry.value);

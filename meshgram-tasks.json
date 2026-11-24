@@ -1300,6 +1300,41 @@
         "Проверены iPhone и Android, тестовый чат без интернета, обычные клиенты Meshtastic и MeshCore, события транспорта и отсутствие радиопакетов для локальных функций."
       ],
       "evidence": []
+    },
+    {
+      "id": "14",
+      "parent_id": null,
+      "title": "Подъём новых чатов, закрепления и меню предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/14-chat-list-pins",
+      "depends_on": [
+        "06",
+        "12"
+      ],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "Новые сообщения поднимают чаты ниже закреплённых. Закрепление и открепление доступны из списка и предпросмотра.",
+        "Карточка без рамки с центрированным названием. Действия находятся под карточкой. Нажатие на предпросмотр открывает чат."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatContextMenus.swift#L370-L416",
+          "behavior": "В контекстном меню отдельные действия для прочтения, закрепления и уведомлений."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L8648-L8706",
+          "behavior": "Закрепление доступно из меню предпросмотра Android."
+        },
+        {
+          "kind": "check",
+          "result": "В ветке прошли пять проверок предпросмотра, повторного нажатия, свайпа, сохранения закрепления и подъёма по входящему событию с отстающими часами."
+        }
+      ]
     }
   ]
 }

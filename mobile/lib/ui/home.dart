@@ -284,6 +284,95 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   ChatFolder? get _chatFolder =>
       _showHidden ? null : controller.cache?.folders[_chatFolderView];
 
+  List<String> _chatPins(ChatFolder? folder) =>
+      folder?.pinned ?? controller.cache?.pinnedChats ?? const [];
+
+  void _toggleChatPin(ChatFolder? folder, String id) {
+    setState(() => _revealedChat = null);
+    if (folder == null) {
+      controller.toggleChatPin(id);
+    } else {
+      controller.toggleFolderPin(folder.id, id);
+    }
+  }
+
+  List<ChatPreviewMenuItem> _previewActions(
+    Peer peer,
+    ChatFolder? folder,
+    Radio? profile,
+  ) {
+    final unread = controller.isChatUnread(peer.id);
+    final pinned = _chatPins(folder).contains(peer.id);
+    final muted = controller.cache?.muted.contains(peer.id) ?? false;
+    ChatPreviewMenuItem item(
+      String label,
+      IconData icon,
+      VoidCallback run, {
+      bool destructive = false,
+    }) => (
+      label: label,
+      icon: icon,
+      destructive: destructive,
+      onTap: () {
+        if (mounted && controller.active == profile) run();
+      },
+    );
+
+    return [
+      if (folder != null)
+        item(
+          tr(context, 'Убрать из папки', 'Remove from folder'),
+          Icons.folder_off_outlined,
+          () => controller.saveChatFolder(
+            id: folder.id,
+            name: folder.name,
+            chats: folder.chats.where((id) => id != peer.id).toSet(),
+          ),
+        )
+      else
+        item(
+          _showHidden
+              ? tr(context, 'Показать чат', 'Show chat')
+              : tr(context, 'Скрыть чат', 'Hide chat'),
+          _showHidden
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+          () => _changeVisibility([peer]),
+        ),
+      item(
+        unread
+            ? tr(context, 'Пометить прочитанным', 'Mark as read')
+            : tr(context, 'Пометить непрочитанным', 'Mark as unread'),
+        unread
+            ? Icons.mark_chat_read_outlined
+            : Icons.mark_chat_unread_outlined,
+        () => unread
+            ? controller.markChatsRead([peer.id])
+            : controller.markChatsUnread([peer.id]),
+      ),
+      item(
+        pinned
+            ? tr(context, 'Открепить чат', 'Unpin chat')
+            : tr(context, 'Закрепить чат', 'Pin chat'),
+        pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+        () => _toggleChatPin(folder, peer.id),
+      ),
+      item(
+        muted
+            ? tr(context, 'Включить уведомления', 'Unmute notifications')
+            : tr(context, 'Выключить уведомления', 'Mute notifications'),
+        muted ? Icons.notifications_outlined : Icons.notifications_off_outlined,
+        () => controller.toggleMute(peer.id),
+      ),
+      item(
+        tr(context, 'Удалить чат', 'Delete chat'),
+        Icons.delete_outline_rounded,
+        () => unawaited(_deleteChats([peer])),
+        destructive: true,
+      ),
+    ];
+  }
+
   List<Peer> _visibleChats([int? filter]) {
     final folder = _chatFolder;
     final unread = !_showHidden && _chatFolderView == 'unread';
@@ -297,8 +386,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             (folder == null || folder.chats.contains(peer.id)))
           peer.id: peer,
     };
-    if (folder == null) return peers.values.toList();
-    return [for (final id in folder.pinned) ?peers.remove(id), ...peers.values];
+    return [
+      for (final id in _chatPins(folder)) ?peers.remove(id),
+      ...peers.values,
+    ];
   }
 
   void _setFolderView(String? value) => setState(() {
@@ -850,6 +941,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   Widget _chats(MeshStyle style, double headerHeight, double collapseRange) {
     final hiddenCount = controller.hiddenConversations.length;
     final folder = _chatFolder;
+    final pins = _chatPins(folder);
     final visible = _visibleChats();
     Widget item(BuildContext context, int index) {
       final peer = visible[index];
@@ -859,7 +951,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         editing: _editingChats,
         reorderIndex: index,
         selected: _selectedChats.contains(peer.id),
-        pinned: folder?.pinned.contains(peer.id) ?? false,
+        pinned: pins.contains(peer.id),
         onTap: _editingChats
             ? () {
                 if (!_removingChats) {
@@ -889,13 +981,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     setState(() => _revealedChat = opened ? peer.id : null),
                 onVisibility: () => _changeVisibility([peer]),
                 onDelete: () => unawaited(_deleteChats([peer])),
-                onPin: folder == null
-                    ? null
-                    : () {
-                        setState(() => _revealedChat = null);
-                        controller.toggleFolderPin(folder.id, peer.id);
-                      },
-                pinned: folder?.pinned.contains(peer.id) ?? false,
+                onPin: () => _toggleChatPin(folder, peer.id),
+                pinned: pins.contains(peer.id),
                 child: row,
               ),
             if (index != visible.length - 1)
@@ -1375,6 +1462,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               final overlay = navigator.overlay!.context.findRenderObject();
               final anchor = box.localToGlobal(Offset.zero, ancestor: overlay);
               final profile = controller.active;
+              final folder = _chatFolder;
               final open = await showMeshChatPreview(
                 rowContext,
                 controller,
@@ -1384,6 +1472,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   type: MaterialType.transparency,
                   child: row(rowContext, preview: true),
                 ),
+                actions: _previewActions(peer, folder, profile),
               );
               if (open && mounted && controller.active == profile) {
                 await _openChat(peer);
