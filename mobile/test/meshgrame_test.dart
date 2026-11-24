@@ -7165,12 +7165,27 @@ void main() {
 
     await tester.tap(phraseButton);
     await tester.pumpAndSettle();
+    final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    expect(
+      tester.getBottomLeft(find.text('5 chars · 5/200 B')).dy,
+      lessThan(tester.getTopLeft(strip).dy),
+    );
+    expect(find.byTooltip('Collapse quick phrases'), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    await tester.tapAt(const Offset(7, 140));
+    await tester.pumpAndSettle();
+    expect(strip, findsNothing);
+    await tester.tap(phraseButton);
+    await tester.pumpAndSettle();
     expect(find.text('I’m here'), findsOneWidget);
     await tester.tap(find.text('I’m here'));
     await tester.pumpAndSettle();
     expect(controller.draft(peer.id), 'Team: I’m here');
     expect(find.byType(BottomSheet), findsNothing);
+    expect(strip, findsNothing);
 
+    await tester.tap(phraseButton);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Expand quick phrases'));
     await tester.pumpAndSettle();
     final sheet = find.byType(BottomSheet);
@@ -7187,12 +7202,64 @@ void main() {
     await tester.tap(inSheet(find.text('At the ridge')));
     await tester.pumpAndSettle();
     expect(controller.draft(peer.id), 'Team: I’m here At the ridge');
-    expect(find.text('At the ridge'), findsOneWidget);
-    await tester.tap(find.byTooltip('Collapse quick phrases'));
-    await tester.pumpAndSettle();
+    expect(strip, findsNothing);
     expectAlignedButtons();
     expect(controller.messages(peer.id), hasLength(messages));
     expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('radio status replaces the draft counter until connected', (
+    tester,
+  ) async {
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final radio = controller.active!;
+    await controller.disconnectRadio(radio);
+    final peer = controller.cache!.peers['node:a']!;
+    controller.setDraft(peer.id, 'Test');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final disconnected = find.text('Radio disconnected');
+    final connected = find.text('Connection established');
+    final counter = find.text('4 chars · 4/200 B');
+    expect(disconnected, findsOneWidget);
+    expect(
+      tester.widget<Text>(disconnected).style?.color,
+      const MeshStyle(false).error,
+    );
+    expect(counter, findsNothing);
+
+    await controller.connect(radio);
+    await tester.pumpAndSettle();
+    expect(disconnected, findsNothing);
+    expect(connected, findsOneWidget);
+    expect(counter, findsNothing);
+    await tester.pump(const Duration(milliseconds: 1400));
+    await tester.pumpAndSettle();
+    expect(connected, findsNothing);
+    expect(counter, findsOneWidget);
+
+    await controller.disconnectRadio(radio);
+    await tester.pumpAndSettle();
+    await controller.connect(radio);
+    await tester.pumpAndSettle();
+    expect(connected, findsOneWidget);
+    await controller.disconnectRadio(radio);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    expect(disconnected, findsOneWidget);
+    expect(counter, findsNothing);
+    expect(connected, findsNothing);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });

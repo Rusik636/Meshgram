@@ -64,6 +64,9 @@ class MeshStyle {
   Color get warning => dark
       ? const Color(MeshGrameV2Dark.warning)
       : const Color(MeshGrameV2Light.warning);
+  Color get error => dark
+      ? const Color(MeshGrameV2Dark.error)
+      : const Color(MeshGrameV2Light.error);
   Color get success => const Color(MeshGrameV2Light.success);
   Color get onlineDot => const Color(MeshGrameV2Light.online);
   Color get deliveryWarning => const Color(MeshGrameV2Light.deliveryWarning);
