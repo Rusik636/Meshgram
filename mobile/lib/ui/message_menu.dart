@@ -15,7 +15,26 @@ import 'navigation.dart';
 import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
-Future<String?> showMessageMenu({
+typedef MessageMenuChoice = ({String value, Rect? reactionSource});
+
+class _MessageMenuRoute extends RawDialogRoute<MessageMenuChoice> {
+  _MessageMenuRoute({
+    required super.pageBuilder,
+    required super.barrierLabel,
+    required super.transitionDuration,
+    required super.transitionBuilder,
+  }) : super(barrierColor: Colors.transparent);
+
+  @override
+  bool didPop(MessageMenuChoice? result) {
+    if (result?.reactionSource != null) {
+      controller?.reverseDuration = Duration.zero;
+    }
+    return super.didPop(result);
+  }
+}
+
+Future<MessageMenuChoice?> showMessageMenu({
   Uint8List? backdrop,
   required BuildContext context,
   required Rect anchor,
@@ -32,10 +51,8 @@ Future<String?> showMessageMenu({
   required ValueChanged<Peer> onOpenProfile,
   required Widget details,
 }) async {
-  final route = RawDialogRoute<String>(
-    barrierDismissible: true,
+  final route = _MessageMenuRoute(
     barrierLabel: tr(context, 'Закрыть меню', 'Close menu'),
-    barrierColor: Colors.transparent,
     transitionDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 350),
@@ -61,7 +78,7 @@ Future<String?> showMessageMenu({
     ),
   );
   final result = await Navigator.of(context, rootNavigator: true).push(route);
-  await route.completed;
+  if (result?.reactionSource == null) await route.completed;
   return result;
 }
 
@@ -100,7 +117,8 @@ enum _MenuPanel { actions, emoji, reactions, details }
 class _MessageMenuState extends State<_MessageMenu> {
   var _panel = _MenuPanel.actions;
 
-  void _select(String value) => Navigator.of(context).pop(value);
+  void _select(String value, [Rect? reactionSource]) =>
+      Navigator.of(context).pop((value: value, reactionSource: reactionSource));
   void _show(_MenuPanel panel) => setState(() => _panel = panel);
 
   @override
@@ -167,6 +185,7 @@ class _MessageMenuState extends State<_MessageMenu> {
                                               .clamp(95, 275)
                                               .toDouble(),
                                           onSelect: _select,
+                                          onSelectFrom: _select,
                                           onCollapse: () =>
                                               _show(_MenuPanel.actions),
                                         )
@@ -548,7 +567,7 @@ class _QuickReactions extends StatelessWidget {
 
   final List<String> recent;
 
-  final ValueChanged<String> onSelect;
+  final void Function(String emoji, Rect? source) onSelect;
   final VoidCallback onExpand;
 
   @override
@@ -573,12 +592,15 @@ class _QuickReactions extends StatelessWidget {
                 separatorBuilder: (_, _) => const SizedBox(width: 2),
                 itemBuilder: (context, index) {
                   final emoji = options[index];
-                  return IconButton(
-                    tooltip: '${tr(context, 'Реакция', 'React')} $emoji',
-                    onPressed: () => onSelect(emoji),
-                    icon: Text(
-                      emoji,
-                      style: emojiGlyphStyle(const TextStyle(fontSize: 25)),
+                  return Builder(
+                    builder: (context) => IconButton(
+                      tooltip: '${tr(context, 'Реакция', 'React')} $emoji',
+                      onPressed: () =>
+                          onSelect(emoji, reactionGlyphBounds(context, 25)),
+                      icon: Text(
+                        emoji,
+                        style: emojiGlyphStyle(const TextStyle(fontSize: 25)),
+                      ),
                     ),
                   );
                 },

@@ -1018,7 +1018,7 @@
       "depends_on": [
         "10"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -1037,12 +1037,54 @@
       "depends_on": [
         "10"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Реакция летит к счётчику по существующему событию. Полный список эмодзи раскрывается. Выбранное сообщение на iPhone остаётся чётким.",
         "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L2797-L2803",
+          "behavior": "Переход iOS занимает 200 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L2947-L2965",
+          "behavior": "Реакция движется по дуге, значок в счётчике раскрывается при приземлении."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L4221-L4249",
+          "behavior": "В середине дуги значок находится на 30 pt выше точки выбора."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/Reactions/ReactionsEffectOverlay.java#L386-L424",
+          "behavior": "На Android разные кривые для горизонтали и вертикали, поверх общей кривой."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/Reactions/ReactionsEffectOverlay.java#L463-L471",
+          "behavior": "Вариант только с перемещением занимает 350 мс."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "На iOS выбрана реакция из полного каталога в тёмной теме, на Android из быстрой полосы в светлой. На кадрах видны дуга и приземление в счётчик.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/reaction-transition-frames.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полный список эмодзи и чёткий текст выбранного сообщения видны одновременно в обеих темах.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-reaction-picker-dark.png"
+        },
+        {
+          "kind": "check",
+          "result": "227 тестов Flutter. Проверки на обеих платформах подтвердили старт из выбранной кнопки, скрытие значка в счётчике до приземления и отсутствие полёта при уменьшении движения."
+        }
+      ]
     },
     {
       "id": "12",

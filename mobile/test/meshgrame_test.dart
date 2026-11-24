@@ -5930,6 +5930,98 @@ void main() {
     },
   );
 
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('menu reaction lands in its chip on ${platform.name}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 760);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter(), MeshCoreAdapter()],
+        preview: true,
+      );
+      final cache = controller.cache!;
+      final peer = cache.peers['ch:0']!;
+      final message = MeshMessage(
+        id: 'reaction-flight-message',
+        chat: peer.id,
+        author: 'Mira',
+        text: 'Choose a reaction',
+        time: DateTime.now(),
+        delivery: Delivery.received,
+        remoteId: '56',
+      );
+      cache.messages.add(message);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: MeshChatPage(controller: controller, peer: peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bubble = find.text(message.text);
+      final flight = find.byKey(const ValueKey('reaction-flight'));
+      final chip = find.descendant(
+        of: find.byType(MessageReactionChips),
+        matching: find.text('👍'),
+      );
+      await tester.longPress(bubble);
+      await tester.pumpAndSettle();
+      final option = find.byTooltip('React 👍');
+      final source = tester.getCenter(option);
+      await tester.tap(option);
+      for (var frame = 0; frame < 8 && flight.evaluate().isEmpty; frame++) {
+        await tester.pump();
+      }
+      expect(flight, findsOneWidget);
+      expect((tester.getCenter(flight) - source).distance, lessThan(2));
+      expect(controller.reactionsFor(message).single.emoji, '👍');
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: chip, matching: find.byType(Opacity)).first,
+            )
+            .opacity,
+        0,
+      );
+      final destination = tester.getCenter(chip);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final middle = tester.getCenter(flight);
+      if (platform == TargetPlatform.iOS) {
+        expect(middle.dy, closeTo(source.dy - 30, 1));
+      } else {
+        expect(
+          (middle - destination).distance,
+          lessThan((source - destination).distance),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(chip, findsOneWidget);
+
+      _reduceMotion(tester);
+      await tester.pumpAndSettle();
+      await tester.longPress(bubble);
+      await tester.pumpAndSettle();
+      final heart = find.byTooltip('React ❤️');
+      await tester.ensureVisible(heart);
+      await tester.tap(heart);
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(
+        controller.reactionsFor(message).map((reaction) => reaction.emoji),
+        unorderedEquals(['👍', '❤️']),
+      );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
   testWidgets(
     'channel avatars follow sender groups and pin above the composer',
     (tester) async {

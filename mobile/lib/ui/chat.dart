@@ -264,6 +264,15 @@ typedef _SendTextFlight = ({
   bool ios,
 });
 
+class _ReactionFlight {
+  _ReactionFlight(this.messageId, this.emoji, this.source);
+
+  final String messageId, emoji;
+  final Rect source;
+  bool accepted = false;
+  Rect? destination;
+}
+
 class _ChatState extends State<MeshChatPage>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   late final _draft = EmojiEditingController(
@@ -288,6 +297,12 @@ class _ChatState extends State<MeshChatPage>
   late final _sendTargetOpacity = _sendFlightAnimation.drive(
     CurveTween(curve: const Interval(.50, 1)),
   );
+  _ReactionFlight? _reactionFlight;
+  final _reactionTarget = GlobalKey();
+  late final _reactionAnimation = AnimationController(vsync: this)
+    ..addStatusListener((status) {
+      if (status == AnimationStatus.completed) _clearReactionFlight();
+    });
   final _scroll = ScrollController(keepScrollOffset: false);
   final _history = ListController();
   AssetBundle? _emojiBundle;
@@ -661,6 +676,7 @@ class _ChatState extends State<MeshChatPage>
     _scroll.dispose();
     _highlight.dispose();
     _sendFlightAnimation.dispose();
+    _reactionAnimation.dispose();
     _sendFlightCompletion?.complete();
     _sendFlightCompletion = null;
     _replyRevealTimer?.cancel();
@@ -1364,7 +1380,7 @@ class _ChatState extends State<MeshChatPage>
       _menuVisible = true;
       _previewMessageId = message.id;
     });
-    final String? value;
+    final MessageMenuChoice? choice;
     try {
       Uint8List? backdrop;
       if (useIosControls && !MediaQuery.highContrastOf(context)) {
@@ -1375,7 +1391,7 @@ class _ChatState extends State<MeshChatPage>
         }
         if (!mounted) return;
       }
-      value = await showMessageMenu(
+      choice = await showMessageMenu(
         backdrop: backdrop,
         context: context,
         anchor: overlay.globalToLocal(anchor.topLeft) & anchor.size,
@@ -1417,7 +1433,8 @@ class _ChatState extends State<MeshChatPage>
         });
       }
     }
-    if (!mounted || value == null) return;
+    if (!mounted || choice == null) return;
+    final value = choice.value;
     if (value == 'reply') {
       _selectReply(peer, message);
     } else if (value == 'copy') {
@@ -1441,12 +1458,17 @@ class _ChatState extends State<MeshChatPage>
           ),
         );
       }
-    } else {
-      await _react(peer, message, value);
+    } else if (controller.active == profile) {
+      await _react(peer, message, value, source: choice.reactionSource);
     }
   }
 
-  Future<void> _react(Peer peer, MeshMessage message, String emoji) async {
+  Future<void> _react(
+    Peer peer,
+    MeshMessage message,
+    String emoji, {
+    Rect? source,
+  }) async {
     final controller = widget.controller;
     if (!controller.connected) {
       final radio = controller.active;
@@ -1454,7 +1476,61 @@ class _ChatState extends State<MeshChatPage>
       await controller.connect(radio);
       if (!mounted || controller.active != radio) return;
     }
+    final radio = controller.active;
+    final key = reactionEmojiKey(emoji);
+    final canvas = _menuBackground.currentContext?.findRenderObject();
+    final moves =
+        source != null &&
+        !MediaQuery.disableAnimationsOf(context) &&
+        _route?.isCurrent == true &&
+        canvas is RenderBox &&
+        canvas.hasSize &&
+        _reactionFlight == null &&
+        !controller
+            .reactionsFor(message)
+            .any((reaction) => reaction.own && reaction.emojiKey == key);
+    final flight = moves
+        ? _ReactionFlight(
+            message.id,
+            emoji,
+            canvas.globalToLocal(source.topLeft) & source.size,
+          )
+        : null;
+    if (flight != null) setState(() => _reactionFlight = flight);
     final sent = await controller.react(peer, message, emoji);
+    if (!mounted) return;
+    if (flight != null) {
+      if (sent) {
+        setState(() => flight.accepted = true);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || _reactionFlight != flight) return;
+        final target = _reactionTarget.currentContext?.findRenderObject();
+        if (controller.active == radio &&
+            _route?.isCurrent == true &&
+            target is RenderBox &&
+            target.hasSize &&
+            canvas is RenderBox &&
+            canvas.attached) {
+          final destination = MatrixUtils.transformRect(
+            target.getTransformTo(canvas),
+            Offset.zero & target.size,
+          );
+          if (!(Offset.zero & canvas.size).overlaps(destination)) {
+            _clearReactionFlight();
+            return;
+          }
+          setState(() => flight.destination = destination);
+          _reactionAnimation.duration = Duration(
+            milliseconds: Theme.of(context).platform == TargetPlatform.iOS
+                ? 200
+                : 350,
+          );
+          unawaited(_reactionAnimation.forward(from: 0));
+          return;
+        }
+      }
+      _clearReactionFlight();
+    }
     if (!sent && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1469,6 +1545,51 @@ class _ChatState extends State<MeshChatPage>
       );
     }
   }
+
+  void _clearReactionFlight() {
+    if (mounted) setState(() => _reactionFlight = null);
+  }
+
+  Widget _movingReaction(_ReactionFlight flight, {required bool ios}) =>
+      AnimatedBuilder(
+        animation: _reactionAnimation,
+        builder: (_, _) {
+          final target = flight.destination ?? flight.source;
+          final progress = flight.destination == null
+              ? 0.0
+              : _reactionAnimation.value;
+          const standard = Cubic(.25, .1, .25, 1);
+          final time = ios ? progress : standard.transform(progress);
+          final x = ios ? time : const Cubic(.23, 1, .32, 1).transform(time);
+          final y = ios ? time : standard.transform(time);
+          final origin = flight.source.center;
+          final landing = target.center;
+          final rise = (landing - origin).distance < 5
+              ? 0.0
+              : 30 + (landing.dy - origin.dy) / 2;
+          final center = Offset(
+            origin.dx + (landing.dx - origin.dx) * x,
+            origin.dy +
+                (landing.dy - origin.dy) * y -
+                (ios ? 4 * time * (1 - time) * rise : 0),
+          );
+          final size = Size.lerp(flight.source.size, target.size, x)!;
+          return Positioned.fromRect(
+            key: const ValueKey('reaction-flight'),
+            rect: center - size.center(Offset.zero) & size,
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: FittedBox(
+                  child: Text(
+                    flight.emoji,
+                    style: emojiGlyphStyle(const TextStyle(fontSize: 16)),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
 
   Future<void> _profile(Peer peer) async {
     final route = meshPageRoute<bool>(
@@ -1859,6 +1980,16 @@ class _ChatState extends State<MeshChatPage>
                                 quoted: quote,
                                 flightTarget: movingText
                                     ? _sendFlightTarget
+                                    : null,
+                                reactionTarget:
+                                    onMenu != null &&
+                                        _reactionFlight?.messageId == item.id
+                                    ? (
+                                        target: _reactionTarget,
+                                        emojiKey: reactionEmojiKey(
+                                          _reactionFlight!.emoji,
+                                        ),
+                                      )
                                     : null,
                                 highlightedExcerpt:
                                     draftExcerpt ?? revealedExcerpt,
@@ -2254,6 +2385,11 @@ class _ChatState extends State<MeshChatPage>
                 if (_sendTextFlight case final flight?
                     when flight.destination != null)
                   _sendFlight(flight, style),
+                if (_reactionFlight case final flight? when flight.accepted)
+                  _movingReaction(
+                    flight,
+                    ios: Theme.of(context).platform == TargetPlatform.iOS,
+                  ),
               ],
             ),
           ),
@@ -2675,6 +2811,7 @@ class _Bubble extends StatelessWidget {
     this.excerptAnimation,
     this.waitingForRadio = false,
     this.flightTarget,
+    this.reactionTarget,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -2694,6 +2831,7 @@ class _Bubble extends StatelessWidget {
   final Animation<double>? excerptAnimation;
   final bool waitingForRadio;
   final Key? flightTarget;
+  final ReactionGlyphTarget? reactionTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -2732,6 +2870,7 @@ class _Bubble extends StatelessWidget {
                       showAuthor: showAuthor,
                       quoted: quoted,
                       reactions: reactions,
+                      reactionTarget: reactionTarget,
                       highlight: highlight,
                       onTap: tap,
                       onReact: onReact,
@@ -2778,6 +2917,7 @@ class _Bubble extends StatelessWidget {
                         waitingForRadio: waitingForRadio,
                         textKey: flightTarget,
                         reactions: reactions,
+                        reactionTarget: reactionTarget,
                         onTap: tap,
                         onReact: onReact,
                         onRetry: onRetry,
@@ -2816,6 +2956,7 @@ class _StickerContent extends StatelessWidget {
     this.onRetry,
     this.onQuote,
     this.onAuthor,
+    this.reactionTarget,
   });
 
   final VoidCallback? onAuthor;
@@ -2827,6 +2968,7 @@ class _StickerContent extends StatelessWidget {
   final Animation<double>? highlight;
   final VoidCallback? onTap, onRetry, onQuote;
   final ValueChanged<String>? onReact;
+  final ReactionGlyphTarget? reactionTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -2947,6 +3089,7 @@ class _StickerContent extends StatelessWidget {
             outsideBubble: true,
             alignment: own ? WrapAlignment.end : WrapAlignment.start,
             onReact: onReact,
+            flight: reactionTarget,
           ),
       ],
     );
@@ -2972,6 +3115,7 @@ class _MessageContent extends StatelessWidget {
     this.excerptAnimation,
     required this.waitingForRadio,
     this.textKey,
+    this.reactionTarget,
   });
 
   final VoidCallback? onAuthor;
@@ -2991,6 +3135,7 @@ class _MessageContent extends StatelessWidget {
   final Animation<double>? excerptAnimation;
   final bool waitingForRadio;
   final Key? textKey;
+  final ReactionGlyphTarget? reactionTarget;
 
   Widget _text(MeshStyle style, TextStyle textStyle) {
     final highlighted = highlightedExcerpt;
@@ -3088,7 +3233,11 @@ class _MessageContent extends StatelessWidget {
         final textMinWidth = textHasRoom ? inlineWidth : stampWidth;
         final chips = reactions.isEmpty
             ? null
-            : MessageReactionChips(reactions, onReact: onReact);
+            : MessageReactionChips(
+                reactions,
+                onReact: onReact,
+                flight: reactionTarget,
+              );
         var bubbleWidth = math.max(bodyWidth, textMinWidth);
         var inlineReactions = false;
         if (chips != null) {
