@@ -7644,9 +7644,17 @@ void main() {
     final menu = find.byKey(const ValueKey('chat-preview-actions'));
     final previewHistory = find.descendant(
       of: preview,
-      matching: find.byType(ListView),
+      matching: find.byType(SingleChildScrollView),
     );
-    expect(tester.widget<ListView>(previewHistory).clipBehavior, Clip.none);
+    expect(
+      tester.widget<SingleChildScrollView>(previewHistory).clipBehavior,
+      Clip.none,
+    );
+    final heading = find.ancestor(
+      of: find.descendant(of: preview, matching: find.text(peer.name)),
+      matching: find.byType(GlassSurface),
+    );
+    expect(tester.widget<GlassSurface>(heading.first).modal, isTrue);
     expect(
       tester.getTopLeft(menu).dy,
       greaterThan(tester.getBottomLeft(preview).dy),
