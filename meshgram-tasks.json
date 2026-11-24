@@ -2309,13 +2309,58 @@
         "24",
         "36"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Закрепление и скрытие Архива сохраняются для профиля рации.",
         "Скрытая папка реагирует на протягивание от верхнего края. iOS раскрывает её при пороге, Android после отпускания.",
         "Временное раскрытие сбрасывается после ухода строки за заголовок. История чатов сохраняется."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListControllerNode.swift#L2300-L2333",
+          "result": "Момент раскрытия скрытой строки во время протягивания."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L3289-L3316",
+          "result": "Повторное скрытие после прокрутки за строку Архива."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L4190-L4247",
+          "result": "Открытие после отпускания с проверкой порога и длительности."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. Покрыты выбор режима, отмена жеста Android, возврат из Архива и повторное скрытие."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-reveal-97.mov",
+          "result": "Скрытая строка раскрывается при протягивании и уходит после прокрутки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-reveal-97.png",
+          "result": "Архив после отпускания. Проверены вход, возврат и повторное скрытие без скачка списка."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сборке 97 тестовый чат помещён в Архив. После ручного раскрытия строки открыт Архив и восстановлен только тестовый чат."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "В сборке 97 пройден сценарий скрытия тестового чата, открытия Архива и возврата чата в общий список."
+        }
+      ]
     }
   ]
 }
