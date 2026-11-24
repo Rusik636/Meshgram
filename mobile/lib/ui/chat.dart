@@ -5450,7 +5450,7 @@ class _ContourPaper extends CustomPainter {
     }
     canvas.restore();
     if (blendWithWorkspace) {
-      paintChatWorkspaceEdge(canvas, size, style.windowCanvas);
+      paintChatWorkspaceEdge(canvas, size, style.canvas);
     }
   }
 

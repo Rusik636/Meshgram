@@ -39,14 +39,13 @@ class MeshStyle {
     );
   }
 
-  Color get canvas => _canvas ?? windowCanvas;
-  Color get windowCanvas =>
+  Color get canvas => _canvas ?? _baseCanvas;
+  Color get _baseCanvas =>
       dark ? const Color(0xff080a0f) : const Color(MeshGrameV2Light.background);
   Color get surface =>
       dark ? const Color(0xff1a1e26) : const Color(MeshGrameV2Light.surface);
-  Color get desktopPanel => dark
-      ? Color.lerp(windowCanvas, surface, .56)!
-      : const Color(MeshGrameV2Light.canvas);
+  Color get desktopPanel =>
+      dark ? Color.lerp(_baseCanvas, surface, .56)! : const Color(0xfff2f4f6);
   Color get desktopConversationCanvas =>
       dark ? const Color(0xff0b0d12) : const Color(0xffe1e4e7);
   List<Color> get desktopChatWallpaper => dark

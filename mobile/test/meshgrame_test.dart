@@ -2438,7 +2438,7 @@ void main() {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
-        expect(panelColor, const Color(0xffe9edf0));
+        expect(panelColor, const Color(0xfff2f4f6));
         final headerEdge = tester.widget<MeshScrollEdge>(
           find.descendant(
             of: find.byKey(const ValueKey('chat-header-background')),
@@ -2575,6 +2575,11 @@ void main() {
           Theme.of(right).scaffoldBackgroundColor,
           const Color(0xffe1e4e7),
         );
+        final workspace = tester.widget<Stack>(
+          find.ancestor(of: pane, matching: find.byType(Stack)).first,
+        );
+        final backdrop = (workspace.children.first as Positioned).child;
+        expect((backdrop as ColoredBox).color, MeshStyle.of(right).canvas);
         for (final style in [const MeshStyle(false), const MeshStyle(true)]) {
           final leftLuminance = style.desktopPanel.computeLuminance();
           expect(

@@ -1055,7 +1055,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               children: [
                 if (desktop)
                   Positioned.fill(
-                    child: ColoredBox(color: MeshStyle.of(context).canvas),
+                    child: ColoredBox(color: style.desktopConversationCanvas),
                   ),
                 if (_desktopRail)
                   Positioned(
