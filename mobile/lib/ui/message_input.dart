@@ -24,6 +24,7 @@ class MessageInput extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onChanged,
+    this.enabled = true,
     this.coveredByModal = false,
     this.hidesMovingText = false,
     this.accessory,
@@ -32,7 +33,7 @@ class MessageInput extends StatefulWidget {
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final bool coveredByModal, hidesMovingText;
+  final bool enabled, coveredByModal, hidesMovingText;
   final MessageInputAccessory? accessory;
   final VoidCallback? onOpenAccessory, onDismissAccessory;
 
@@ -53,7 +54,7 @@ class MessageInputState extends State<MessageInput> {
   }
 
   void focusInput() {
-    if (widget.coveredByModal) return;
+    if (!widget.enabled || widget.coveredByModal) return;
     if (_native) {
       _pendingFocus = _channel == null;
       _send('focus', true);
@@ -108,17 +109,22 @@ class MessageInputState extends State<MessageInput> {
   @override
   void didUpdateWidget(MessageInput oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final enabledChanged = widget.enabled != oldWidget.enabled;
+    if (enabledChanged && !widget.enabled) dismissKeyboard();
     if (_native && oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_syncEditing);
       widget.controller.addListener(_syncEditing);
       _syncEditing();
     }
-    if (_native && widget.coveredByModal != oldWidget.coveredByModal) {
-      _pendingFocus = false;
+    if (_native &&
+        (enabledChanged ||
+            widget.coveredByModal != oldWidget.coveredByModal ||
+            widget.hidesMovingText != oldWidget.hidesMovingText)) {
+      if (widget.coveredByModal) _pendingFocus = false;
       _syncAppearance();
-    }
-    if (_native && widget.hidesMovingText != oldWidget.hidesMovingText) {
-      _syncAppearance();
+      if (enabledChanged && widget.enabled) {
+        _send('editing', _editingArguments(widget.controller.value));
+      }
     }
     if (_native && widget.accessory != oldWidget.accessory) {
       _accessoryHeightChanging =
@@ -167,6 +173,7 @@ class MessageInputState extends State<MessageInput> {
   void _syncAppearance() {
     final style = MeshStyle.of(context);
     final appearance = <String, Object>{
+      'enabled': widget.enabled,
       'coveredByModal': widget.coveredByModal,
       'hidesMovingText': widget.hidesMovingText,
       'placeholder': tr(context, 'Сообщение', 'Message'),
@@ -222,6 +229,7 @@ class MessageInputState extends State<MessageInput> {
       if (!mounted) return;
       switch (call.method) {
         case 'editing':
+          if (!widget.enabled) return;
           final arguments = call.arguments as Map;
           final text = arguments['text'] as String;
           final next = TextEditingValue(
@@ -304,6 +312,7 @@ class MessageInputState extends State<MessageInput> {
     final field = TextField(
       key: _flutterEditor,
       controller: widget.controller,
+      enabled: widget.enabled,
       focusNode: _focus,
       minLines: 1,
       maxLines: 4,

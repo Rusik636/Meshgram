@@ -111,6 +111,32 @@ class RunnerTests: XCTestCase {
   }
 
   @MainActor
+  func testComposerDisablesEditingWithoutDroppingTheDraft() throws {
+    let draft = "Сообщение"
+    let input = appearance(dark: true).merging([
+      "text": draft, "placeholder": "Сообщение", "enabled": false,
+    ]) { _, value in value }
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 62),
+      id: 0, input: input, messenger: TestMessenger())
+    let root = composer.view()
+    root.layoutIfNeeded()
+    let field = try XCTUnwrap(root.subviews.first)
+    let editor = try XCTUnwrap(field.subviews.last as? UITextView)
+    XCTAssertFalse(editor.isEditable)
+    XCTAssertFalse(editor.isSelectable)
+    XCTAssertFalse(editor.isUserInteractionEnabled)
+    XCTAssertTrue(editor.accessibilityTraits.contains(.notEnabled))
+    XCTAssertEqual(editor.text, draft)
+
+    composer.updateAppearance(input.merging(["enabled": true]) { _, value in value })
+    XCTAssertTrue(editor.isEditable)
+    XCTAssertTrue(editor.isSelectable)
+    XCTAssertTrue(editor.isUserInteractionEnabled)
+    XCTAssertFalse(editor.accessibilityTraits.contains(.notEnabled))
+    XCTAssertEqual(editor.text, draft)
+  }
+
+  @MainActor
   func testReplyControlsShareTheNativeComposerSurface() throws {
     let draft = "Первая строка\nВторая 👋"
     let messenger = TestMessenger()

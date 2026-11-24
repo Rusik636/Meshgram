@@ -2972,6 +2972,7 @@ class _ChatState extends State<MeshChatPage>
 
       final editor = MessageInput(
         key: _input,
+        enabled: controller.connected,
         coveredByModal:
             _controlsCovered || ModalRoute.isCurrentOf(context) == false,
         controller: _draft,
