@@ -447,6 +447,13 @@
           "device": "Android Emulator API 24",
           "result": "Удержание имени и кнопка профиля открыли поле в шапке. Проверены пустой результат и переход из пузыря в историю. Глобальный поиск сохраняет отображение автора и даты.",
           "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-in-chat-search.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "build": 85,
+          "result": "Обновление поверх 84. В канале test проверены удержание заголовка, запрос и переход по найденному пузырю при отключённой рации.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-85.png"
         }
       ]
     },
