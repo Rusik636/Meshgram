@@ -1544,6 +1544,45 @@
           "commit": "31440c7"
         }
       ]
+    },
+    {
+      "id": "18",
+      "parent_id": null,
+      "title": "Разворачиваемая полоска быстрых фраз",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/18-quick-phrase-strip",
+      "depends_on": [
+        "07.alignment",
+        "16"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка рядом с редактором открывает горизонтальную полоску фраз.",
+        "Стрелка справа и активное протягивание за конец показывают один полный список с добавлением.",
+        "Фраза вставляется в черновик. Сохраняются редактирование, выравнивание кнопок и режим уменьшения движения.",
+        "Полоска и полный список на iOS используют нативный Liquid Glass."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "В ветке прошли 234 теста Flutter, включая обычную прокрутку, протягивание за конец, добавление, редактирование и вставку без отправки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полный список появился после протягивания за край полоски.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-list-88.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "result": "Проверены открытие стрелкой, протягивание за край и кнопка добавления.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-list-88.png"
+        }
+      ]
     }
   ]
 }

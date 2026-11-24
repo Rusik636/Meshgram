@@ -19,6 +19,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.edit_outlined => 'pencil',
   Icons.ios_share_rounded => 'square.and.arrow.up',
   Icons.keyboard_arrow_down_rounded => 'chevron.down',
+  Icons.keyboard_arrow_up_rounded => 'chevron.up',
   Icons.map_outlined => 'map',
   Icons.my_location_rounded => 'location.viewfinder',
   Icons.open_in_full_rounded => 'arrow.up.left.and.arrow.down.right',

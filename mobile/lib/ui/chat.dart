@@ -596,6 +596,8 @@ class _ChatState extends State<MeshChatPage>
   Uri? _linkBehindReply;
   bool _menuVisible = false;
   bool _attachmentOpen = false;
+  bool _quickPhrasesOpen = false;
+  bool _quickPhrasePickerOpen = false;
   bool _openingSharedLink = false;
   final _menuBackground = GlobalKey();
   final _headerKey = GlobalKey();
@@ -670,7 +672,8 @@ class _ChatState extends State<MeshChatPage>
       (_route?.isCurrent ?? true) &&
       (_lifecycle == null || _lifecycle == AppLifecycleState.resumed);
 
-  bool get _controlsCovered => _menuVisible || _attachmentOpen;
+  bool get _controlsCovered =>
+      _menuVisible || _attachmentOpen || _quickPhrasePickerOpen;
 
   bool get _canReadHistory => !_searching && _canPreviewLinks;
 
@@ -1371,12 +1374,30 @@ class _ChatState extends State<MeshChatPage>
     }
   }
 
-  Future<void> _insertQuickPhrase(Peer peer) async {
+  Future<void> _showQuickPhraseList(Peer peer) async {
+    if (!_quickPhrasesOpen ||
+        _controlsCovered ||
+        _sending ||
+        _route?.isCurrent == false) {
+      return;
+    }
     final controller = widget.controller;
     final radio = controller.active;
     _dismissKeyboard();
-    final phrase = await pickQuickPhrase(context, controller.store);
+    setState(() => _quickPhrasePickerOpen = true);
+    unawaited(playMeshHaptic(MeshHaptic.selection));
+    final String? phrase;
+    try {
+      phrase = await pickQuickPhrase(context, controller.store);
+    } finally {
+      if (mounted) setState(() => _quickPhrasePickerOpen = false);
+    }
     if (!mounted || controller.active != radio || phrase == null) return;
+    _insertQuickPhrase(peer, phrase);
+  }
+
+  void _insertQuickPhrase(Peer peer, String phrase) {
+    if (_sending) return;
     final draft = _draft.value;
     final selection =
         draft.selection.isValid && draft.selection.end <= draft.text.length
@@ -2618,111 +2639,12 @@ class _ChatState extends State<MeshChatPage>
                                 ),
                               )
                             else ...[
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  right: 7,
-                                  bottom: 5,
-                                ),
-                                child: Row(
-                                  children: [
-                                    GlassButton(
-                                      coveredByModal: _controlsCovered,
-                                      icon: Icons.short_text_rounded,
-                                      label: tr(
-                                        context,
-                                        'Быстрые фразы',
-                                        'Quick phrases',
-                                      ),
-                                      onTap: _sending
-                                          ? null
-                                          : () => unawaited(
-                                              _insertQuickPhrase(peer),
-                                            ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    if (controller
-                                        .outboxFor(peer.id)
-                                        .isNotEmpty) ...[
-                                      GlassButton(
-                                        coveredByModal: _controlsCovered,
-                                        icon: Icons.schedule_rounded,
-                                        label: tr(
-                                          context,
-                                          'Очередь рации',
-                                          'Radio outbox',
-                                        ),
-                                        onTap: () =>
-                                            unawaited(_openOutbox(peer)),
-                                      ),
-                                      const SizedBox(width: 6),
-                                    ],
-                                    Expanded(
-                                      child: Text(
-                                        !controller.connected
-                                            ? tr(
-                                                context,
-                                                'Рация не подключена',
-                                                'Radio disconnected',
-                                              )
-                                            : !canSend
-                                            ? tr(
-                                                context,
-                                                'Отправка недоступна',
-                                                'Sending unavailable',
-                                              )
-                                            : limit != null && bytes > limit
-                                            ? tr(
-                                                context,
-                                                'Лимит одного сообщения',
-                                                'Single message limit',
-                                              )
-                                            : '',
-                                        maxLines: 2,
-                                        textAlign: TextAlign.end,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: style.secondary,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Semantics(
-                                        label: limit == null
-                                            ? tr(
-                                                context,
-                                                'Символов: $characters',
-                                                '$characters characters',
-                                              )
-                                            : tr(
-                                                context,
-                                                'Символов: $characters, байт: $bytes из $limit',
-                                                '$characters characters, $bytes of $limit bytes',
-                                              ),
-                                        excludeSemantics: true,
-                                        child: Text(
-                                          [
-                                            tr(
-                                              context,
-                                              '$characters симв.',
-                                              '$characters chars',
-                                            ),
-                                            if (limit != null)
-                                              '$bytes/$limit ${tr(context, 'Б', 'B')}',
-                                          ].join(' · '),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color:
-                                                limit != null && bytes > limit
-                                                ? style.warning
-                                                : style.secondary,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              _composerAccessories(
+                                peer,
+                                canSend: canSend,
+                                limit: limit,
+                                bytes: bytes,
+                                characters: characters,
                               ),
                               _composerControls(
                                 peer,
@@ -2753,6 +2675,128 @@ class _ChatState extends State<MeshChatPage>
       );
     },
   );
+
+  Widget _composerAccessories(
+    Peer peer, {
+    required bool canSend,
+    required int? limit,
+    required int bytes,
+    required int characters,
+  }) {
+    final controller = widget.controller;
+    final style = MeshStyle.of(context);
+    final info = <Widget>[
+      if (controller.outboxFor(peer.id).isNotEmpty) ...[
+        GlassButton(
+          coveredByModal: _controlsCovered,
+          icon: Icons.schedule_rounded,
+          label: tr(context, 'Очередь рации', 'Radio outbox'),
+          onTap: () => unawaited(_openOutbox(peer)),
+        ),
+        const SizedBox(width: 6),
+      ],
+      Expanded(
+        child: Text(
+          !controller.connected
+              ? tr(context, 'Рация не подключена', 'Radio disconnected')
+              : !canSend
+              ? tr(context, 'Отправка недоступна', 'Sending unavailable')
+              : limit != null && bytes > limit
+              ? tr(context, 'Лимит одного сообщения', 'Single message limit')
+              : '',
+          maxLines: 2,
+          textAlign: TextAlign.end,
+          style: TextStyle(fontSize: 12, color: style.secondary),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        flex: 2,
+        child: Semantics(
+          label: limit == null
+              ? tr(context, 'Символов: $characters', '$characters characters')
+              : tr(
+                  context,
+                  'Символов: $characters, байт: $bytes из $limit',
+                  '$characters characters, $bytes of $limit bytes',
+                ),
+          excludeSemantics: true,
+          child: Text(
+            [
+              tr(context, '$characters симв.', '$characters chars'),
+              if (limit != null) '$bytes/$limit ${tr(context, 'Б', 'B')}',
+            ].join(' · '),
+            style: TextStyle(
+              fontSize: 12,
+              color: limit != null && bytes > limit
+                  ? style.warning
+                  : style.secondary,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 7),
+    ];
+    final enabled = !_controlsCovered && !_sending;
+    final controls = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            GlassButton(
+              coveredByModal: _controlsCovered,
+              icon: _quickPhrasesOpen
+                  ? Icons.close_rounded
+                  : Icons.short_text_rounded,
+              label: _quickPhrasesOpen
+                  ? tr(
+                      context,
+                      'Свернуть быстрые фразы',
+                      'Collapse quick phrases',
+                    )
+                  : tr(context, 'Быстрые фразы', 'Quick phrases'),
+              onTap: enabled
+                  ? () => setState(() => _quickPhrasesOpen = !_quickPhrasesOpen)
+                  : null,
+            ),
+            const SizedBox(width: 6),
+            if (_quickPhrasesOpen)
+              Expanded(
+                child: TextFieldTapRegion(
+                  child: QuickPhraseStrip(
+                    store: controller.store,
+                    onSelect: enabled
+                        ? (phrase) => _insertQuickPhrase(peer, phrase)
+                        : null,
+                    onExpand: enabled
+                        ? () => unawaited(_showQuickPhraseList(peer))
+                        : null,
+                  ),
+                ),
+              )
+            else
+              ...info,
+          ],
+        ),
+        if (_quickPhrasesOpen)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(children: info),
+          ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: MediaQuery.disableAnimationsOf(context)
+          ? controls
+          : AnimatedSize(
+              alignment: Alignment.bottomCenter,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              child: controls,
+            ),
+    );
+  }
 
   Widget _composerControls(
     Peer peer,

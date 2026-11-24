@@ -7166,18 +7166,90 @@ void main() {
     await tester.tap(phraseButton);
     await tester.pumpAndSettle();
     expect(find.text('I’m here'), findsOneWidget);
-    await tester.tap(find.byTooltip('Edit phrase').first);
+    await tester.tap(find.text('I’m here'));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), 'Team: I’m here');
+    expect(find.byType(BottomSheet), findsNothing);
+
+    await tester.tap(find.byTooltip('Expand quick phrases'));
+    await tester.pumpAndSettle();
+    final sheet = find.byType(BottomSheet);
+    Finder inSheet(Finder child) => find.descendant(of: sheet, matching: child);
+    await tester.tap(inSheet(find.byTooltip('Edit phrase')).first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'At the ridge');
     await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(store.quickPhrases?.first, 'At the ridge');
-    await tester.tap(find.text('At the ridge'));
+    await tester.tap(inSheet(find.text('At the ridge')));
     await tester.pumpAndSettle();
-    expect(controller.draft(peer.id), 'Team: At the ridge');
+    expect(controller.draft(peer.id), 'Team: I’m here At the ridge');
+    expect(find.text('At the ridge'), findsOneWidget);
+    await tester.tap(find.byTooltip('Collapse quick phrases'));
+    await tester.pumpAndSettle();
+    expectAlignedButtons();
     expect(controller.messages(peer.id), hasLength(messages));
     expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('pulling past the end of the quick phrase strip opens the list', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(375, 760);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final store = MeshStore(await SharedPreferences.getInstance());
+    await store.setQuickPhrases([
+      for (var index = 1; index <= 8; index++) 'Quick reply $index',
+    ]);
+    final controller = MeshController(
+      store: store,
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Quick phrases'));
+    await tester.pumpAndSettle();
+    final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: strip, matching: find.byType(Scrollable)),
+        )
+        .position;
+    final sheet = find.byType(BottomSheet);
+    await tester.drag(strip, const Offset(100, 0));
+    await tester.pumpAndSettle();
+    expect(sheet, findsNothing);
+    await tester.drag(strip, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+    expect(sheet, findsNothing);
+
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    await tester.drag(strip, const Offset(-100, 0));
+    await tester.pumpAndSettle();
+    expect(sheet, findsOneWidget);
+    await tester.tap(find.byTooltip('Add phrase'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Added from the list');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.quickPhrases?.last, 'Added from the list');
+    expect(controller.draft(peer.id), isEmpty);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
