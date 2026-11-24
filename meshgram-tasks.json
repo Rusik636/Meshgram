@@ -2820,14 +2820,71 @@
         "43",
         "46"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "На широком экране одновременно видны список и текущая переписка.",
         "При изменении ширины сохраняется открытый чат.",
         "На iPad элементы навигации и редактор используют штатное жидкое стекло.",
         "На ПК доступны отдельная панель папок, регулировка ширины списка и клавиатурный поиск."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/Display/Source/Navigation/NavigationSplitContainer.swift#L106-L131",
+          "result": "Самостоятельные области списка и переписки, разделитель и безопасные отступы каждой области."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java#L1357-L1407",
+          "result": "Переход между разделённой и компактной компоновками с сохранением открытого чата."
+        },
+        {
+          "kind": "source",
+          "platform": "desktop",
+          "url": "https://github.com/telegramdesktop/tdesktop/blob/0e79d7a47c3e1876576e62d760d53e1f3f14c2dc/Telegram/SourceFiles/window/window_session_controller.cpp#L2832-L2893",
+          "result": "Число колонок по ширине окна, отдельное место для фильтров и ограничение ширины списка."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPad Pro 13-inch Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ipad-adaptive.png",
+          "result": "Слева список и системные стеклянные вкладки, справа открытая переписка со стеклянным заголовком и редактором."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-tablet-adaptive.png",
+          "result": "Планшетная компоновка с открытым каналом. В дереве доступности одновременно найдены строки списка и действия переписки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/mac-adaptive.png",
+          "result": "Панель папок, выбранная строка и переписка. В узком окне сохранился тот же чат, после расширения обе панели вернулись."
+        },
+        {
+          "kind": "check",
+          "result": "250 тестов Flutter и статический анализ прошли. Проверены смена чата, размеры окна, меню мышью, клавиатурный поиск и доступность обеих панелей."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (105) установлена и запущена."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPad (A16)",
+          "result": "Apple отклонила установку из-за профиля подписи. По выбору пользователя проверка осталась на симуляторе."
+        },
+        {
+          "kind": "build",
+          "device": "Android",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-105-arm64.apk",
+          "result": "Номер APK 105 подтверждён. Redmi отсутствовал в ADB."
+        }
+      ]
     },
     {
       "id": "48",
@@ -2842,11 +2899,28 @@
       "depends_on": [
         "47"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Flutter запускает существующий интерфейс Meshgram в отдельном окне на настольной платформе."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-105-macOS.zip",
+          "result": "Собрана версия 0.3.62 (105) для arm64 и x86_64. Локальная подпись и архив проверены."
+        },
+        {
+          "kind": "check",
+          "device": "macOS",
+          "result": "Настольное приложение открывается. Широкий и узкий режимы вручную проверены на демонстрационных чатах."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows и Linux",
+          "result": "Добавлены проекты Flutter. Компиляция и нативная проверка требуют соответствующих хостов. На Linux прямое подключение по TCP предусмотрено с ручным вводом адреса."
+        }
+      ]
     }
   ]
 }
