@@ -6712,6 +6712,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getRect(search), expanded);
 
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+
       Future<double> titleWidth(String name) async {
         await tester.tap(find.text(name));
         await tester.pumpAndSettle();
@@ -6731,8 +6734,6 @@ void main() {
         expect(short, lessThan(150));
         expect(long, greaterThan(short + 24));
       }
-      tester.view.physicalSize = const Size(390, 844);
-      await tester.pumpAndSettle();
       await tester.drag(firstChat, const Offset(0, -125));
       await tester.pumpAndSettle();
       expect(tester.getRect(search).width, 48);
@@ -6747,6 +6748,65 @@ void main() {
       TargetPlatform.iOS,
     }),
   );
+
+  testWidgets('local folders and message pins survive a cache reload', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final message = controller.messages(peer.id).first;
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Chat folders'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New folder'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), ' Field team ');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(CheckboxListTile, peer.name));
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Тропа'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final folder = controller.chatFolders.single.id;
+    controller.toggleFolderPin(folder, peer.id);
+    controller.setPinnedMessage(peer.id, message.id);
+    final cache = ChatCache.fromJson(controller.cache!.toJson());
+    expect(cache.folders[folder]?.name, 'Field team');
+    expect(cache.folders[folder]?.pinned, [peer.id]);
+    expect(cache.pinnedMessages[peer.id], message.id);
+
+    await tester.pumpAndSettle();
+    final row = find.text(peer.name);
+    expect(
+      tester.getTopLeft(row).dy,
+      lessThan(tester.getTopLeft(find.text('Тропа')).dy),
+    );
+    expect(find.text('Илья Ветров'), findsNothing);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    final pin = find.text('Pinned message');
+    await tester.tap(pin);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(ValueKey(('bubble', message.id))).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Unpin message'));
+    await tester.pumpAndSettle();
+    expect(controller.pinnedMessageId(peer.id), isNull);
+    expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
 
   testWidgets('chat preview leaves unread messages and row swipes intact', (
     tester,

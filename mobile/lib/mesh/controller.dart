@@ -541,6 +541,73 @@ class MeshController extends ChangeNotifier {
     _changed();
   }
 
+  List<ChatFolder> get chatFolders =>
+      cache?.folders.values.toList(growable: false) ?? const [];
+
+  String? saveChatFolder({
+    required String name,
+    required Set<String> chats,
+    String? id,
+  }) {
+    final radio = active;
+    final label = name.trim();
+    if (radio == null || label.isEmpty) return null;
+    final current = _cacheFor(radio);
+    final prior = current.folders[id];
+    if (id != null && prior == null) return null;
+    final key = id ?? 'folder:${DateTime.now().microsecondsSinceEpoch}';
+    final members = chats.where(current.peers.containsKey).toSet();
+    current.folders[key] = ChatFolder(
+      id: key,
+      name: label,
+      chats: members,
+      pinned: prior?.pinned.where(members.contains).toList() ?? const [],
+    );
+    _save(radio);
+    _changed();
+    return key;
+  }
+
+  void removeChatFolder(String id) {
+    final radio = active;
+    if (radio == null || _cacheFor(radio).folders.remove(id) == null) return;
+    _save(radio);
+    _changed();
+  }
+
+  void toggleFolderPin(String id, String chat) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    final folder = current.folders[id];
+    if (folder == null || !folder.chats.contains(chat)) return;
+    final pinned = [...folder.pinned];
+    if (!pinned.remove(chat)) pinned.insert(0, chat);
+    current.folders[id] = folder.withChanges(pinned: pinned);
+    _save(radio);
+    _changed();
+  }
+
+  String? pinnedMessageId(String chat) => cache?.pinnedMessages[chat];
+
+  void setPinnedMessage(String chat, String? messageId) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (messageId == null) {
+      if (current.pinnedMessages.remove(chat) == null) return;
+    } else {
+      if (!current.messages.any(
+        (item) => item.chat == chat && item.id == messageId,
+      )) {
+        return;
+      }
+      current.pinnedMessages[chat] = messageId;
+    }
+    _save(radio);
+    _changed();
+  }
+
   void reorderChats(List<String> reordered, {required bool hidden}) {
     final radio = active;
     if (radio == null) return;
@@ -607,6 +674,15 @@ class MeshController extends ChangeNotifier {
     current.hiddenChats.remove(peer.id);
     current.keptChats.remove(peer.id);
     current.chatOrder.remove(peer.id);
+    current.pinnedMessages.remove(peer.id);
+    current.folders.updateAll(
+      (_, folder) => folder.chats.contains(peer.id)
+          ? folder.withChanges(
+              chats: {...folder.chats}..remove(peer.id),
+              pinned: [...folder.pinned]..remove(peer.id),
+            )
+          : folder,
+    );
     current.searchHistory.remove(peer.id);
     if (identity != null && radio.network == 'meshcore') {
       try {

@@ -10,6 +10,56 @@ import 'network.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
 
+class ChatFolder {
+  const ChatFolder({
+    required this.id,
+    required this.name,
+    required this.chats,
+    this.pinned = const [],
+  });
+
+  final String id, name;
+  final Set<String> chats;
+  final List<String> pinned;
+
+  ChatFolder withChanges({
+    String? name,
+    Set<String>? chats,
+    List<String>? pinned,
+  }) => ChatFolder(
+    id: id,
+    name: name ?? this.name,
+    chats: chats ?? this.chats,
+    pinned: pinned ?? this.pinned,
+  );
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'name': name,
+    'chats': chats.toList(),
+    'pinned': pinned,
+  };
+
+  static ChatFolder? fromJson(Object? value) {
+    if (value is! Map || value['id'] is! String || value['name'] is! String) {
+      return null;
+    }
+    final chats = (value['chats'] as List? ?? const [])
+        .whereType<String>()
+        .toSet();
+    return ChatFolder(
+      id: value['id'] as String,
+      name: value['name'] as String,
+      chats: chats,
+      pinned: (value['pinned'] as List? ?? const [])
+          .whereType<String>()
+          .where(chats.contains)
+          .toSet()
+          .toList(),
+    );
+  }
+}
+
 class ChatCache {
   final peers = <String, Peer>{};
   final identities = <String, NodeIdentity>{};
@@ -29,6 +79,8 @@ class ChatCache {
   final hiddenChats = <String>{};
   final keptChats = <String>{};
   final chatOrder = <String>[];
+  final folders = <String, ChatFolder>{};
+  final pinnedMessages = <String, String>{};
   final searchHistory = <String>[];
   String? radioPublicKey;
   String? radioHardwareId;
@@ -80,6 +132,9 @@ class ChatCache {
     'hiddenChats': hiddenChats.toList(),
     'keptChats': keptChats.toList(),
     'chatOrder': chatOrder,
+    if (folders.isNotEmpty)
+      'folders': folders.values.map((folder) => folder.toJson()).toList(),
+    if (pinnedMessages.isNotEmpty) 'pinnedMessages': pinnedMessages,
     'searchHistory': searchHistory,
     'radioPublicKey': ?radioPublicKey,
     'radioHardwareId': ?radioHardwareId,
@@ -205,6 +260,16 @@ class ChatCache {
     cache.chatOrder.addAll(
       (json['chatOrder'] as List? ?? const []).cast<String>(),
     );
+    for (final entry in (json['folders'] as List? ?? const [])) {
+      if (ChatFolder.fromJson(entry) case final folder?) {
+        cache.folders[folder.id] = folder;
+      }
+    }
+    for (final entry in (json['pinnedMessages'] as Map? ?? const {}).entries) {
+      if (entry.key is String && entry.value is String) {
+        cache.pinnedMessages[entry.key as String] = entry.value as String;
+      }
+    }
     cache.searchHistory.addAll(
       (json['searchHistory'] as List? ?? []).cast<String>(),
     );
@@ -376,6 +441,12 @@ class ChatCache {
     chatOrder.addAll(
       other.chatOrder.where((id) => !chatOrder.contains(id)).toList(),
     );
+    for (final entry in other.folders.entries) {
+      folders.putIfAbsent(entry.key, () => entry.value);
+    }
+    for (final entry in other.pinnedMessages.entries) {
+      pinnedMessages.putIfAbsent(entry.key, () => entry.value);
+    }
     searchHistory.addAll(
       other.searchHistory.where((id) => !searchHistory.contains(id)).toList(),
     );
