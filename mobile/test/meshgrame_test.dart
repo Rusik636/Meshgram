@@ -6986,6 +6986,58 @@ void main() {
     },
   );
 
+  testWidgets(
+    'returning from settings keeps the first chat below the folder strip',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+
+      const chatsKey = PageStorageKey('chats');
+      final scroll =
+          tester.widget<CustomScrollView>(find.byKey(chatsKey)).controller!
+              as MeshSearchScrollController;
+      final firstChat = find.byKey(const ValueKey('ch:0'));
+      final folders = find.byType(ChatFolderTabs);
+      final navigation = find.byType(MeshNavigation);
+
+      scroll.jumpTo(scroll.collapseRange);
+      await tester.pumpAndSettle();
+      final firstChatTop = tester.getTopLeft(firstChat).dy;
+      final folderBottom = tester.getBottomLeft(folders).dy;
+      expect(firstChatTop, greaterThanOrEqualTo(folderBottom));
+
+      tester.widget<MeshNavigation>(navigation).onSelect(1);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 110));
+      await tester.pump(const Duration(milliseconds: 110));
+      expect(firstChat, findsNothing);
+      tester.widget<MeshNavigation>(navigation).onSelect(0);
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(firstChat).dy, closeTo(firstChatTop, .5));
+      expect(tester.getBottomLeft(folders).dy, closeTo(folderBottom, .5));
+      expect(scroll.offset, closeTo(scroll.collapseRange, .5));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
+  );
+
   testWidgets('tab fades leave shared chat rows and navigation visible', (
     tester,
   ) async {

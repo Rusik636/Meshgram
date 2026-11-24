@@ -1155,6 +1155,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ? MediaQuery.viewInsetsOf(context).bottom
         : 0.0;
     final nativeNavigation = useIosControls;
+    final showingChats = _tabs.shown == 0;
     return Scaffold(
       // The keyboard can resize the content without relocating the navigation.
       resizeToAvoidBottomInset: false,
@@ -1169,9 +1170,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 ignoring: _tabs.shown != _tabs.selected,
                 child: FadeTransition(
                   opacity: _tabs.opacity,
-                  child: _tabs.shown == 0
-                      ? _chatScene(style, keyboard)
-                      : _settings(style),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Keep the list's scroll position attached to the header
+                      // while settings is visible.
+                      Offstage(
+                        offstage: !showingChats,
+                        child: ExcludeFocus(
+                          excluding: !showingChats,
+                          child: _chatScene(style, keyboard),
+                        ),
+                      ),
+                      if (!showingChats) _settings(style),
+                    ],
+                  ),
                 ),
               ),
             ),
