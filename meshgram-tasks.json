@@ -1742,7 +1742,7 @@
       "depends_on": [
         "08"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Поиск, чаты и контакты, папки и выбор нескольких получателей.",
         "Один или несколько черновиков, копия в Избранном."
@@ -1757,6 +1757,22 @@
           "kind": "telegram_source",
           "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L1338-L1390",
           "behavior": "Отдельный режим выбора получателей Android."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены поиск и выбор нескольких адресатов. Для Meshtastic и MeshCore создаются черновики и локальная копия в Избранном, история транспорта сохраняется."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-forward-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полноэкранная шторка, каталоги внизу."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-forward-92.png",
+          "device": "Android Emulator",
+          "result": "Переключатель каталогов находится над списком."
         }
       ]
     },
@@ -1772,7 +1788,7 @@
       "depends_on": [
         "14"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Архив скрыт до жеста, открывается нажатием и сохраняет скрытые чаты."
       ],
@@ -1786,6 +1802,22 @@
           "kind": "telegram_source",
           "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L2244-L2280",
           "behavior": "Порог раскрытия скрытого архива при завершении жеста."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены короткий жест, раскрытие при протягивании, вход и возврат. Исходные чаты и история сохраняются."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Жест раскрыл строку архива."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-92.png",
+          "device": "Android Emulator",
+          "result": "Жест раскрыл строку архива. Проверен вход и возврат чата."
         }
       ]
     },
@@ -1802,7 +1834,7 @@
         "06",
         "24"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Управление папками из Изм., прокручиваемые вкладки и Liquid Glass на iOS."
       ],
@@ -1816,6 +1848,16 @@
           "kind": "telegram_source",
           "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L9875-L9895",
           "behavior": "Действия над папками в режиме выбора."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены создание из Изм., горизонтальная прокрутка, выбор папки, сохранение состава и закреплений."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folders-92.png",
+          "device": "Android Emulator",
+          "result": "Новая папка отображается в полоске категорий."
         }
       ]
     },
@@ -1831,11 +1873,16 @@
       "depends_on": [
         "15"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Отдельная строка в настройках, имя открывает профиль активной рации."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Избранное находится в отдельной группе настроек. Тест подтвердил переход по имени в профиль активной рации и локальное хранение заметок."
+        }
+      ]
     },
     {
       "id": "27",
@@ -1849,11 +1896,18 @@
         "21",
         "22"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Действия предпросмотра на iOS рисуются тем же материалом, что меню сообщения."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-preview-menu-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Проверено Liquid Glass на действиях и видимые пузырьки над размытым фоном."
+        }
+      ]
     },
     {
       "id": "28",
@@ -1868,11 +1922,32 @@
         "20",
         "22"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Кнопка исчезает по мере расширения подложки, тексты появляются после начала расширения и скрываются перед сворачиванием."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "После слияния прошли 236 тестов Flutter и статический анализ. Тест анимации подтвердил расширение до появления фраз и скрытие фраз до возврата к кнопке."
+        },
+        {
+          "kind": "video",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-phrase-animation-92.mov",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Открытие и сворачивание полоски."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (92) установлена и запущена. Ручная проверка в приложении ограничена заблокированным видеоповтором. Интерфейс проверен на iPhone Simulator."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "result": "Установлена сборка 0.3.62 (92). В тестовом чате проверены предпросмотр, полоска, открытие пересылки, переключение каталогов и режим выбора. Из настроек открыто Избранное, по имени открыт профиль выбранной рации. Сообщения в эфир не передавались."
+        }
+      ]
     }
   ]
 }
