@@ -45,9 +45,6 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
     if input["kind"] as? String == "tabs" {
       return MeshTabs(frame, channel, input)
     }
-    if kind == "tabLens" {
-      return MeshTabLens(frame, channel, input)
-    }
     if input["kind"] as? String == "chatSearch" {
       return MeshSearchField(frame: frame, channel: channel, input: input)
     }

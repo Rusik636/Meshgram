@@ -54,6 +54,7 @@ class IosControl extends StatefulWidget {
     this.onTextChanged,
     this.horizontalDrag = false,
     this.eagerGestures = false,
+    this.tapOnly = false,
   });
 
   final String kind;
@@ -63,6 +64,7 @@ class IosControl extends StatefulWidget {
   final ValueChanged<String>? onTextChanged;
   final bool horizontalDrag;
   final bool eagerGestures;
+  final bool tapOnly;
 
   @override
   IosControlState createState() => IosControlState();
@@ -110,12 +112,13 @@ class IosControlState extends State<IosControl> {
         : meshIosGlassOutset;
     final view = UiKitView(
       viewType: 'meshgrame/controls',
-      gestureBlockingPolicy: widget.eagerGestures
+      gestureBlockingPolicy: widget.eagerGestures || widget.tapOnly
           ? UiKitViewGestureBlockingPolicy.doNotBlockGesture
           : UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
       creationParams: {
         'kind': widget.kind,
         ...widget.properties,
+        if (widget.tapOnly) 'tapOnly': true,
         if (hasGlassOutset) 'visualOutset': meshIosGlassOutset,
         if (verticalOutset != meshIosGlassOutset)
           'verticalVisualOutset': verticalOutset,
@@ -126,6 +129,8 @@ class IosControlState extends State<IosControl> {
           Factory<OneSequenceGestureRecognizer>(
             HorizontalDragGestureRecognizer.new,
           )
+        else if (widget.tapOnly)
+          Factory<OneSequenceGestureRecognizer>(TapGestureRecognizer.new)
         else if (widget.eagerGestures || widget.onTextChanged != null)
           Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
       },
