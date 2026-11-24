@@ -1024,30 +1024,39 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     top: 0,
                     bottom: 0,
                     right: 0,
-                    child: IgnorePointer(
-                      ignoring: !_split && !_detailOpen,
-                      child: MediaQuery.removePadding(
-                        context: context,
-                        removeLeft: _split,
-                        child: ChatWorkspacePane(
-                          split: _split,
-                          visible: ModalRoute.isCurrentOf(context) != false,
-                          child: NavigatorPopHandler<void>(
-                            enabled: _detailOpen && !sidebarCanGoBack,
-                            onPopWithResult: (_) =>
-                                unawaited(_detailKey.currentState?.maybePop()),
-                            child: ScaffoldMessenger(
-                              child: Navigator(
-                                key: _detailKey,
-                                observers: [_detailObserver],
-                                onGenerateRoute: (_) => PageRouteBuilder<void>(
-                                  opaque: false,
-                                  transitionDuration: Duration.zero,
-                                  reverseTransitionDuration: Duration.zero,
-                                  pageBuilder: (context, _, _) =>
-                                      ChatWorkspacePane.of(context)!.split
-                                      ? _noConversation(context)
-                                      : const SizedBox.shrink(),
+                    // A route in the detail navigator can block earlier
+                    // semantics within its pane, while the list stays usable.
+                    child: Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      child: IgnorePointer(
+                        ignoring: !_split && !_detailOpen,
+                        child: MediaQuery.removePadding(
+                          context: context,
+                          removeLeft: _split,
+                          child: ChatWorkspacePane(
+                            split: _split,
+                            visible: ModalRoute.isCurrentOf(context) != false,
+                            child: NavigatorPopHandler<void>(
+                              enabled: _detailOpen && !sidebarCanGoBack,
+                              onPopWithResult: (_) => unawaited(
+                                _detailKey.currentState?.maybePop(),
+                              ),
+                              child: ScaffoldMessenger(
+                                child: Navigator(
+                                  key: _detailKey,
+                                  observers: [_detailObserver],
+                                  onGenerateRoute: (_) =>
+                                      PageRouteBuilder<void>(
+                                        opaque: false,
+                                        transitionDuration: Duration.zero,
+                                        reverseTransitionDuration:
+                                            Duration.zero,
+                                        pageBuilder: (context, _, _) =>
+                                            ChatWorkspacePane.of(context)!.split
+                                            ? _noConversation(context)
+                                            : const SizedBox.shrink(),
+                                      ),
                                 ),
                               ),
                             ),

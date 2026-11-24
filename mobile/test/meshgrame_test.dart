@@ -2340,6 +2340,7 @@ void main() {
       final trail = find.text('Тропа').first;
       final mira = find.text('Мира Соколова').first;
       expect(find.text('Select a chat'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Тропа')), findsWidgets);
       expect(
         tester.getTopLeft(pane).dx,
         greaterThan(tester.getTopRight(trail).dx),
@@ -2383,6 +2384,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
       expect(mira.hitTestable(), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);
       await tester.tap(mira);
       await tester.pumpAndSettle();
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Мира Соколова');
