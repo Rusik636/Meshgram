@@ -10,6 +10,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'mesh_icon.dart';
 import 'mesh_sheet_route.dart';
 import 'sheet_control_clip.dart';
@@ -198,18 +199,35 @@ class GlassSurface extends StatelessWidget {
     this.modal = false,
     this.color,
     this.nativeButtonMaterial = false,
+    this.nativeDesktopMaterial = false,
   });
   final Widget child;
   final double radius;
   final bool modal;
   final Color? color;
   final bool nativeButtonMaterial;
+  final bool nativeDesktopMaterial;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final opaque = MediaQuery.highContrastOf(context);
     final border = BorderRadius.circular(radius);
+    if ((nativeDesktopMaterial || nativeButtonMaterial) &&
+        MacGlass.enabled(context)) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: MacGlassBackground(
+              radius: radius,
+              dark: style.dark,
+              tint: color,
+            ),
+          ),
+          Material(type: MaterialType.transparency, child: child),
+        ],
+      );
+    }
     if (nativeButtonMaterial && useIosControls) {
       return Stack(
         clipBehavior: Clip.none,
@@ -308,6 +326,7 @@ class GlassButton extends StatelessWidget {
       message: label,
       triggerMode: onLongPress == null ? null : TooltipTriggerMode.manual,
       child: GlassSurface(
+        nativeDesktopMaterial: true,
         color: primary ? style.accent : null,
         child: IconButton(
           constraints: const BoxConstraints.tightFor(width: 48, height: 48),
