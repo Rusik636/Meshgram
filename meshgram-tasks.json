@@ -2147,13 +2147,43 @@
         "24",
         "31"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Категория «Непрочитанные» удалена. Кнопка «Изм.» сразу открывает выбор чатов.",
         "Кнопка добавления открывает ввод названия и создаёт папку с выбранными чатами. Пользовательские папки удаляются и меняют порядок в полоске.",
         "Горизонтальная прокрутка сохраняется, а индикатор выбранной категории на iOS использует системное стекло."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ChatList/ChatListFilterTabContainerNode/Sources/ChatListFilterTabContainerNode.swift#L249-L272",
+          "result": "В режиме порядка рядом с пользовательскими вкладками появляются кнопки удаления. Системные категории Meshgram остаются на постоянных местах."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-edit-95.png",
+          "result": "Две папки с крестиками после перестановки удержанием."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-name-95.png",
+          "result": "Окно имени новой папки поверх режима выбора чатов."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folders-edit-95.png",
+          "result": "Папки со списком выбранных чатов, крестиками и кнопкой добавления."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "На сборке 96 «Изм.» сразу открывает выбор чатов с кнопкой добавления. Цикл создания и удаления временной папки проверен после установки сборки 95."
+        }
+      ]
     },
     {
       "id": "34",
@@ -2167,11 +2197,21 @@
       "depends_on": [
         "31"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Поле ввода заблокировано до подключения рации, открытая клавиатура закрывается. Черновик восстанавливается при подключении."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тест Flutter проверяет закрытие клавиатуры при отключении рации и сохранение черновика. XCTest подтверждает блокировку UITextView и восстановление редактирования."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi Note 7",
+          "result": "На сборке 0.3.62 (96) проверено, что тап по редактору с отключённой рацией оставляет клавиатуру закрытой."
+        }
+      ]
     },
     {
       "id": "35",
@@ -2185,11 +2225,23 @@
       "depends_on": [
         "30"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "В сообщении карта показывает подпись OpenStreetMap без подложки. На полной карте ссылка атрибуции доступна."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-map-attribution-96.png",
+          "result": "В углу карты отдельного сообщения виден текст OpenStreetMap поверх карты."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сохранённом тестовом чате сборки 96 атрибуция карты показывается текстом поверх тайлов. Для демонстрации приложен снимок с тестовой геопозицией на эмуляторе."
+        }
+      ]
     },
     {
       "id": "36",
@@ -2198,15 +2250,51 @@
       "platform": [
         "ios"
       ],
-      "branch": "task/36-native-folder-indicator",
+      "branch": "task/36-native-tabbar-taps",
       "depends_on": [
         "33"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
-        "Категории показывают индикатор на основе UIKit UITabBarController из основного навбара. Переключение по тапу, свайп прокручивает полоску."
+        "Категории iOS используют UIKit UITabBarController из основного навбара, включая его собственную анимацию при тапе.",
+        "Полоса ограничена по ширине. Свайп прокручивает папки внутри полосы без переключения вкладки и без запуска пузыря."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://developer.apple.com/documentation/uikit/uitabbar",
+          "result": "Категории используют существующий системный контроллер вкладок Meshgram в режиме текстовых вкладок."
+        },
+        {
+          "kind": "check",
+          "result": "Прошли 240 тестов Flutter, 7 XCTest и статический анализ. Проверены фиксированная ширина области, прокрутка более пяти папок и смена категории по событию тапа."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-indicator-96.mov",
+          "result": "Долгое удержание без переключения, затем системная анимация пузыря по тапу."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-indicator-tap-96.png",
+          "result": "Кадр штатного преломления текста во время анимации UIKit."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-scroll-96.png",
+          "result": "Свайп сдвинул видимые вкладки в фиксированной полосе, сохранив открытой выбранную папку."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-category-96.png",
+          "result": "Сборка 96 установлена. Тап по категории «Каналы» переключил список."
+        }
+      ]
     }
   ]
 }
