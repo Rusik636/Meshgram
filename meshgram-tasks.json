@@ -2995,6 +2995,167 @@
           "result": "254 теста Flutter и статический анализ прошли."
         }
       ]
+    },
+    {
+      "id": "51",
+      "parent_id": null,
+      "title": "Правая панель и индикатор папок на широком экране",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/51-desktop-panel",
+      "depends_on": [
+        "47",
+        "48"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Настройки и вложенные экраны открываются справа, список и боковая навигация доступны слева.",
+        "Индикатор активной папки плавно переходит к выбранной строке, у подписанных кнопок нет дублирующих подсказок."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/telegramdesktop/tdesktop/blob/0e79d7a47c3e1876576e62d760d53e1f3f14c2dc/Telegram/SourceFiles/mainwidget.cpp",
+          "result": "Размещение экранов сверено с логикой секций Telegram Desktop."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверили настройки в правой панели и возврат в открытый чат в вариантах iOS, Android и Windows, промежуточную позицию индикатора и отсутствие Tooltip у кнопок боковой панели."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS и iPad Pro 13-inch Simulator",
+          "result": "На обеих платформах настройки открылись справа, список чатов остался слева."
+        }
+      ]
+    },
+    {
+      "id": "52",
+      "parent_id": null,
+      "title": "Системное жидкое стекло на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/52-macos-glass",
+      "depends_on": [
+        "48",
+        "51"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Боковая панель, кнопки и строка ввода используют NSGlassEffectView на macOS 26 и новее.",
+        "Для старых версий предусмотрено оформление Flutter."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://developer.apple.com/documentation/appkit/nsglasseffectview",
+          "result": "Использован нативный компонент AppKit."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS 27.2",
+          "result": "Проверено отображение боковой панели и открытой переписки с системным стеклом."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-107-macOS.zip",
+          "result": "Сборка 107 для arm64 и x86_64. Проверены локальная подпись приложения и целостность архива."
+        }
+      ]
+    },
+    {
+      "id": "53",
+      "parent_id": null,
+      "title": "Подключение рации через USB на компьютере",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/53-desktop-usb",
+      "depends_on": [
+        "48"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Из настроек можно выбрать протокол и USB-порт для Meshtastic или MeshCore Companion USB.",
+        "Подключение использует существующие сессии раций и освобождает порт при отключении."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshtastic/meshtastic-sdk/blob/main/docs/protocol.md",
+          "result": "Фрейминг последовательного транспорта Meshtastic."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверили разбор фрагментированных USB-кадров обоих протоколов и работу общего декодера TCP."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS 27.2",
+          "result": "Проверено нативное перечисление портов без подключённой рации. Библиотека в сборке 107 содержит arm64 и x86_64."
+        },
+        {
+          "kind": "build",
+          "device": "Android и iPad Simulator",
+          "result": "После замены сборочной интеграции USB-библиотеки успешно собраны Android APK и iOS Simulator."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows, Linux и USB-рации",
+          "result": "Сборки Windows и Linux и обмен с физическими USB-рациями ещё требуют проверки."
+        }
+      ]
+    },
+    {
+      "id": "54",
+      "parent_id": null,
+      "title": "Настольный флешер Meshtastic и MeshCore",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/54-firmware-flasher",
+      "depends_on": [
+        "51",
+        "53"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Каталог плат с иллюстрациями, поиском и вариантами прошивки обоих проектов.",
+        "Можно загрузить совместимый официальный релиз или открыть локальный образ. Запись UF2 и ESP32 запускается после выбора назначения и подтверждения.",
+        "Платы и проекты со штатными форматами добавляются через каталог, способы записи расширяются отдельно."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshtastic/web-flasher",
+          "result": "Использованы иллюстрации плат Meshtastic Web Flasher."
+        },
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshcore-dev/flasher.meshcore.io/blob/45a5257bf792b11a83f4c51c18d4f312addfb677/config.json",
+          "result": "Платы и варианты MeshCore сверены с конфигурацией официального флешера."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS",
+          "result": "В приложении загружен официальный MeshCore Companion USB 1.18.0 для RAK WisBlock 4631. В отдельной интеграционной проверке загружены и проверены образ MeshCore и архив Meshtastic 2.7.26 для LILYGO T-Beam."
+        },
+        {
+          "kind": "check",
+          "result": "Пройдены тесты каталога, выбора файла из релиза, валидации образа и записи UF2 в тестовый каталог. Для ESP32 требуется esptool 5 или новее. Запись на физических рациях ещё требует проверки."
+        }
+      ]
     }
   ]
 }
