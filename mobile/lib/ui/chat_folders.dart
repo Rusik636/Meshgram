@@ -246,16 +246,16 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
               final painter = TextPainter(
                 textDirection: Directionality.of(context),
                 textScaler: MediaQuery.textScalerOf(context),
+                locale: Localizations.maybeLocaleOf(context),
                 maxLines: 1,
               );
+              final titleStyle = DefaultTextStyle.of(context).style
+                  .merge(_titleStyle);
               final widths = List.generate(labels.length, (index) {
-                painter.text = TextSpan(
-                  text: labels[index],
-                  style: _titleStyle,
-                );
+                painter.text = TextSpan(text: labels[index], style: titleStyle);
                 painter.layout();
                 final extra = widget.editing && index >= count ? 30 : 0;
-                return (painter.width.ceilToDouble() + 28 + extra).clamp(
+                return (painter.width.ceilToDouble() + 30 + extra).clamp(
                   48.0,
                   maxWidth,
                 );
