@@ -839,22 +839,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               )
             : _editingChats
             ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GlassButton(
-                    icon: Icons.bookmark_border_rounded,
-                    label: tr(context, 'Избранное', 'Saved Messages'),
-                    onTap: () => unawaited(showSavedChat(context, controller)),
-                  ),
-                  const SizedBox(width: 6),
-                  GlassButton(
-                    icon: Icons.edit_note_rounded,
-                    label: tr(context, 'Новый чат', 'New chat'),
-                    primary: true,
-                    onTap: _newChat,
-                  ),
-                ],
+            : GlassButton(
+                icon: Icons.edit_note_rounded,
+                label: tr(context, 'Новый чат', 'New chat'),
+                primary: true,
+                onTap: _newChat,
               ),
       );
       final categoryBar = ChatFilters(
@@ -1757,15 +1746,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       title: profile,
       subtitle:
           active?.name ?? tr(context, 'Локальный профиль', 'Local profile'),
-      avatar: Semantics(
-        label: tr(context, 'Избранное', 'Saved Messages'),
-        button: true,
-        child: MeshAvatar(
-          profile,
-          size: 90,
-          onTap: () => unawaited(showSavedChat(context, controller)),
-        ),
-      ),
+      avatar: MeshAvatar(profile, size: 90),
       avatarSize: 90,
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top,
@@ -1837,6 +1818,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             ),
           }, style.warning),
         const SizedBox(height: 20),
+        _settingsGroup([
+          MeshRow(
+            title: tr(context, 'Избранное', 'Saved Messages'),
+            icon: Icons.bookmark_border_rounded,
+            tint: _blue,
+            onTap: () => unawaited(showSavedChat(context, controller)),
+          ),
+        ]),
+        const SizedBox(height: 14),
         _settingsGroup([
           MeshRow(
             title: tr(context, 'Узлы', 'Nodes'),

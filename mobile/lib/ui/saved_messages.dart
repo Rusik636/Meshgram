@@ -62,6 +62,19 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openRadioProfile() {
+    final radio = controller.active;
+    if (radio == null) return;
+    unawaited(
+      Navigator.of(context).push(
+        radioSettingsRoute(
+          context,
+          RadioSettingsPage(controller: controller, radio: radio),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openSource(BuildContext context, SavedMessage item) async {
     if (!controller.selectSavedMessageSource(item)) {
       _notice(
@@ -229,6 +242,8 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final covered = ModalRoute.isCurrentOf(context) == false;
+    final radio = controller.active;
+    final name = controller.profileName.trim();
     final editor = MessageInput(
       key: _input,
       controller: _draft,
@@ -244,13 +259,41 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
           SafeArea(
             child: Column(
               children: [
-                PageHeading(
-                  tr(context, 'Избранное', 'Saved Messages'),
-                  leading: GlassButton(
-                    icon: Icons.arrow_back_ios_new_rounded,
-                    label: tr(context, 'Назад', 'Back'),
-                    onTap: () => Navigator.pop(context),
-                    coveredByModal: covered,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 5),
+                  child: Row(
+                    children: [
+                      GlassButton(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        label: tr(context, 'Назад', 'Back'),
+                        onTap: () => Navigator.pop(context),
+                        coveredByModal: covered,
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: _ChatTitle(
+                            name: name.isEmpty ? radio?.name ?? appName : name,
+                            subtitle: tr(
+                              context,
+                              'Избранное',
+                              'Saved Messages',
+                            ),
+                            nativeProperties: useIosControls
+                                ? {
+                                    'dark': style.dark,
+                                    'enabled': radio != null,
+                                    'coveredByModal': covered,
+                                    'foreground': style.text.toARGB32(),
+                                    'secondary': style.secondary.toARGB32(),
+                                    'surface': style.surface.toARGB32(),
+                                  }
+                                : null,
+                            onTap: radio == null ? null : _openRadioProfile,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
                   ),
                 ),
                 Expanded(
