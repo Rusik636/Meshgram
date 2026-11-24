@@ -35,6 +35,7 @@ import 'message_links.dart';
 import 'message_details.dart';
 import 'message_menu.dart';
 import 'message_reactions.dart';
+import 'message_search.dart';
 import 'navigation.dart';
 import 'node_actions.dart';
 import 'position_picker.dart';
@@ -101,6 +102,7 @@ class _ChatState extends State<MeshChatPage>
     text: widget.controller.draft(widget.peer.id),
   );
   final _search = TextEditingController();
+  MessageSearchFilters _searchFilters = const MessageSearchFilters();
   final _input = GlobalKey<MessageInputState>();
   final _inputSurface = GlobalKey();
   final _scroll = ScrollController(keepScrollOffset: false);
@@ -501,6 +503,7 @@ class _ChatState extends State<MeshChatPage>
     if (_searching) {
       setState(() {
         _search.clear();
+        _searchFilters = const MessageSearchFilters();
         _searching = false;
       });
       await WidgetsBinding.instance.endOfFrame;
@@ -913,6 +916,67 @@ class _ChatState extends State<MeshChatPage>
     if (result == true && mounted) setState(() => _searching = true);
   }
 
+  Future<void> _editSearchFilters(List<MeshMessage> messages) async {
+    _dismissKeyboard();
+    final filters = await showMessageSearchFilters(
+      context,
+      controller: widget.controller,
+      messages: messages,
+      filters: _searchFilters,
+    );
+    if (mounted && filters != null) setState(() => _searchFilters = filters);
+  }
+
+  Future<void> _jumpToDate(List<MeshMessage> messages) async {
+    if (messages.isEmpty) return;
+    _dismissKeyboard();
+    final first = DateUtils.dateOnly(messages.first.time);
+    final last = DateUtils.dateOnly(messages.last.time);
+    final date = await showDatePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      initialDate: last,
+    );
+    if (!mounted || date == null) return;
+    final history = widget.controller.messages(widget.peer.id);
+    final message = history
+        .where((item) => !item.time.isBefore(date))
+        .firstOrNull;
+    await _revealMessage((message ?? history.lastOrNull)?.id);
+  }
+
+  Widget _searchResults(
+    List<MeshMessage> messages,
+    String query,
+    EdgeInsets padding,
+  ) {
+    final controller = widget.controller;
+    final results = messages.reversed
+        .where((item) => _searchFilters.accepts(controller, item, query))
+        .toList();
+    if (results.isEmpty) {
+      return Center(
+        child: Text(tr(context, 'Ничего не найдено', 'No results')),
+      );
+    }
+    return ListView.builder(
+      padding: padding,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: results.length,
+      itemBuilder: (_, index) {
+        final message = results[index];
+        return MessageSearchResultTile(
+          key: ValueKey(('search', message.id)),
+          controller: controller,
+          message: message,
+          query: query,
+          onTap: () => unawaited(_revealMessage(message.id)),
+        );
+      },
+    );
+  }
+
   Future<void> _openPeerProfile(Peer peer) {
     if (peer.id == widget.peer.id) return _profile(peer);
     return Navigator.of(context).push<void>(
@@ -961,15 +1025,7 @@ class _ChatState extends State<MeshChatPage>
           limit != null &&
           bytes <= limit;
       final query = _search.text.trim().toLowerCase();
-      final messages = controller
-          .messages(peer.id)
-          .where(
-            (message) =>
-                !_searching ||
-                query.isEmpty ||
-                message.text.toLowerCase().contains(query),
-          )
-          .toList();
+      final messages = controller.messages(peer.id);
 
       final padding = MediaQuery.paddingOf(context);
       final top = padding.top;
@@ -1004,7 +1060,18 @@ class _ChatState extends State<MeshChatPage>
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _dismissKeyboard,
-                  child: messages.isEmpty
+                  child: _searching
+                      ? _searchResults(
+                          messages,
+                          query,
+                          EdgeInsets.fromLTRB(
+                            11,
+                            top + _headerHeight + 8,
+                            11,
+                            historyBottom,
+                          ),
+                        )
+                      : messages.isEmpty
                       ? Center(
                           child: GlassSurface(
                             radius: 15,
@@ -1014,17 +1081,11 @@ class _ChatState extends State<MeshChatPage>
                                 vertical: 7,
                               ),
                               child: Text(
-                                _searching
-                                    ? tr(
-                                        context,
-                                        'Ничего не найдено',
-                                        'No results',
-                                      )
-                                    : tr(
-                                        context,
-                                        'Начало переписки',
-                                        'Start of conversation',
-                                      ),
+                                tr(
+                                  context,
+                                  'Начало переписки',
+                                  'Start of conversation',
+                                ),
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: style.secondary,
@@ -1316,35 +1377,69 @@ class _ChatState extends State<MeshChatPage>
                         if (_searching)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
-                            child: GlassSurface(
-                              radius: 100,
-                              child: TextField(
-                                autofocus: true,
-                                controller: _search,
-                                onTapOutside: (_) => _dismissKeyboard(),
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  prefixIcon: const Icon(Icons.search_rounded),
-                                  hintText: tr(
-                                    context,
-                                    'Поиск в чате',
-                                    'Search messages',
-                                  ),
-                                  border: InputBorder.none,
-                                  suffixIcon: IconButton(
-                                    tooltip: tr(
-                                      context,
-                                      'Закрыть поиск',
-                                      'Close search',
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: GlassSurface(
+                                    radius: 100,
+                                    child: TextField(
+                                      autofocus: true,
+                                      controller: _search,
+                                      onTapOutside: (_) => _dismissKeyboard(),
+                                      onChanged: (_) => setState(() {}),
+                                      decoration: InputDecoration(
+                                        prefixIcon: const Icon(
+                                          Icons.search_rounded,
+                                        ),
+                                        hintText: tr(
+                                          context,
+                                          'Поиск в чате',
+                                          'Search messages',
+                                        ),
+                                        border: InputBorder.none,
+                                        suffixIcon: IconButton(
+                                          tooltip: tr(
+                                            context,
+                                            'Закрыть поиск',
+                                            'Close search',
+                                          ),
+                                          onPressed: () => setState(() {
+                                            _search.clear();
+                                            _searchFilters =
+                                                const MessageSearchFilters();
+                                            _searching = false;
+                                          }),
+                                          icon: const Icon(Icons.close_rounded),
+                                        ),
+                                      ),
                                     ),
-                                    onPressed: () => setState(() {
-                                      _search.clear();
-                                      _searching = false;
-                                    }),
-                                    icon: const Icon(Icons.close_rounded),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: 6),
+                                GlassButton(
+                                  icon: Icons.tune_rounded,
+                                  label: tr(
+                                    context,
+                                    'Фильтры сообщений',
+                                    'Message filters',
+                                  ),
+                                  primary: !_searchFilters.isEmpty,
+                                  onTap: () =>
+                                      unawaited(_editSearchFilters(messages)),
+                                ),
+                                const SizedBox(width: 6),
+                                GlassButton(
+                                  icon: Icons.calendar_today_rounded,
+                                  label: tr(
+                                    context,
+                                    'Перейти к дате',
+                                    'Go to date',
+                                  ),
+                                  onTap: messages.isEmpty
+                                      ? null
+                                      : () => unawaited(_jumpToDate(messages)),
+                                ),
+                              ],
                             ),
                           ),
                       ],

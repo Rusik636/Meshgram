@@ -9,6 +9,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.arrow_upward_rounded => 'arrow.up',
   Icons.attach_file_rounded => 'paperclip',
   Icons.bookmark_border_rounded => 'bookmark',
+  Icons.calendar_today_rounded => 'calendar',
   Icons.check_rounded => 'checkmark',
   Icons.close_fullscreen_rounded => 'arrow.down.right.and.arrow.up.left',
   Icons.close_rounded => 'xmark',
@@ -27,6 +28,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.search_rounded => 'magnifyingglass',
   Icons.share_outlined => 'square.and.arrow.up',
   Icons.sort_rounded => 'line.3.horizontal.decrease',
+  Icons.tune_rounded => 'slider.horizontal.3',
   Icons.delete_outline_rounded => 'trash',
   _ => null,
 };

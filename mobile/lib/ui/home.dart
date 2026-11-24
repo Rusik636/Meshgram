@@ -28,6 +28,7 @@ import 'saved_messages.dart';
 import 'profile_page.dart';
 import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
+import 'message_search.dart';
 import 'style.dart';
 import 'page_route.dart';
 
@@ -61,6 +62,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   late final _searchCategories = MeshNavigationFade(this);
   String? _revealedRadio;
   final _search = TextEditingController();
+  MessageSearchFilters _messageSearchFilters = const MessageSearchFilters();
   final _searchFocus = FocusNode();
   final _chatScroll = MeshSearchScrollController();
   late final _searchMotion = AnimationController(vsync: this);
@@ -242,6 +244,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     setState(() {
       _searchActive = false;
       _search.clear();
+      _messageSearchFilters = const MessageSearchFilters();
     });
     animateMeshSearch(context, _searchMotion, open: false);
   }
@@ -966,6 +969,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     bool matchesFilter(Peer peer) => _inCategory(peer, _searchCategories.shown);
     bool unchanged(Peer peer) =>
         _inCategory(peer, _searchCategories.counterpart);
+    final scopedMessages = (controller.cache?.messages ?? const <MeshMessage>[])
+        .where((message) {
+          final peer = peers[message.chat];
+          return peer != null && matchesFilter(peer);
+        });
+    final seekingMessages = query.isNotEmpty || !_messageSearchFilters.isEmpty;
+    final hits = seekingMessages
+        ? (scopedMessages
+              .where(
+                (message) =>
+                    _messageSearchFilters.accepts(controller, message, query),
+              )
+              .toList()
+            ..sort((a, b) => b.time.compareTo(a.time)))
+        : const <MeshMessage>[];
     final matching = query.isEmpty
         ? [
             for (final id in controller.cache?.searchHistory ?? const [])
@@ -973,17 +991,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           ]
         : [
             for (final peer in ordered)
-              if (peer.name.toLowerCase().contains(query) ||
-                  controller
-                      .messages(peer.id)
-                      .any(
-                        (message) => message.text.toLowerCase().contains(query),
-                      ))
-                peer,
+              if (peer.name.toLowerCase().contains(query)) peer,
           ];
-    final results = matching.where(matchesFilter).toList();
+    final results = _messageSearchFilters.isEmpty
+        ? matching.where(matchesFilter).toList()
+        : <Peer>[];
     final counterpartHasResults = matching.any(unchanged);
-    final shortcuts = query.isEmpty
+    final shortcuts = !seekingMessages
         ? ordered.where(matchesFilter).take(10).toList()
         : <Peer>[];
     final counterpartShortcuts = query.isEmpty
@@ -1004,6 +1018,35 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           child: CustomScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
+              SliverToBoxAdapter(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 14),
+                    child: GlassButton(
+                      icon: Icons.tune_rounded,
+                      label: tr(
+                        context,
+                        'Фильтры сообщений',
+                        'Message filters',
+                      ),
+                      primary: !_messageSearchFilters.isEmpty,
+                      onTap: () async {
+                        _dismissSearchKeyboard();
+                        final filters = await showMessageSearchFilters(
+                          context,
+                          controller: controller,
+                          messages: scopedMessages,
+                          filters: _messageSearchFilters,
+                        );
+                        if (mounted && _searchActive && filters != null) {
+                          setState(() => _messageSearchFilters = filters);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
               if (shortcuts.isNotEmpty)
                 SliverToBoxAdapter(
                   child: SizedBox(
@@ -1083,7 +1126,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-              if (query.isNotEmpty && results.isEmpty)
+              if (seekingMessages && results.isEmpty && hits.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: FadeTransition(
@@ -1118,6 +1161,45 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
+                ),
+              if (hits.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 9, 16, 0),
+                    child: Text(
+                      tr(context, 'Сообщения', 'Messages'),
+                      style: TextStyle(
+                        color: style.secondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              if (hits.isNotEmpty)
+                SliverList.builder(
+                  itemCount: hits.length,
+                  itemBuilder: (_, index) {
+                    final message = hits[index];
+                    return MessageSearchResultTile(
+                      key: ValueKey((message.chat, message.id)),
+                      controller: controller,
+                      message: message,
+                      query: query,
+                      chatName: peers[message.chat]?.name,
+                      onTap: () {
+                        _dismissSearchKeyboard();
+                        controller.rememberSearch(message.chat);
+                        unawaited(
+                          openMeshMessage(
+                            context,
+                            controller: controller,
+                            chatId: message.chat,
+                            messageId: message.id,
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
             ],
           ),
