@@ -183,6 +183,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
   private var press: UILongPressGestureRecognizer?
   private var applyingEditing = false
   private var pendingFocus = false
+  private var editorEnabled = true
 
   init(frame: CGRect, id: Int64, input: [String: Any], messenger: FlutterBinaryMessenger) {
     textView = ComposerTextView(frame: frame)
@@ -255,7 +256,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
         self.pendingFocus = false
         self.textView.resignFirstResponder()
       case "focus":
-        self.pendingFocus = self.container.isUserInteractionEnabled
+        self.pendingFocus = self.editorEnabled && self.container.isUserInteractionEnabled
         self.focusWhenReady()
       case "textBounds":
         let textBounds = self.textView.bounds.inset(by: self.textView.textContainerInset)
@@ -318,7 +319,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
   }
 
   private func updatePressAvailability() {
-    let enabled = nativeInteractive != true && container.isUserInteractionEnabled &&
+    let enabled = editorEnabled && nativeInteractive != true && container.isUserInteractionEnabled &&
       !UIAccessibility.isReduceMotionEnabled
     press?.isEnabled = enabled
     if !enabled && nativeInteractive == false {
@@ -350,7 +351,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let opaque = highContrast || UIAccessibility.isReduceTransparencyEnabled
     var interactive = false
     if #available(iOS 26.0, *) {
-      interactive = !opaque && !UIAccessibility.isReduceMotionEnabled
+      interactive = editorEnabled && !opaque && !UIAccessibility.isReduceMotionEnabled
     }
     if nativeInteractive != interactive {
       nativeInteractive = interactive
@@ -381,7 +382,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       glass.removeFromSuperview()
       glass = replacement
       if wasFocused && !textView.isFirstResponder { textView.becomeFirstResponder() }
-      textView.selectedRange = selection
+      if selection.location != NSNotFound { textView.selectedRange = selection }
     }
     if !interactive { glass.applyMaterial(surface: surface, opaque: highContrast) }
     updatePressAvailability()
@@ -399,7 +400,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
 
   private func reportEditing() {
     let range = textView.selectedRange
-    guard !applyingEditing, range.location != NSNotFound else { return }
+    guard editorEnabled, !applyingEditing, range.location != NSNotFound else { return }
     channel.invokeMethod("editing", arguments: [
       "text": textView.text ?? "",
       "start": range.location,
@@ -450,18 +451,34 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
   }
 
   func updateAppearance(_ input: [String: Any]) {
+    let wasApplyingEditing = applyingEditing
+    applyingEditing = true
+    defer { applyingEditing = wasApplyingEditing }
     let covered = input["coveredByModal"] as? Bool == true
+    let wasEnabled = editorEnabled
+    editorEnabled = input["enabled"] as? Bool ?? true
     container.isUserInteractionEnabled = !covered
     container.accessibilityElementsHidden = covered
-    if covered {
+    if covered || !editorEnabled {
       pendingFocus = false
       if textView.isFirstResponder { textView.resignFirstResponder() }
+    }
+    if editorEnabled != wasEnabled {
+      textView.isEditable = editorEnabled
+      textView.isSelectable = editorEnabled
+      textView.isUserInteractionEnabled = editorEnabled
+      if editorEnabled {
+        textView.accessibilityTraits.remove(.notEnabled)
+      } else {
+        textView.accessibilityTraits.insert(.notEnabled)
+      }
     }
     let dark = input["dark"] as? Bool ?? false
     let style: UIUserInterfaceStyle = dark ? .dark : .light
     let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
     let nextContrast = input["highContrast"] as? Bool == true
-    if nativeInteractive == nil || style != container.overrideUserInterfaceStyle ||
+    if nativeInteractive == nil || editorEnabled != wasEnabled ||
+      style != container.overrideUserInterfaceStyle ||
       nextSurface != surface || nextContrast != highContrast {
       container.overrideUserInterfaceStyle = style
       surface = nextSurface
@@ -472,7 +489,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let foreground = meshColor(input["foreground"], .label)
     let accent = meshColor(input["accent"], .systemBlue)
     let secondary = meshColor(input["secondary"], .placeholderText)
-    textView.textColor = foreground
+    textView.textColor = editorEnabled ? foreground : secondary
     textView.tintColor = accent
     textView.alpha = input["hidesMovingText"] as? Bool == true ? 0 : 1
     placeholder.textColor = secondary

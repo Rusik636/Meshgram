@@ -7006,7 +7006,6 @@ void main() {
       preview: true,
     );
     final profile = controller.active!;
-    await controller.disconnectRadio(profile);
     final peer = controller.cache!.peers['node:a']!;
     final messages = controller.messages(peer.id).length;
     await tester.pumpWidget(
@@ -7016,6 +7015,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Ready at the pass');
+    await tester.pumpAndSettle();
+    await controller.disconnectRadio(profile);
     await tester.pumpAndSettle();
     await tester.longPress(find.byTooltip('Send'));
     await tester.pumpAndSettle();
@@ -7337,12 +7338,22 @@ void main() {
     final disconnected = find.text('Radio disconnected');
     final connected = find.text('Connection established');
     final counter = find.text('4 chars · 4/200 B');
+    final field = find.descendant(
+      of: find.byType(MessageInput),
+      matching: find.byType(TextField),
+    );
+    TextField editor() => tester.widget<TextField>(field);
     expect(disconnected, findsOneWidget);
     expect(
       tester.widget<Text>(disconnected).style?.color,
       const MeshStyle(false).error,
     );
     expect(counter, findsNothing);
+    expect(editor().enabled, isFalse);
+    await tester.tap(field, warnIfMissed: false);
+    await tester.pump();
+    expect(editor().focusNode!.hasFocus, isFalse);
+    expect(editor().controller!.text, 'Test');
 
     await controller.connect(radio);
     await tester.pumpAndSettle();
@@ -7353,9 +7364,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(connected, findsNothing);
     expect(counter, findsOneWidget);
+    expect(editor().enabled, isTrue);
+    await tester.tap(field);
+    await tester.pump();
+    expect(editor().focusNode!.hasFocus, isTrue);
 
     await controller.disconnectRadio(radio);
     await tester.pumpAndSettle();
+    expect(editor().enabled, isFalse);
+    expect(editor().focusNode!.hasFocus, isFalse);
+    expect(controller.draft(peer.id), 'Test');
     await controller.connect(radio);
     await tester.pumpAndSettle();
     expect(connected, findsOneWidget);
