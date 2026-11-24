@@ -2083,9 +2083,18 @@ void main() {
       expect(controller.messages('node:a'), isNotEmpty);
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Hidden (1)'));
+      expect(find.text('Archive'), findsNothing);
+      await tester.drag(find.text('Тропа'), const Offset(0, 35));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsNothing);
+      await tester.drag(find.text('Тропа'), const Offset(0, 130));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive'));
       await tester.pumpAndSettle();
       expect(find.text('Мира Соколова'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
