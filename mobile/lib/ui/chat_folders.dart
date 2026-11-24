@@ -359,141 +359,134 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
 
   @override
   Widget build(BuildContext context) {
-    final style = MeshStyle.of(context);
     final height = ChatFilters.contentHeight(context);
-    if (useIosControls && !widget.editing) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(height / 2),
-          child: _nativeTabs(height),
-        ),
-      );
-    }
+    final native = useIosControls && !widget.editing;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: native ? 0 : 2),
       child: GlassSurface(
-        modal: true,
+        modal: !native,
+        nativeButtonMaterial: native,
         radius: height / 2,
-        child: SizedBox(
-          height: height - 4,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final count = widget.builtInLabels.length;
-              final labels = [
-                ...widget.builtInLabels,
-                for (final folder in widget.folders) folder.name,
-              ];
-              final maxWidth = math.max(
-                48.0,
-                constraints.maxWidth - _padding * 2,
-              );
-              final widths = _tabWidths(labels, maxWidth);
-              final selected = widget.selected.clamp(0, labels.length - 1);
-              final start = widths
-                  .take(selected)
-                  .fold(_padding, (sum, width) => sum + width + _gap);
-              Widget folderTab(BuildContext context, int position) {
-                final index = count + position;
-                return _tab(
-                  index: index,
-                  width: widths[index],
-                  title: labels[index],
-                  folder: widget.folders[position],
-                  folderIndex: position,
-                );
-              }
-
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (!widget.editing)
-                    IgnorePointer(
-                      child: ListenableBuilder(
-                        listenable: widget.scrollController,
-                        builder: (context, indicator) {
-                          final scroll = widget.scrollController;
-                          final offset = scroll.hasClients
-                              ? scroll.offset
-                              : 0.0;
-                          final rtl =
-                              Directionality.of(context) == TextDirection.rtl;
-                          return Transform.translate(
-                            offset: Offset(rtl ? offset : -offset, 0),
-                            child: indicator,
-                          );
-                        },
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            AnimatedPositionedDirectional(
-                              duration: meshMotion(context),
-                              curve: Curves.easeOutCubic,
-                              start: start,
-                              top: 4,
-                              bottom: 4,
-                              width: widths[selected],
-                              child: GlassSurface(
-                                key: const ValueKey('chat-folder-indicator'),
-                                nativeButtonMaterial: true,
-                                radius: height / 2,
-                                color: style.field,
-                                child: const SizedBox.expand(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  CustomScrollView(
-                    key: const ValueKey('chat-folder-scroll'),
-                    controller: widget.scrollController,
-                    primary: false,
-                    scrollDirection: Axis.horizontal,
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsetsDirectional.only(
-                          start: _padding,
-                        ),
-                        sliver: SliverToBoxAdapter(
-                          child: Row(
-                            children: [
-                              for (var index = 0; index < count; index++)
-                                _tab(
-                                  index: index,
-                                  width: widths[index],
-                                  title: labels[index],
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (widget.editing && widget.folders.isNotEmpty)
-                        SliverReorderableList(
-                          key: const ValueKey('chat-folder-reorder'),
-                          itemBuilder: folderTab,
-                          itemCount: widget.folders.length,
-                          onReorderItem: widget.onReorder,
-                          onReorderStart: (_) =>
-                              unawaited(playMeshHaptic(MeshHaptic.selection)),
-                          proxyDecorator: (child, index, animation) => Material(
-                            color: style.surface,
-                            borderRadius: BorderRadius.circular(height / 2),
-                            child: child,
-                          ),
-                        )
-                      else
-                        SliverList.builder(
-                          itemCount: widget.folders.length,
-                          itemBuilder: folderTab,
-                        ),
-                    ],
-                  ),
-                ],
-              );
-            },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _padding),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(height / 2 - _padding),
+            child: native ? _nativeTabs(height) : _flutterTabs(height - 4),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _flutterTabs(double height) {
+    final style = MeshStyle.of(context);
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final count = widget.builtInLabels.length;
+          final labels = [
+            ...widget.builtInLabels,
+            for (final folder in widget.folders) folder.name,
+          ];
+          final maxWidth = math.max(48.0, constraints.maxWidth);
+          final widths = _tabWidths(labels, maxWidth);
+          final selected = widget.selected.clamp(0, labels.length - 1);
+          final start = widths
+              .take(selected)
+              .fold(0.0, (sum, width) => sum + width + _gap);
+          Widget folderTab(BuildContext context, int position) {
+            final index = count + position;
+            return _tab(
+              index: index,
+              width: widths[index],
+              title: labels[index],
+              folder: widget.folders[position],
+              folderIndex: position,
+            );
+          }
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (!widget.editing)
+                IgnorePointer(
+                  child: ListenableBuilder(
+                    listenable: widget.scrollController,
+                    builder: (context, indicator) {
+                      final scroll = widget.scrollController;
+                      final offset = scroll.hasClients ? scroll.offset : 0.0;
+                      final rtl =
+                          Directionality.of(context) == TextDirection.rtl;
+                      return Transform.translate(
+                        offset: Offset(rtl ? offset : -offset, 0),
+                        child: indicator,
+                      );
+                    },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        AnimatedPositionedDirectional(
+                          duration: meshMotion(context),
+                          curve: Curves.easeOutCubic,
+                          start: start,
+                          top: 4,
+                          bottom: 4,
+                          width: widths[selected],
+                          child: GlassSurface(
+                            key: const ValueKey('chat-folder-indicator'),
+                            nativeButtonMaterial: true,
+                            radius: height / 2,
+                            color: style.field,
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              CustomScrollView(
+                key: const ValueKey('chat-folder-scroll'),
+                controller: widget.scrollController,
+                primary: false,
+                scrollDirection: Axis.horizontal,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        for (var index = 0; index < count; index++)
+                          _tab(
+                            index: index,
+                            width: widths[index],
+                            title: labels[index],
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (widget.editing && widget.folders.isNotEmpty)
+                    SliverReorderableList(
+                      key: const ValueKey('chat-folder-reorder'),
+                      itemBuilder: folderTab,
+                      itemCount: widget.folders.length,
+                      onReorderItem: widget.onReorder,
+                      onReorderStart: (_) =>
+                          unawaited(playMeshHaptic(MeshHaptic.selection)),
+                      proxyDecorator: (child, index, animation) => Material(
+                        color: style.surface,
+                        borderRadius: BorderRadius.circular(height / 2),
+                        child: child,
+                      ),
+                    )
+                  else
+                    SliverList.builder(
+                      itemCount: widget.folders.length,
+                      itemBuilder: folderTab,
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

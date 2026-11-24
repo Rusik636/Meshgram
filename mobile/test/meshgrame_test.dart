@@ -2438,7 +2438,9 @@ void main() {
       final picker = find.byType(ChatFolderTabs);
       final control = find.descendant(
         of: picker,
-        matching: find.byType(IosControl),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'folderTabs',
+        ),
       );
       IosControl categories() => tester.widget<IosControl>(control);
       expect(categories().kind, 'folderTabs');
@@ -7758,14 +7760,20 @@ void main() {
     );
     await tester.pumpAndSettle();
     final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
-    expect(tester.getSize(scroll).width, 358);
+    expect(tester.getSize(scroll).width, 350);
+    expect(tester.getTopLeft(scroll).dx, 20);
     final scrollController = tester
         .widget<SingleChildScrollView>(scroll)
         .controller!;
     final picker = find.byType(ChatFolderTabs);
     int selected() => tester.widget<ChatFolderTabs>(picker).selected;
     IosControl tabs() => tester.widget<IosControl>(
-      find.descendant(of: picker, matching: find.byType(IosControl)),
+      find.descendant(
+        of: picker,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'folderTabs',
+        ),
+      ),
     );
     await tester.drag(scroll, const Offset(-550, 0));
     await tester.pumpAndSettle();
