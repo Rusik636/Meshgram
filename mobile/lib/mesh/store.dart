@@ -70,6 +70,7 @@ class ChatCache {
   final routeTraces = <int, RouteTrace>{};
   DateTime? routeTraceCooldownUntil;
   final replies = <String, String>{};
+  final replyExcerpts = <String, MessageExcerpt>{};
   final unread = <String, int>{};
   final _unreadIds = <String, Set<String>>{};
   final markedUnread = <String>{};
@@ -122,6 +123,10 @@ class ChatCache {
       'routeTraces': routeTraces.values.map((trace) => trace.toJson()).toList(),
     'routeTraceCooldownUntil': ?routeTraceCooldownUntil?.millisecondsSinceEpoch,
     'replies': replies,
+    if (replyExcerpts.isNotEmpty)
+      'replyExcerpts': replyExcerpts.map(
+        (chat, excerpt) => MapEntry(chat, excerpt.toJson()),
+      ),
     'unread': unread,
     if (markedUnread.isNotEmpty) 'markedUnread': markedUnread.toList(),
     if (_unreadIds.isNotEmpty)
@@ -236,6 +241,14 @@ class ChatCache {
     cache.replies.addAll(
       (json['replies'] as Map? ?? const {}).cast<String, String>(),
     );
+    for (final entry in (json['replyExcerpts'] as Map? ?? const {}).entries) {
+      if (entry.key case final String chat
+          when cache.replies.containsKey(chat)) {
+        if (MessageExcerpt.decode(entry.value) case final excerpt?) {
+          cache.replyExcerpts[chat] = excerpt;
+        }
+      }
+    }
     cache.unread.addAll((json['unread'] as Map).cast<String, int>());
     for (final entry in (json['unreadIds'] as Map? ?? const {}).entries) {
       if (entry.key case final String chat
@@ -431,7 +444,11 @@ class ChatCache {
       drafts.putIfAbsent(entry.key, () => entry.value);
     }
     for (final entry in other.replies.entries) {
-      replies.putIfAbsent(entry.key, () => entry.value);
+      if (replies.containsKey(entry.key)) continue;
+      replies[entry.key] = entry.value;
+      if (other.replyExcerpts[entry.key] case final excerpt?) {
+        replyExcerpts[entry.key] = excerpt;
+      }
     }
     markedUnread.addAll(other.markedUnread);
     muted.addAll(other.muted);

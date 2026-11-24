@@ -57,6 +57,26 @@ Radio lanRadio(String network, String host, int port, {String? name}) {
   return (network: network, device: uri.toString(), name: name ?? uri.host);
 }
 
+class MessageExcerpt {
+  const MessageExcerpt(this.offset, this.text);
+
+  final int offset;
+  final String text;
+
+  bool matches(String source) =>
+      offset >= 0 && offset < source.length && source.startsWith(text, offset);
+
+  List<Object> toJson() => [offset, text];
+
+  static MessageExcerpt? decode(Object? value) {
+    if (value case [final int offset, final String text]
+        when offset >= 0 && text.isNotEmpty) {
+      return MessageExcerpt(offset, text);
+    }
+    return null;
+  }
+}
+
 class MeshMessage {
   const MeshMessage({
     required this.id,
@@ -67,6 +87,7 @@ class MeshMessage {
     required this.delivery,
     this.remoteId,
     this.replyTo,
+    this.replyExcerpt,
     this.packet,
     this.isAttachment = false,
     this.suppressLinkPreview = false,
@@ -76,6 +97,7 @@ class MeshMessage {
   final DateTime time;
   final Delivery delivery;
   final String? remoteId, replyTo;
+  final MessageExcerpt? replyExcerpt;
   final MessagePacket? packet;
   final bool isAttachment;
   final bool suppressLinkPreview;
@@ -96,6 +118,7 @@ class MeshMessage {
     delivery: delivery ?? this.delivery,
     remoteId: reference ?? remoteId,
     replyTo: replyTo,
+    replyExcerpt: replyExcerpt,
     isAttachment: isAttachment,
     suppressLinkPreview: suppressLinkPreview,
     packet: packet == null ? this.packet : this.packet?.merge(packet) ?? packet,
@@ -110,6 +133,7 @@ class MeshMessage {
     'delivery': delivery.name,
     'remoteId': ?remoteId,
     'replyTo': ?replyTo,
+    'replyExcerpt': ?replyExcerpt?.toJson(),
     if (isAttachment) 'isAttachment': true,
     if (suppressLinkPreview) 'suppressLinkPreview': true,
     'packet': ?packet?.toJson(),
@@ -124,6 +148,7 @@ class MeshMessage {
     delivery: Delivery.values.byName(json['delivery'] as String),
     remoteId: json['remoteId'] as String?,
     replyTo: json['replyTo'] as String?,
+    replyExcerpt: MessageExcerpt.decode(json['replyExcerpt']),
     isAttachment: json['isAttachment'] == true,
     suppressLinkPreview: json['suppressLinkPreview'] == true,
     packet: switch (json['packet']) {

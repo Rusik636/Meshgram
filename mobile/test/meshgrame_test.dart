@@ -6749,6 +6749,77 @@ void main() {
     }),
   );
 
+  for (final network in ['meshtastic', 'meshcore']) {
+    testWidgets('selected excerpts and text forwarding on $network', (
+      tester,
+    ) async {
+      _reduceMotion(tester);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter(), MeshCoreAdapter()],
+        preview: true,
+      );
+      if (network == 'meshcore')
+        await controller.connect(controller.radios.last);
+      final peer = controller.cache!.peers['node:a']!;
+      final source = controller
+          .messages(peer.id)
+          .firstWhere((message) => message.text.contains('гребне'));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sourceBubble = find.byKey(ValueKey(('bubble', source.id)));
+      await tester.longPress(sourceBubble);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quote selection'));
+      await tester.pumpAndSettle();
+      const selected = 'гребне';
+      final offset = source.text.indexOf(selected);
+      tester
+          .widget<SelectableText>(find.byType(SelectableText))
+          .onSelectionChanged!(
+        TextSelection(
+          baseOffset: offset,
+          extentOffset: offset + selected.length,
+        ),
+        SelectionChangedCause.longPress,
+      );
+      await tester.pump();
+      await tester.tap(find.text('Quote'));
+      await tester.pumpAndSettle();
+      if (network == 'meshtastic') {
+        expect(controller.replyDraft(peer.id)?.id, source.id);
+        expect(controller.replyDraftExcerpt(peer.id)?.text, selected);
+        final restored = ChatCache.fromJson(controller.cache!.toJson());
+        expect(restored.replyExcerpts[peer.id]?.offset, offset);
+        await tester.enterText(find.byType(TextField), 'OK');
+        await tester.pump();
+        await tester.tap(find.byTooltip('Send'));
+        await tester.pumpAndSettle();
+        final sent = controller.messages(peer.id).last;
+        expect(sent.replyTo, controller.referenceFor(source));
+        expect(sent.replyExcerpt?.text, selected);
+      } else {
+        expect(controller.replyDraft(peer.id), isNull);
+        expect(controller.draft(peer.id), '«$selected»\n');
+      }
+      await tester.longPress(sourceBubble);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Forward as text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Тропа'));
+      await tester.pumpAndSettle();
+      expect(controller.draft('ch:0'), '${source.author}:\n${source.text}');
+      expect(controller.messages('ch:0'), hasLength(1));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
   testWidgets('quick phrases are edited locally and append to a draft', (
     tester,
   ) async {

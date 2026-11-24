@@ -740,7 +740,7 @@
       "depends_on": [
         "07"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -759,11 +759,28 @@
       "depends_on": [
         "07"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Выбор чата подготавливает обычный текст с подписью автора. Штатный адаптер проверяет полный бюджет UTF‑8."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerForwardMessages.swift#L48-L60",
+          "behavior": "Пересылка начинается с выбора чата назначения."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L35540-L35578",
+          "behavior": "При открытии чата Telegram готовит пересылку в панели редактора. Meshgram готовит обычный текст с именем автора."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Пересылка сообщения от Миры открыла черновик в канале «Тропа» с именем автора и исходным текстом. Счётчик учитывает обе строки.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-forward-text.png"
+        }
+      ]
     },
     {
       "id": "08.quote",
@@ -777,12 +794,33 @@
       "depends_on": [
         "07"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Поддерживаемый протокол сохраняет штатную ссылку на оригинал, выбранный фрагмент подсвечивается локально.",
         "Для остальных случаев доступна короткая текстовая цитата. Бюджет UTF‑8 учитывает её целиком."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramCore/Sources/ApiUtils/ReplyQuoteApi.swift#L16-L43",
+          "behavior": "Ответ на отрывок хранит сам текст и смещение внутри оригинала."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L3507-L3547",
+          "behavior": "Выбранные границы формируют цитату и открывают её в панели ответа."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Слово «гребне» выделялось жестом, подсвечивалось в оригинале и отображалось в панели ответа.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quote-excerpt.png"
+        },
+        {
+          "kind": "check",
+          "result": "Meshtastic сохранил штатную ссылку и локальное смещение цитаты. MeshCore подготовил текстовую цитату в пределах лимита. Пересылка заполняет черновик."
+        }
+      ]
     },
     {
       "id": "09",

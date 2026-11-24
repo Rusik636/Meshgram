@@ -104,12 +104,14 @@ class MessageLinkifiedText extends StatefulWidget {
     required this.style,
     required this.linkColor,
     this.textAlign,
+    this.highlight,
   });
 
   final String text;
   final TextStyle style;
   final Color linkColor;
   final TextAlign? textAlign;
+  final ({TextRange range, Color color})? highlight;
 
   @override
   State<MessageLinkifiedText> createState() => _MessageLinkifiedTextState();
@@ -158,7 +160,8 @@ class _MessageLinkifiedTextState extends State<MessageLinkifiedText> {
   @override
   Widget build(BuildContext context) {
     final text = widget.text;
-    if (_links.isEmpty) {
+    final highlight = widget.highlight;
+    if (_links.isEmpty && highlight == null) {
       return EmojiText(text, style: widget.style, textAlign: widget.textAlign);
     }
 
@@ -168,22 +171,47 @@ class _MessageLinkifiedTextState extends State<MessageLinkifiedText> {
       decorationColor: widget.linkColor,
     );
     final spans = <InlineSpan>[];
+    void span(int start, int end, [TapGestureRecognizer? tap]) {
+      if (start >= end) return;
+      void add(int from, int to, Color? color) {
+        if (from >= to) return;
+        final content = text.substring(from, to);
+        if (tap == null) {
+          spans.add(
+            emojiTextSpan(content, style: TextStyle(backgroundColor: color)),
+          );
+        } else {
+          spans.add(
+            TextSpan(
+              text: content,
+              style: linkStyle.copyWith(backgroundColor: color),
+              recognizer: tap,
+              mouseCursor: SystemMouseCursors.click,
+            ),
+          );
+        }
+      }
+
+      if (highlight == null ||
+          highlight.range.end <= start ||
+          highlight.range.start >= end) {
+        add(start, end, null);
+        return;
+      }
+      final from = highlight.range.start.clamp(start, end);
+      final to = highlight.range.end.clamp(start, end);
+      add(start, from, null);
+      add(from, to, highlight.color);
+      add(to, end, null);
+    }
+
     var start = 0;
     for (final link in _links) {
-      if (link.start > start) {
-        spans.add(emojiTextSpan(text.substring(start, link.start)));
-      }
-      spans.add(
-        TextSpan(
-          text: text.substring(link.start, link.end),
-          style: linkStyle,
-          recognizer: link.tap,
-          mouseCursor: SystemMouseCursors.click,
-        ),
-      );
+      span(start, link.start);
+      span(link.start, link.end, link.tap);
       start = link.end;
     }
-    if (start < text.length) spans.add(emojiTextSpan(text.substring(start)));
+    span(start, text.length);
     return Text.rich(
       TextSpan(children: spans),
       style: widget.style,

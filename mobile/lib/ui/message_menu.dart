@@ -24,6 +24,8 @@ Future<String?> showMessageMenu({
   required bool canReply,
   bool saved = false,
   bool? pinned,
+  bool canForward = false,
+  bool canQuoteText = false,
   required bool outgoing,
   required Widget bubble,
   required List<ChatReaction> reactions,
@@ -48,6 +50,8 @@ Future<String?> showMessageMenu({
         canReply: canReply,
         saved: saved,
         pinned: pinned,
+        canForward: canForward,
+        canQuoteText: canQuoteText,
         outgoing: outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -69,6 +73,8 @@ class _MessageMenu extends StatefulWidget {
     required this.canReply,
     required this.saved,
     required this.pinned,
+    required this.canForward,
+    required this.canQuoteText,
     required this.outgoing,
     required this.bubble,
     required this.reactions,
@@ -79,6 +85,7 @@ class _MessageMenu extends StatefulWidget {
   final Rect anchor;
   final bool canReact, canReply, outgoing, saved;
   final bool? pinned;
+  final bool canForward, canQuoteText;
   final List<String> recentReactions;
   final Widget bubble, details;
   final List<ChatReaction> reactions;
@@ -279,6 +286,18 @@ class _MessageMenuState extends State<_MessageMenu> {
           tr(context, 'Копировать', 'Copy'),
           () => _select('copy'),
         ),
+        if (widget.canQuoteText)
+          _action(
+            Icons.format_quote_rounded,
+            tr(context, 'Цитировать фрагмент', 'Quote selection'),
+            () => _select('quote-text'),
+          ),
+        if (widget.canForward)
+          _action(
+            Icons.forward_rounded,
+            tr(context, 'Переслать текст', 'Forward as text'),
+            () => _select('forward-text'),
+          ),
         _action(
           widget.saved
               ? Icons.bookmark_remove_outlined

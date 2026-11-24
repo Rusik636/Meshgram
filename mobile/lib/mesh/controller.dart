@@ -645,6 +645,7 @@ class MeshController extends ChangeNotifier {
     });
     current.reactions.removeWhere((item) => item.chat == id);
     current.replies.remove(id);
+    current.replyExcerpts.remove(id);
     current.markRead(id);
   }
 
@@ -1963,6 +1964,10 @@ class MeshController extends ChangeNotifier {
       connected &&
       _canTargetMessage(peer, message);
 
+  bool canDraftMessageReply(Peer peer, MeshMessage message) =>
+      (_session is NetworkMessageActions || active?.network == 'meshtastic') &&
+      _canTargetMessage(peer, message);
+
   bool canReact(Peer peer, MeshMessage message) =>
       (_session is NetworkReactions || preview) &&
       connected &&
@@ -1983,15 +1988,25 @@ class MeshController extends ChangeNotifier {
   MeshMessage? replyDraft(String chat) =>
       referencedMessage(chat, cache?.replies[chat]);
 
-  void setReplyDraft(String chat, MeshMessage? message) {
+  MessageExcerpt? replyDraftExcerpt(String chat) => cache?.replyExcerpts[chat];
+
+  void setReplyDraft(
+    String chat,
+    MeshMessage? message, {
+    MessageExcerpt? excerpt,
+  }) {
     final radio = active;
     if (radio == null) return;
     final data = _cacheFor(radio);
     final ref = message == null ? null : referenceFor(message);
+    data.replyExcerpts.remove(chat);
     if (ref == null) {
       data.replies.remove(chat);
     } else {
       data.replies[chat] = ref;
+      if (excerpt != null && excerpt.matches(message!.text)) {
+        data.replyExcerpts[chat] = excerpt;
+      }
     }
     _save(radio);
     _changed();
@@ -2250,6 +2265,7 @@ class MeshController extends ChangeNotifier {
     Peer peer,
     String text, {
     MeshMessage? reply,
+    MessageExcerpt? replyExcerpt,
     bool suppressLinkPreview = false,
   }) async {
     if (reply != null && !canUseMessageActions(peer, reply)) return false;
@@ -2257,6 +2273,9 @@ class MeshController extends ChangeNotifier {
       peer,
       text,
       replyTo: reply == null ? null : referenceFor(reply),
+      replyExcerpt: reply != null && replyExcerpt?.matches(reply.text) == true
+          ? replyExcerpt
+          : null,
       suppressLinkPreview: suppressLinkPreview,
     );
   }
@@ -2278,6 +2297,7 @@ class MeshController extends ChangeNotifier {
       peer,
       failed.text,
       replyTo: failed.replyTo,
+      replyExcerpt: failed.replyExcerpt,
       retryId: messageId,
       isAttachment: failed.isAttachment,
       suppressLinkPreview: failed.suppressLinkPreview,
@@ -2288,6 +2308,7 @@ class MeshController extends ChangeNotifier {
     Peer peer,
     String text, {
     String? replyTo,
+    MessageExcerpt? replyExcerpt,
     String? retryId,
     bool isAttachment = false,
     bool suppressLinkPreview = false,
@@ -2314,6 +2335,7 @@ class MeshController extends ChangeNotifier {
       time: now,
       delivery: Delivery.queued,
       replyTo: replyTo,
+      replyExcerpt: replyExcerpt,
       isAttachment: isAttachment,
       suppressLinkPreview: suppressLinkPreview,
       remoteId: session is NetworkMessageActions
