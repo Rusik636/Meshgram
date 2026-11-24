@@ -3,6 +3,7 @@
 
 import Flutter
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 // The Flutter platform view contains a system tab controller with transparent
 // pages. Flutter owns the actual content and responds to UIKit selection.
@@ -13,10 +14,10 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
 
   private let root: TabControllerContainer
   private let tabs = UITabBarController()
-  private let indicatorViewport = UIView()
   private let channel: FlutterMethodChannel
   private let textOnly: Bool
-  private let indicatorOnly: Bool
+  private let tapBoundary: TabTapBoundary?
+  private let gatedGestures = NSHashTable<UIGestureRecognizer>.weakObjects()
   private var input: [String: Any] = [:]
   private var labels: [String] = []
   private var symbols: [String] = []
@@ -29,14 +30,17 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
   init(_ frame: CGRect, _ channel: FlutterMethodChannel, _ input: [String: Any]) {
     root = TabControllerContainer(frame: frame)
     self.channel = channel
-    indicatorOnly = input["indicatorOnly"] as? Bool == true
-    textOnly = indicatorOnly || input["textOnly"] as? Bool == true
+    textOnly = input["textOnly"] as? Bool == true
+    tapBoundary = input["tapOnly"] as? Bool == true
+      ? TabTapBoundary(target: nil, action: nil) : nil
     super.init()
 
     root.backgroundColor = .clear
     root.clipsToBounds = !textOnly
-    root.isUserInteractionEnabled = !indicatorOnly
-    root.accessibilityElementsHidden = indicatorOnly
+    if let tapBoundary {
+      tapBoundary.cancelsTouchesInView = true
+      root.addGestureRecognizer(tapBoundary)
+    }
     tabs.delegate = self
     tabs.loadViewIfNeeded()
     tabs.view.backgroundColor = .clear
@@ -48,18 +52,6 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
     if textOnly {
       root.layoutContent = { [weak self] in self?.layoutTextTabs() }
       tabs.tabBar.itemPositioning = .fill
-    }
-    if indicatorOnly {
-      // Use UIKit's selection over the caller's glass background.
-      indicatorViewport.frame = root.bounds
-      indicatorViewport.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-      indicatorViewport.clipsToBounds = true
-      root.addSubview(indicatorViewport)
-      let appearance = UITabBarAppearance()
-      appearance.configureWithTransparentBackground()
-      appearance.stackedItemPositioning = .fill
-      tabs.tabBar.standardAppearance = appearance
-      tabs.tabBar.scrollEdgeAppearance = appearance
     }
     update(input)
     channel.setMethodCallHandler { [weak self] call, result in
@@ -90,7 +82,7 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
     }
     guard let parent = responder as? UIViewController, tabs.parent !== parent else { return }
     parent.addChild(tabs)
-    (indicatorOnly ? indicatorViewport : root).addSubview(tabs.view)
+    root.addSubview(tabs.view)
     if textOnly {
       layoutTextTabs()
     } else {
@@ -101,22 +93,29 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
   }
 
   private func layoutTextTabs() {
-    guard tabs.view.superview != nil, root.bounds.width > 0 else { return }
+    guard tabs.view.superview === root, root.bounds.width > 0 else { return }
     let scale = textTabScale
     let systemHeight: CGFloat
     if #available(iOS 26.0, *) { systemHeight = 102 } else { systemHeight = 49 }
     // Preserve the system glass proportions while fitting the floating bar inline.
     // Compensate for its 20 pt system inset on either side.
-    let widthAdjustment: CGFloat = indicatorOnly ? 18 : -32
-    let width = max(0, root.bounds.width + widthAdjustment) / scale + 40
-    if indicatorOnly {
-      // Clip the surrounding bar chrome to reveal only UIKit’s selected fill.
-      indicatorViewport.layer.cornerCurve = .continuous
-      indicatorViewport.layer.cornerRadius = root.bounds.height / 2
-    }
+    let horizontalInset: CGFloat = tapBoundary == nil ? 32 : 0
+    let width = max(0, root.bounds.width - horizontalInset) / scale + 40
     tabs.view.bounds = CGRect(x: 0, y: 0, width: width, height: systemHeight)
     tabs.view.center = CGPoint(x: root.bounds.midX, y: root.bounds.midY)
     tabs.view.transform = CGAffineTransform(scaleX: scale, y: scale)
+    if let tapBoundary {
+      tabs.tabBar.layoutIfNeeded()
+      gateTabGestures(in: tabs.tabBar, with: tapBoundary)
+    }
+  }
+
+  private func gateTabGestures(in view: UIView, with boundary: TabTapBoundary) {
+    for gesture in view.gestureRecognizers ?? [] where !gatedGestures.contains(gesture) {
+      gesture.require(toFail: boundary)
+      gatedGestures.add(gesture)
+    }
+    for subview in view.subviews { gateTabGestures(in: subview, with: boundary) }
   }
 
   private func updateTextTabAppearance(_ titleSize: CGFloat) {
@@ -161,17 +160,8 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
     let sizeChanged = (values["titleSize"] as? NSNumber) != (input["titleSize"] as? NSNumber)
     input = values
     tabs.overrideUserInterfaceStyle = values["dark"] as? Bool == true ? .dark : .light
-    if indicatorOnly {
-      root.overrideUserInterfaceStyle = tabs.overrideUserInterfaceStyle
-      indicatorViewport.backgroundColor = tabs.overrideUserInterfaceStyle == .dark
-        ? UIColor(white: 0.078, alpha: 1) : UIColor(white: 0.9, alpha: 1)
-      if #available(iOS 26.0, *) {
-        indicatorViewport.isHidden = values["lensActive"] as? Bool == true &&
-          !UIAccessibility.isReduceMotionEnabled && !UIAccessibility.isReduceTransparencyEnabled
-      }
-    }
     tabs.tabBar.tintColor = meshColor(values["accent"], .systemBlue)
-    if textOnly && !indicatorOnly && sizeChanged {
+    if textOnly && sizeChanged {
       updateTextTabAppearance((values["titleSize"] as? NSNumber)?.doubleValue ?? 15)
     }
     let current = values["labels"] as? [String] ?? []
@@ -210,78 +200,44 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
   }
 
   func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
-    guard !indicatorOnly else { return }
     channel.invokeMethod("select", arguments: viewController.tabBarItem.tag)
+  }
+
+  func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {
+    tapBoundary?.state != .recognized
   }
 }
 
-// This glass is composited above the folder labels so they can refract at its edge.
-final class MeshTabLens: NSObject, FlutterPlatformView {
-  private let root: TabControllerContainer
-  private let channel: FlutterMethodChannel
-  private var tap: Int
-  private var lens: UIVisualEffectView?
+private final class TabTapBoundary: UIGestureRecognizer {
+  private var origin: CGPoint?
 
-  init(_ frame: CGRect, _ channel: FlutterMethodChannel, _ input: [String: Any]) {
-    root = TabControllerContainer(frame: frame)
-    self.channel = channel
-    tap = input["tap"] as? Int ?? 0
-    super.init()
-    root.isUserInteractionEnabled = false
-    root.accessibilityElementsHidden = true
-    root.layoutContent = { [weak self] in self?.layoutLens() }
-    update(input)
-    channel.setMethodCallHandler { [weak self] call, result in
-      guard call.method == "update", let values = call.arguments as? [String: Any] else {
-        return result(FlutterMethodNotImplemented)
-      }
-      self?.update(values)
-      result(nil)
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    origin = touches.first?.location(in: view)
+  }
+
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+    guard let origin, let point = touches.first?.location(in: view) else { return }
+    let horizontal = abs(point.x - origin.x)
+    if horizontal > 7 && horizontal > abs(point.y - origin.y) {
+      state = .recognized
     }
   }
 
-  deinit { channel.setMethodCallHandler(nil) }
-
-  func view() -> UIView { root }
-
-  private func layoutLens() {
-    guard let lens else { return }
-    lens.bounds = CGRect(origin: .zero, size: root.bounds.insetBy(dx: 2, dy: 1).size)
-    lens.center = CGPoint(x: root.bounds.midX, y: root.bounds.midY)
-    lens.layer.cornerRadius = lens.bounds.height / 2
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    if state == .possible { state = .failed }
   }
 
-  private func update(_ values: [String: Any]) {
-    root.overrideUserInterfaceStyle = values["dark"] as? Bool == true ? .dark : .light
-    let nextTap = values["tap"] as? Int ?? 0
-    let tapped = nextTap != tap
-    tap = nextTap
-    guard #available(iOS 26.0, *), tapped, values["reduceMotion"] as? Bool != true,
-      !UIAccessibility.isReduceMotionEnabled, !UIAccessibility.isReduceTransparencyEnabled else { return }
-    self.lens?.removeFromSuperview()
-    let lens = UIVisualEffectView(effect: nil)
-    lens.layer.cornerCurve = .continuous
-    let material = UIGlassEffect(style: .clear)
-    let dark = root.overrideUserInterfaceStyle == .dark
-    material.tintColor = UIColor(white: dark ? 0.06 : 0.95, alpha: 0.16)
-    self.lens = lens
-    layoutLens()
-    root.addSubview(lens)
-    UIView.animate(withDuration: 0.18, delay: 0, usingSpringWithDamping: 0.74,
-      initialSpringVelocity: 0.45, options: [.allowUserInteraction]) {
-      lens.effect = material
-      lens.transform = CGAffineTransform(scaleX: 1.16, y: 1.22)
-    } completion: { [weak self] _ in
-      guard self?.lens === lens else { return }
-      UIView.animate(withDuration: 0.23, delay: 0, usingSpringWithDamping: 0.78,
-        initialSpringVelocity: 0, options: [.allowUserInteraction]) {
-        lens.effect = nil
-        lens.transform = .identity
-      } completion: { [weak self] _ in
-        lens.removeFromSuperview()
-        if self?.lens === lens { self?.lens = nil }
-      }
-    }
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+    state = .cancelled
+  }
+
+  override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+    false
+  }
+
+  override func reset() {
+    super.reset()
+    origin = nil
   }
 }
 

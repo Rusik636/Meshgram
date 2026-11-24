@@ -2350,35 +2350,25 @@ void main() {
       );
       await tester.pumpAndSettle();
       final picker = find.byType(ChatFolderTabs);
-      final materials = tester.widgetList<IosControl>(
-        find.descendant(of: picker, matching: find.byType(IosControl)),
+      final control = find.descendant(
+        of: picker,
+        matching: find.byType(IosControl),
       );
-      expect(materials.map((control) => control.kind), [
-        'modalGlass',
-        'tabs',
-        'tabLens',
-      ]);
-      final indicator = materials.elementAt(1);
-      expect(indicator.properties['indicatorOnly'], isTrue);
-      expect(indicator.horizontalDrag, isFalse);
-      expect(indicator.onSelect, isNull);
-      expect(materials.last.horizontalDrag, isFalse);
-      expect(materials.last.onSelect, isNull);
-      expect(tester.widget<ChatFolderTabs>(picker).builtInLabels, [
-        'All',
-        'Direct',
-        'Channels',
-      ]);
+      IosControl categories() => tester.widget<IosControl>(control);
+      expect(categories().kind, 'tabs');
+      expect(categories().horizontalDrag, isFalse);
+      expect(categories().tapOnly, isTrue);
+      expect(categories().properties['labels'], ['All', 'Direct', 'Channels']);
       expect(tester.getSize(picker).height, 48);
-      final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+      final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
       expect(
-        tester.widget<CustomScrollView>(scroll).scrollDirection,
+        tester.widget<SingleChildScrollView>(scroll).scrollDirection,
         Axis.horizontal,
       );
-      await tester.tap(find.text('Channels'));
+      categories().onSelect!(2);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Мира Соколова profile'), findsNothing);
-      await tester.tap(find.text('All'));
+      categories().onSelect!(0);
       await tester.pumpAndSettle();
       final avatar = find.byTooltip('Мира Соколова profile');
       await tester.tap(avatar);
@@ -7644,7 +7634,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('iOS folder scrolling changes selection only on tap', (
+  testWidgets('iOS scrolls folder tabs without changing the selection', (
     tester,
   ) async {
     _reduceMotion(tester);
@@ -7658,38 +7648,34 @@ void main() {
       adapters: const [MeshtasticAdapter()],
       preview: true,
     );
-    controller.saveChatFolder(name: 'Field team', chats: {'node:a'});
-    controller.saveChatFolder(name: 'Survey crew', chats: {'ch:0'});
+    final names = [for (var i = 1; i <= 8; i++) 'Field $i'];
+    for (final name in names) {
+      controller.saveChatFolder(name: name, chats: {'node:a'});
+    }
     await tester.pumpWidget(
       MeshGrame(controller: controller, locale: const Locale('en')),
     );
     await tester.pumpAndSettle();
-    final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
-    final tabs = tester.widget<CustomScrollView>(scroll).controller!;
-    int selected() =>
-        tester.widget<ChatFolderTabs>(find.byType(ChatFolderTabs)).selected;
-    Object? lensTap() => tester
-        .widget<IosControl>(
-          find.byWidgetPredicate(
-            (widget) => widget is IosControl && widget.kind == 'tabLens',
-          ),
-        )
-        .properties['tap'];
-    await tester.drag(scroll, const Offset(-510, 0));
+    final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
+    expect(tester.getSize(scroll).width, 358);
+    final scrollController = tester
+        .widget<SingleChildScrollView>(scroll)
+        .controller!;
+    final picker = find.byType(ChatFolderTabs);
+    int selected() => tester.widget<ChatFolderTabs>(picker).selected;
+    IosControl tabs() => tester.widget<IosControl>(
+      find.descendant(of: picker, matching: find.byType(IosControl)),
+    );
+    await tester.drag(scroll, const Offset(-550, 0));
     await tester.pumpAndSettle();
-    expect(tabs.offset, greaterThan(0));
+    expect(scrollController.offset, greaterThan(0));
     expect(selected(), 0);
-    expect(lensTap(), 0);
-    final folder = find.text('Survey crew');
-    expect(folder.hitTestable(), findsOneWidget);
-    await tester.tap(folder);
+    final displayed = tabs().properties['labels']! as List<String>;
+    expect(displayed.length, lessThanOrEqualTo(5));
+    final label = displayed.firstWhere(names.contains);
+    tabs().onSelect!(displayed.indexOf(label));
     await tester.pumpAndSettle();
-    expect(selected(), 4);
-    expect(lensTap(), 1);
-    await tester.drag(scroll, const Offset(330, 0));
-    await tester.pumpAndSettle();
-    expect(selected(), 4);
-    expect(lensTap(), 1);
+    expect(selected(), names.indexOf(label) + 3);
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
