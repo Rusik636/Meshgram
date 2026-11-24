@@ -2464,6 +2464,7 @@ class _ChatState extends State<MeshChatPage>
                                 return MeshLocationPreview(
                                   position: location.point,
                                   loadTiles: false,
+                                  attributionTextOnly: true,
                                 );
                               }
                               return null;
@@ -3869,6 +3870,7 @@ class _MessageContent extends StatelessWidget {
               position: position,
               standaloneMessage: true,
               loadTiles: false,
+              attributionTextOnly: true,
             ),
           ),
           if (mapHighlight case final highlight?)

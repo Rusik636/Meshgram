@@ -253,6 +253,12 @@ void main() {
       isTrue,
     );
     expect(find.text('Location'), findsNothing);
+    expect(
+      tester
+          .widget<MeshMapAttribution>(find.byType(MeshMapAttribution))
+          .textOnly,
+      isTrue,
+    );
     final mapBounds = tester.getRect(preview);
     expect(mapBounds.width, closeTo(mapBounds.height * 2, .1));
     final stamp = tester.getRect(
@@ -266,6 +272,7 @@ void main() {
     expect(find.text('55.750000, 49.140000'), findsOneWidget);
     final map = tester.widget<MeshMap>(find.byType(MeshMap));
     expect(map.interactive, isTrue);
+    expect(map.attributionTextOnly, isFalse);
     expect(map.pins.single.position, point);
     expect(tester.takeException(), isNull);
 
