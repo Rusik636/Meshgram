@@ -1996,7 +1996,7 @@
       "depends_on": [
         "08"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Координаты без подписи показываются картой 2:1 без блока Геопозиция. Время и статус поверх карты.",
         "Подписанные сообщения и ссылки сохраняют текст. Тап открывает карту, кеш остаётся локальным."
@@ -2005,6 +2005,35 @@
         {
           "kind": "check",
           "result": "Прошли 13 проверок парсинга, истории, карты и Избранного. Вид карты, расположение времени внутри и переход проверены тестом."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ChatMessageMapBubbleContentNode/Sources/ChatMessageMapBubbleContentNode.swift#L337-L354",
+          "result": "Для точки без подписи дата и статус лежат в нижнем правом углу изображения."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java#L8868-L8886",
+          "result": "Для обычной геоточки ячейка задаёт размеры изображения карты отдельно от содержимого с названием места."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-location-phrases-94.png",
+          "result": "Координаты без подписи на тестовой карте, метка и время поверх изображения."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-location-phrases-94.png",
+          "result": "Карта без рамки, метка и время поверх изображения в тёмной теме."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сборке 0.3.62 (94) просмотрено существующее geo-сообщение без подписи и с отметкой доставки. Материал содержит реальные координаты и в отчёт не добавлен."
         }
       ]
     },
@@ -2020,12 +2049,35 @@
       "depends_on": [
         "20"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Подсказка центрируется над редактором в обоих состояниях полоски.",
         "Надпись непрочитанных расположена между двумя равными линиями."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Flutter-проверки сравнивают центры счётчика и чата до и после раскрытия полоски, а также центр надписи и ширину двух линий непрочитанных."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-unread-divider-94.png",
+          "result": "Разделитель непрочитанных и подсказка над редактором в светлой теме."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-unread-divider-94.png",
+          "result": "Разделитель непрочитанных и подсказка над редактором в тёмной теме."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-offline-phrases-94.png",
+          "result": "Красная подсказка по центру при выключенной рации. В полоске системное стекло и разделитель между фразами."
+        }
+      ]
     },
     {
       "id": "32",
@@ -2041,13 +2093,46 @@
         "29",
         "31"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Карандаш сменяется стрелкой и увеличивается при перетягивании за конец. При пороге есть тактильный сигнал.",
         "Отпускание после порога открывает список. Обратный жест до отпускания отменяет раскрытие.",
         "Между фразами в открытой полоске видны вертикальные разделители."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли 238 проверок Flutter и статический анализ. Виджет-тест подтверждает изменение масштаба стрелки, возврат к карандашу, одну команду вибрации при пересечении порога и открытие списка после отпускания."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-pull-94.mov",
+          "result": "Стрелка при натяжении и возврат к карандашу без открытия при обратном движении."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-phrase-list-94.png",
+          "result": "Список открывается после отпускания жеста."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-location-phrases-dark-94.png",
+          "result": "Системное стекло и вертикальные разделители в тёмной теме."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Установлена сборка 0.3.62 (94). Жест открыл список после отпускания. Проверены открытие карандашом, закрытие по «Назад» и тап по пустой области. Рация в приложении отключена перед тестированием iPhone."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Установлена и запущена сборка 0.3.62 (94). Через «Видеоповтор iPhone» проверены нативная полоска, разделитель и открытие списка карандашом. Полный жест и возврат подтверждены на симуляторе, тактильный сигнал проверен на уровне вызова платформы."
+        }
+      ]
     }
   ]
 }
