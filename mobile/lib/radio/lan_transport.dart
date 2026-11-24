@@ -21,6 +21,8 @@ class LanTransport implements RadioLanTransport {
     Map<String, LanRadioProtocol> protocols,
     void Function(List<DiscoveredRadio>) update,
   ) async {
+    // The mDNS plugin has no Linux implementation. Direct TCP still works.
+    if (Platform.isLinux) return;
     final generation = ++_generation;
     await _endScan();
     if (generation != _generation) return;
