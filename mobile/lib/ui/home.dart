@@ -1835,15 +1835,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         _settingsGroup([
           MeshRow(
-            title: tr(context, 'Избранное', 'Saved Messages'),
-            icon: Icons.bookmark_border_rounded,
-            tint: _blue,
-            onTap: () => unawaited(showSavedChat(context, controller)),
-          ),
-        ]),
-        const SizedBox(height: 14),
-        _settingsGroup([
-          MeshRow(
             title: tr(context, 'Узлы', 'Nodes'),
             icon: Icons.hub_outlined,
             tint: _violet,
@@ -1887,6 +1878,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 meshPageRoute<void>(context, builder: (_) => const AboutPage()),
               ),
             ),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        _settingsGroup([
+          MeshRow(
+            title: tr(context, 'Избранное', 'Saved Messages'),
+            icon: Icons.bookmark_border_rounded,
+            tint: _blue,
+            onTap: () => unawaited(showSavedChat(context, controller)),
           ),
         ]),
       ],
