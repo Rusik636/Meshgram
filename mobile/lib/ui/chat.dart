@@ -1535,18 +1535,34 @@ class _ChatState extends State<MeshChatPage>
     final controller = widget.controller;
     final profile = controller.active;
     final text = '${_quoteAuthor(context, message)}:\n${message.text}';
-    final target = await pickForwardChat(
-      context,
-      controller.conversations.where(controller.canSendTo).toList(),
-    );
-    if (!mounted || target == null || controller.active != profile) return;
-    final prior = controller.draft(target.id);
-    final draft = prior.isEmpty ? text : '$prior\n\n$text';
-    if (target.id == peer.id) {
-      _updateDraft(peer, draft);
-    } else {
-      controller.setDraft(target.id, draft);
-      await showMeshChat(context, controller, target);
+    final targets = await pickForwardChats(context, controller);
+    if (!mounted || targets == null || controller.active != profile) return;
+    if (targets.saved &&
+        !await controller.toggleSavedMessage(peer, message, keepSaved: true) &&
+        mounted) {
+      _notice(
+        tr(
+          context,
+          'Не удалось сохранить сообщение',
+          'Could not save the message',
+        ),
+      );
+    }
+    if (!mounted || controller.active != profile) return;
+    final chats = targets.chats.where(controller.canSendTo).toList();
+    for (final target in chats) {
+      final prior = controller.draft(target.id);
+      final draft = prior.isEmpty ? text : '$prior\n\n$text';
+      if (target.id == peer.id) {
+        _updateDraft(peer, draft);
+      } else {
+        controller.setDraft(target.id, draft);
+      }
+    }
+    if (chats.length == 1 && chats.single.id != peer.id) {
+      await showMeshChat(context, controller, chats.single);
+    } else if (chats.length > 1) {
+      _notice(tr(context, 'Черновики подготовлены', 'Drafts prepared'));
     }
   }
 
