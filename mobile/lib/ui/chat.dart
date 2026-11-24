@@ -4183,12 +4183,12 @@ class _ChatTitle extends StatelessWidget {
     required this.subtitle,
     required this.nativeProperties,
     required this.onTap,
-    required this.onLongPress,
+    this.onLongPress,
   });
 
   final String name, subtitle;
   final Map<String, Object>? nativeProperties;
-  final VoidCallback onTap, onLongPress;
+  final VoidCallback? onTap, onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -4231,16 +4231,17 @@ class _ChatTitle extends StatelessWidget {
               properties: {
                 ...properties,
                 'label': name,
-                'longPressLabel': tr(
-                  context,
-                  'Поиск по сообщениям',
-                  'Search messages',
-                ),
+                if (onLongPress != null)
+                  'longPressLabel': tr(
+                    context,
+                    'Поиск по сообщениям',
+                    'Search messages',
+                  ),
                 'subtitle': subtitle,
                 'titleFontSize': scaler.scale(16),
                 'subtitleFontSize': scaler.scale(11),
               },
-              onSelect: (_) => onTap(),
+              onSelect: onTap == null ? null : (_) => onTap?.call(),
               onLongPress: onLongPress,
             )
           : GlassSurface(

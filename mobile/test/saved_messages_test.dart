@@ -9,6 +9,7 @@ import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
 import 'package:meshgrame/ui/chat.dart';
+import 'package:meshgrame/ui/radio_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -142,6 +143,13 @@ void main() {
     expect(store.savedMessages.single.message.text, note);
     expect(store.savedChatDraft, isEmpty);
     expect(transport.connections, 0);
+    await tester.tap(find.text('Heltec'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      tester.widget<RadioSettingsPage>(find.byType(RadioSettingsPage)).radio,
+      radio,
+    );
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
   });
