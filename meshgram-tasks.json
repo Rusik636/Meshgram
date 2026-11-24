@@ -1684,6 +1684,24 @@
           "result": "Размытие без прямоугольных участков и заголовок в Liquid Glass."
         }
       ]
+    },
+    {
+      "id": "22",
+      "parent_id": null,
+      "title": "Убрать светящийся ободок Liquid Glass",
+      "platform": ["ios"],
+      "branch": "task/22-glass-halo",
+      "depends_on": ["20", "21"],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "У имени контакта и полоски фраз сохраняется нативное стекло без светящегося ободка."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "На iPhone 18 Pro Simulator проверены имя контакта и открытая полоска с подложкой Liquid Glass без яркого контура."
+        }
+      ]
     }
   ]
 }

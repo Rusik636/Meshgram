@@ -189,8 +189,46 @@ private final class MeshMessageGlass: UIView, FlutterPlatformView {
   }
 }
 
+private final class MeshModalGlassView: UIView {
+  let glass: UIVisualEffectView
+  var radius: CGFloat = 22 {
+    didSet { if radius != oldValue { setNeedsLayout() } }
+  }
+  private let aperture = UIView()
+
+  init(frame: CGRect, effect: UIVisualEffect) {
+    glass = UIVisualEffectView(effect: effect)
+    super.init(frame: frame)
+    aperture.backgroundColor = .white
+    glass.clipsToBounds = true
+    addSubview(glass)
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let radius = min(self.radius, min(bounds.width, bounds.height) / 2)
+    if #available(iOS 26.0, *) {
+      // The glass edge sits outside the visible shape, leaving the native
+      // refraction inside without its bright rim.
+      let outset: CGFloat = 4
+      glass.frame = bounds.insetBy(dx: -outset, dy: -outset)
+      glass.cornerConfiguration = .uniformCorners(radius: .fixed(radius + outset))
+      aperture.frame = CGRect(origin: CGPoint(x: outset, y: outset), size: bounds.size)
+      aperture.layer.cornerRadius = radius
+      glass.mask = nil
+      glass.mask = aperture
+    } else {
+      glass.frame = bounds
+      glass.layer.cornerRadius = radius
+      glass.layer.cornerCurve = .continuous
+    }
+  }
+}
+
 private final class MeshModalGlass: NSObject, FlutterPlatformView {
-  private let surface: UIVisualEffectView
+  private let surface: MeshModalGlassView
   private let channel: FlutterMethodChannel
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
@@ -204,10 +242,9 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
     } else {
       effect = UIBlurEffect(style: .systemMaterial)
     }
-    surface = UIVisualEffectView(effect: effect)
+    surface = MeshModalGlassView(frame: frame, effect: effect)
     self.channel = channel
     super.init()
-    surface.frame = frame
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
     updateRadius(input)
     surface.clipsToBounds = true
@@ -226,13 +263,7 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
   deinit { channel.setMethodCallHandler(nil) }
 
   private func updateRadius(_ values: [String: Any]) {
-    let radius = values["radius"] as? Double ?? 22
-    if #available(iOS 26.0, *) {
-      surface.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
-    } else {
-      surface.layer.cornerRadius = CGFloat(radius)
-      surface.layer.cornerCurve = .continuous
-    }
+    surface.radius = CGFloat(values["radius"] as? Double ?? 22)
   }
 
   func view() -> UIView { surface }
@@ -480,6 +511,7 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     var configuration: UIButton.Configuration
     if #available(iOS 26.0, *), !reduced {
       configuration = primary ? .prominentGlass() : .glass()
+      configuration.background.shadowProperties.opacity = 0
       if primary {
         configuration.baseBackgroundColor = accent
       }
