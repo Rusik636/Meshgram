@@ -2424,6 +2424,10 @@ void main() {
       final trail = find.text('Тропа').first;
       final mira = find.text('Мира Соколова').first;
       expect(find.text('Select a chat'), findsOneWidget);
+      expect(
+        Theme.of(tester.element(trail)).scaffoldBackgroundColor,
+        const Color(0xffeff1f3),
+      );
       expect(find.bySemanticsLabel(RegExp('Тропа')), findsWidgets);
       expect(
         tester.getTopLeft(pane).dx,

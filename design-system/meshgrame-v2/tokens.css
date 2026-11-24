@@ -29,8 +29,8 @@
   --mg-motion-press: 100ms;
   --mg-motion-selection: 180ms;
   --mg-motion-sheet: 240ms;
-  --mg-color-canvas: #edf2f7;
-  --mg-color-background: #f2f5fa;
+  --mg-color-canvas: #e9edf0;
+  --mg-color-background: #eff1f3;
   --mg-color-surface: #ffffff;
   --mg-color-text: #162338;
   --mg-color-secondary: #506078;
@@ -51,9 +51,9 @@
   --mg-color-glass: #f9fcffe5;
   --mg-color-glass-line: #ffffffed;
   --mg-color-scrim: #10213b70;
-  --mg-color-chat-floor: #dae5f2;
-  --mg-color-chat-tint: #e2eaf5;
-  --mg-color-chat-middle: #e4ecf7;
+  --mg-color-chat-floor: #dee4ea;
+  --mg-color-chat-tint: #e7ebef;
+  --mg-color-chat-middle: #e9edf1;
   --mg-color-chat-meta: #354760;
   --mg-color-contour: #829fba;
   --mg-color-map-land: #e9f0e8;

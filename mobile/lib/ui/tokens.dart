@@ -33,8 +33,8 @@ abstract final class MeshGrameV2 {
 }
 
 abstract final class MeshGrameV2Light {
-  static const canvas = 0xFFEDF2F7;
-  static const background = 0xFFF2F5FA;
+  static const canvas = 0xFFE9EDF0;
+  static const background = 0xFFEFF1F3;
   static const surface = 0xFFFFFFFF;
   static const text = 0xFF162338;
   static const secondary = 0xFF506078;
@@ -55,9 +55,9 @@ abstract final class MeshGrameV2Light {
   static const glass = 0xE5F9FCFF;
   static const glassLine = 0xEDFFFFFF;
   static const scrim = 0x7010213B;
-  static const chatFloor = 0xFFDAE5F2;
-  static const chatTint = 0xFFE2EAF5;
-  static const chatMiddle = 0xFFE4ECF7;
+  static const chatFloor = 0xFFDEE4EA;
+  static const chatTint = 0xFFE7EBEF;
+  static const chatMiddle = 0xFFE9EDF1;
   static const chatMeta = 0xFF354760;
   static const contour = 0xFF829FBA;
   static const mapLand = 0xFFE9F0E8;
