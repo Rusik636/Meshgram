@@ -2361,6 +2361,157 @@
           "result": "В сборке 97 пройден сценарий скрытия тестового чата, открытия Архива и возврата чата в общий список."
         }
       ]
+    },
+    {
+      "id": "38",
+      "parent_id": null,
+      "title": "Крестик папки и ширина индикатора",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/38-folder-label-controls",
+      "depends_on": [
+        "36"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Крестик без подложки расположен справа от названия и поворачивается вместе с ним.",
+        "Ширина индикатора зависит от ширины подписи. На iOS линза поднимается при тапе."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L671-L697",
+          "result": "Выбор папки после завершения тапа."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L941-L978",
+          "result": "Область выделения вычисляется из ширины элемента списка."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://developer.apple.com/documentation/uikit/uisegmentedcontrol",
+          "result": "В Meshgram свой контент и нативная стеклянная линза UIKit с разной шириной сегментов."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-tap-hold.mov",
+          "result": "Удержание без переключения и стеклянная линза с преломлением текста при тапе."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folder-edit-98.png",
+          "result": "Крестик справа от названия без подложки. Проверено удаление временной папки с сохранением чата."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folder-edit-100.png",
+          "result": "Крестик справа от пользовательской папки в режиме редактирования."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверяют ширину разных заголовков, порядок и кнопку удаления, прокрутку без переключения и выбор за пределами первых пяти вкладок."
+        }
+      ]
+    },
+    {
+      "id": "39",
+      "parent_id": null,
+      "title": "Внутренняя область прокрутки папок",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/39-folder-viewport-inset",
+      "depends_on": [
+        "38"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Прокручиваемые подписи обрезаются внутри полосы, внешний контур сохраняет положение."
+      ],
+      "evidence": [
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-viewport-99.mov",
+          "result": "Внутренняя область ограничивает прокрутку, стеклянный контур остаётся на месте. Размеры iOS уточнены в задаче 40."
+        },
+        {
+          "kind": "check",
+          "result": "Пройдены 243 теста Flutter, подтверждены ограничения области прокрутки."
+        }
+      ]
+    },
+    {
+      "id": "40",
+      "parent_id": null,
+      "title": "Размеры верхней полосы папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/40-ios-folder-bar-geometry",
+      "depends_on": [
+        "39"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Стандартная высота полосы 40 pt. Один внутренний отступ 3 pt со всех сторон для прокрутки и линзы."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HeaderPanelContainerComponent/Sources/HeaderPanelContainerComponent.swift#L129-L152",
+          "result": "Внешние размеры верхней полосы при обычном размере шрифта."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L147-L151",
+          "result": "Единый внутренний отступ 3 pt."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L1089-L1126",
+          "result": "Общая внутренняя область прокрутки, скругление и доведение выбранной папки в видимую область."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-viewport-100.png",
+          "result": "Граница обрезки внутри внешней стеклянной капсулы."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folder-bar-100.png",
+          "result": "В активном сегменте сохраняется отступ и системное стекло."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. На стандартной ширине 390 pt внутренняя область 352×34 pt расположена по центру."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (100) установлена поверх предыдущей. Проверены отступ, вид активного сегмента и тап по категории."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Установка сборки 0.3.62 (100) подтверждена через ADB. Ручная проверка ожидает разблокировки экрана. Сценарий редактирования прошёл на Android Emulator."
+        }
+      ]
     }
   ]
 }
