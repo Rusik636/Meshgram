@@ -175,6 +175,13 @@
           "version": "0.3.62",
           "build": 84,
           "result": "Установлено поверх 83. Устройство подтвердило номер 84, приложение запущено."
+        },
+        {
+          "kind": "radio_check",
+          "device": "Redmi Note 7",
+          "build": 84,
+          "result": "В канале test отправлены обычное сообщение и ответ на него через Meshtastic по Bluetooth с выключенными Wi-Fi и мобильными данными. Сетевые настройки восстановлены. Рация вручную отключена от Redmi перед проверкой iPhone.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-offline-radio-reply.png"
         }
       ]
     },
@@ -190,12 +197,18 @@
       "depends_on": [
         "01"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "5c3e552",
+          "result": "После слияния повторно прошли сценарии проверки iOS и Android."
+        }
+      ]
     },
     {
       "id": "02.history",
@@ -208,7 +221,7 @@
       "depends_on": [
         "01"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Навигация из цитаты переиспользует общий переход к точному ID с краткой подсветкой.",
         "При вытеснении исходника показано понятное сообщение."
