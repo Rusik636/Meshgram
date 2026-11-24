@@ -1238,12 +1238,18 @@
         "16",
         "17"
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Сборки и результаты приёмки зафиксированы, изменения оставлены в dev."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "merge",
+          "result": "Устройства обновлены до единого номера 87. Приёмка отдельно от Meshgram на штатных клиентах остаётся открытой. Разработка оставлена в dev.",
+          "commit": "7481b4c"
+        }
+      ]
     },
     {
       "id": "13.simulator",
@@ -1272,12 +1278,27 @@
         "16",
         "17"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Каждая задача проверена на затронутых платформах, в светлой и тёмной темах, с уменьшением движения и прозрачности где применимо.",
         "Проверены состояния Liquid Glass и перекрытие кнопок шторками. Есть записи и покадровые сравнения где возможно."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "В dev прошли 233 теста Flutter, анализ без замечаний и 4 UIKit-теста. Отдельно UIKit проверен с включённым понижением прозрачности.",
+          "commit": "7481b4c"
+        },
+        {
+          "kind": "comparison",
+          "result": "Симулятор iOS и эмулятор Android проверены, включая тёмные экраны и тесты уменьшенного движения. Траектории сверены по исходникам Telegram.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/chat-preview-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "Покадровые записи показывают Meshgram. Живое сравнение с Telegram Android ограничилось запуском публичного канала: клиент оставался на экране подключения. Эталон поведения зафиксирован ссылками на исходники."
+        }
+      ]
     },
     {
       "id": "13.devices",
@@ -1306,12 +1327,53 @@
         "16",
         "17"
       ],
-      "status": "in_progress",
+      "status": "blocked",
       "acceptance_criteria": [
         "Обе сборки dev используют единый увеличенный номер и ставятся поверх текущих.",
         "Проверены iPhone и Android, тестовый чат без интернета, обычные клиенты Meshtastic и MeshCore, события транспорта и отсутствие радиопакетов для локальных функций."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "install",
+          "result": "Сборка 0.3.62 (87) установлена поверх 86 и запущена. Номер проверен на устройстве; подпись проверена до установки.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-87-iPhone.zip",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "install",
+          "result": "Сборка 0.3.62 (87) установлена поверх 86. Номер проверен в установленном пакете.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-87-arm64.apk",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "check",
+          "result": "В канале test проверены безрамочный предпросмотр, закрепление, открытие чата, Liquid Glass поиск по удержанию заголовка и переход к результату.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-search-87.png",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "radio_test",
+          "result": "На iPhone сборки 87 в канале test отправлен ответ 8701. Две зелёные отметки появились по событию Meshtastic. Рация Redmi была отключена перед проверкой iPhone.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-meshtastic-reply-87.png",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "check",
+          "result": "На Redmi без рации проверены закрепление и открепление, открытие чата из предпросмотра, совпадение центров кнопок, поиск по истории и заметка в Избранном.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-87.png",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "radio_test",
+          "result": "На сборке 84 на Redmi выключались Wi-Fi и мобильные данные при активной BLE-связи. В канале test подтверждены отправка сообщения и ответа. Настройки сети восстановлены.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-offline-radio-reply.png",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "blocker",
+          "result": "Приём отдельным узлом со штатным клиентом Meshtastic или MeshCore не подтверждён. Для независимой приёмки нужен второй узел соответствующей сети. Есть проверки адаптеров обоих протоколов и реальная квитанция Meshtastic."
+        }
+      ]
     },
     {
       "id": "14",
@@ -1326,7 +1388,7 @@
         "06",
         "12"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Новые сообщения поднимают чаты ниже закреплённых. Закрепление и открепление доступны из списка и предпросмотра.",
         "Карточка без рамки с центрированным названием. Действия находятся под карточкой. Нажатие на предпросмотр открывает чат."
@@ -1345,6 +1407,24 @@
         {
           "kind": "check",
           "result": "В ветке прошли пять проверок предпросмотра, повторного нажатия, свайпа, сохранения закрепления и подъёма по входящему событию с отстающими часами."
+        },
+        {
+          "kind": "comparison",
+          "result": "В последней версии предпросмотра название находится по центру, все пять действий видны отдельным блоком. Нажатие на карту открывает чат.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-preview-frameless.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "screenshot",
+          "result": "Предпросмотр и отдельный блок действий в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-preview-frameless.png",
+          "device": "Android Emulator"
+        },
+        {
+          "kind": "check",
+          "result": "Сборка 87 на iPhone и Redmi. Закрепление и открепление проверены в тестовом чате. На Redmi подтверждены открытие чата по нажатию и поиск по удержанию заголовка. Свайп проверен на эмуляторе.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-87.png",
+          "commit": "322b78f"
         }
       ]
     },
@@ -1361,7 +1441,7 @@
         "03",
         "14"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Кнопка Избранного, собственный профиль и попытка открыть собственный узел ведут в один локальный чат.",
         "Обычные пузырьки и редактор доступны без рации. Прежние копии, метки и источник сохраняются."
@@ -1375,6 +1455,19 @@
         {
           "kind": "check",
           "result": "Два теста проверили локальные копии после очистки исходной истории, профиль своего узла, запись заметки и ноль подключений транспорта."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Избранное использует фон, редактор и пузырьки чата. Сохранённая копия показывает автора и переход к оригиналу.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-saved-self-chat.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "check",
+          "result": "На Redmi с отключённой рацией сохранилась локальная заметка. После проверки удалена только эта тестовая заметка.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-saved-self-87.png",
+          "device": "Redmi Note 7",
+          "commit": "4202b13"
         }
       ]
     },
@@ -1391,7 +1484,7 @@
         "01",
         "07"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Полоска в шторке вложений и стандартных панелях расположена над цветной поверхностью. Сохраняются свайп, прокрутка и расширенный захват iOS."
       ],
@@ -1399,6 +1492,19 @@
         {
           "kind": "check",
           "result": "27 тестов вложений и шторок проверили раздельные границы, захват шторки, жесты карты и контактов, переходы и перекрытие нативных кнопок."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Полоска видна над поверхностью шторки вложений.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-attachment-grip.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "screenshot",
+          "result": "Полоска находится над картой и заголовком.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-attachment-grip.png",
+          "device": "Android Emulator",
+          "commit": "893347c"
         }
       ]
     },
@@ -1416,7 +1522,7 @@
         "15",
         "16"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "acceptance_criteria": [
         "Ссылки на контакты и приглашения Meshtastic и MeshCore рисуются как карточки. Сопроводительный текст виден отдельно.",
         "Просмотр строится локально. Кнопки открывают штатное действие и переход. Текст в исходном пакете сохраняется."
@@ -1425,6 +1531,17 @@
         {
           "kind": "check",
           "result": "Два теста на подменном транспорте проверили обе сети, локальное оформление, подпись, отсутствие импорта до кнопки, передачу исходной ссылки штатному импорту и открытие канала."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Синтетические ссылки Meshtastic и контакта отображаются карточками. Подпись сообщения остаётся отдельным текстом.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-shared-link-cards.png",
+          "device": "Android Emulator"
+        },
+        {
+          "kind": "check",
+          "result": "После слияния прошёл общий запуск 233 тестов Flutter. Два целевых теста проверили CTA и передачу неизменённого приглашения для Meshtastic и MeshCore.",
+          "commit": "31440c7"
         }
       ]
     }
