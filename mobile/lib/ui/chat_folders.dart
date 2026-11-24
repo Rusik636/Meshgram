@@ -185,20 +185,19 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (rearranging)
-                IconButton(
-                  tooltip: tr(
-                    context,
-                    'Удалить папку $title',
-                    'Delete folder $title',
+                SizedBox(
+                  width: 44,
+                  child: IconButton(
+                    tooltip: tr(
+                      context,
+                      'Удалить папку $title',
+                      'Delete folder $title',
+                    ),
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.cancel_rounded, size: 17),
+                    color: style.secondary,
+                    onPressed: () => widget.onDelete(folder.id),
                   ),
-                  constraints: const BoxConstraints.tightFor(
-                    width: 44,
-                    height: 48,
-                  ),
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.cancel_rounded, size: 17),
-                  color: style.secondary,
-                  onPressed: () => widget.onDelete(folder.id),
                 ),
               Flexible(child: label),
             ],
@@ -254,7 +253,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
               final widths = List.generate(labels.length, (index) {
                 painter.text = TextSpan(text: labels[index], style: titleStyle);
                 painter.layout();
-                final extra = widget.editing && index >= count ? 30 : 0;
+                final extra = widget.editing && index >= count ? 36 : 0;
                 return (painter.width.ceilToDouble() + 30 + extra).clamp(
                   48.0,
                   maxWidth,

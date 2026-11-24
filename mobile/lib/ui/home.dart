@@ -798,10 +798,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final searchResults = _searchActive || _searchMotion.value > 0
           ? _searchResults(style)
           : null;
+      final editSideWidth = ((constraints.maxWidth - 112) / 2).clamp(
+        96.0,
+        128.0,
+      );
       final heading = PageHeading(
         caption,
         sideWidth: _editingChats
-            ? 112
+            ? editSideWidth
             : _showHidden
             ? 92
             : 104,
@@ -835,7 +839,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   ? null
                   : GlassActionButton(
                       primary: false,
-                      width: 112,
+                      width: editSideWidth,
                       icon: Icons.create_new_folder_outlined,
                       label: tr(context, 'Добавить', 'Add'),
                       onTap: controller.active == null || _removingChats
