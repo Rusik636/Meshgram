@@ -3542,6 +3542,8 @@ class _Bubble extends StatelessWidget {
     final sticker = emoji;
     final mapOnly = standalonePosition != null;
     final showAuthor = channel && !own && (sticker != null || !joinsPrevious);
+    final retry = own && !localOnly ? onRetry : null;
+    final retryAnchor = retry == null ? null : LayerLink();
     const corner = Radius.circular(19), join = Radius.circular(7);
     final subtitle = waitingForRadio
         ? tr(context, 'Ожидает отправки', 'Waiting to send')
@@ -3563,10 +3565,21 @@ class _Bubble extends StatelessWidget {
                 }
 
                 final tap = onMenu == null ? null : openMenu;
+                Widget interactive(Widget body) {
+                  final bubble = _MessageHold(onOpen: tap, child: body);
+                  if (retry == null) return bubble;
+                  return _RetryMessageArea(
+                    anchor: retryAnchor!,
+                    label:
+                        '$subtitle. ${tr(context, 'Повторить отправку', 'Resend message')}',
+                    onTap: retry,
+                    child: bubble,
+                  );
+                }
+
                 if (sticker != null) {
-                  return _MessageHold(
-                    onOpen: tap,
-                    child: _StickerContent(
+                  return interactive(
+                    _StickerContent(
                       item: item,
                       emoji: sticker,
                       stateLabel: subtitle,
@@ -3577,15 +3590,14 @@ class _Bubble extends StatelessWidget {
                       highlight: highlight,
                       onTap: tap,
                       onReact: onReact,
-                      onRetry: onRetry,
+                      retryAnchor: retryAnchor,
                       onQuote: onQuote,
                       onAuthor: onAuthor,
                     ),
                   );
                 }
-                return _MessageHold(
-                  onOpen: tap,
-                  child: CustomPaint(
+                return interactive(
+                  CustomPaint(
                     key: ValueKey(('bubble', item.id)),
                     painter: mapOnly
                         ? null
@@ -3634,7 +3646,7 @@ class _Bubble extends StatelessWidget {
                         reactionTarget: reactionTarget,
                         onTap: tap,
                         onReact: onReact,
-                        onRetry: onRetry,
+                        retryAnchor: retryAnchor,
                         onQuote: onQuote,
                         onAuthor: onAuthor,
                       ),
@@ -3648,6 +3660,60 @@ class _Bubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RetryMessageArea extends StatelessWidget {
+  const _RetryMessageArea({
+    required this.anchor,
+    required this.label,
+    required this.onTap,
+    required this.child,
+  });
+
+  static const _size = 48.0;
+  final LayerLink anchor;
+  final String label;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: _size),
+    child: Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        child,
+        // Follow the warning rather than the bubble edge. The timestamp can
+        // move next to reactions or sit inside a map or emoji overlay.
+        Positioned.fill(
+          child: CompositedTransformFollower(
+            link: anchor,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomRight,
+            followerAnchor: Alignment.bottomRight,
+            offset: const Offset(7, 3),
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Semantics(
+                button: true,
+                label: label,
+                child: Tooltip(
+                  message: label,
+                  excludeFromSemantics: true,
+                  triggerMode: TooltipTriggerMode.manual,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTap,
+                    child: const SizedBox.square(dimension: _size),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 String _messageTime(BuildContext context, MeshMessage item) =>
@@ -3667,7 +3733,7 @@ class _StickerContent extends StatelessWidget {
     this.highlight,
     this.onTap,
     this.onReact,
-    this.onRetry,
+    this.retryAnchor,
     this.onQuote,
     this.onAuthor,
     this.reactionTarget,
@@ -3680,7 +3746,8 @@ class _StickerContent extends StatelessWidget {
   final MeshMessage? quoted;
   final List<ChatReaction> reactions;
   final Animation<double>? highlight;
-  final VoidCallback? onTap, onRetry, onQuote;
+  final VoidCallback? onTap, onQuote;
+  final LayerLink? retryAnchor;
   final ValueChanged<String>? onReact;
   final ReactionGlyphTarget? reactionTarget;
 
@@ -3787,7 +3854,7 @@ class _StickerContent extends StatelessWidget {
                           ),
                           stateLabel: stateLabel,
                           receiptColor: Colors.white,
-                          onRetry: onRetry,
+                          retryAnchor: retryAnchor,
                         ),
                       ),
                     ),
@@ -3824,7 +3891,7 @@ class _MessageContent extends StatelessWidget {
     this.link,
     this.onTap,
     this.onReact,
-    this.onRetry,
+    this.retryAnchor,
     this.onQuote,
     this.onAuthor,
     this.highlightedExcerpt,
@@ -3849,7 +3916,7 @@ class _MessageContent extends StatelessWidget {
   final List<ChatReaction> reactions;
   final VoidCallback? onTap;
   final ValueChanged<String>? onReact;
-  final VoidCallback? onRetry;
+  final LayerLink? retryAnchor;
   final VoidCallback? onQuote;
   final MessageExcerpt? highlightedExcerpt;
   final Animation<double>? excerptAnimation;
@@ -3948,7 +4015,7 @@ class _MessageContent extends StatelessWidget {
                       ),
                       stateLabel: stateLabel,
                       receiptColor: Colors.white,
-                      onRetry: onRetry,
+                      retryAnchor: retryAnchor,
                       waitingForRadio: waitingForRadio,
                       showReceipt: !localOnly,
                     ),
@@ -4128,7 +4195,7 @@ class _MessageContent extends StatelessWidget {
                     time: time,
                     timeStyle: timeStyle,
                     stateLabel: stateLabel,
-                    onRetry: onRetry,
+                    retryAnchor: retryAnchor,
                     waitingForRadio: waitingForRadio,
                     showReceipt: !localOnly,
                   ),
@@ -4292,7 +4359,7 @@ class _MessageStamp extends StatelessWidget {
     required this.time,
     required this.timeStyle,
     required this.stateLabel,
-    this.onRetry,
+    this.retryAnchor,
     this.receiptColor,
     this.waitingForRadio = false,
     this.showReceipt = true,
@@ -4304,7 +4371,7 @@ class _MessageStamp extends StatelessWidget {
   final MeshMessage item;
   final String time, stateLabel;
   final TextStyle timeStyle;
-  final VoidCallback? onRetry;
+  final LayerLink? retryAnchor;
   final Color? receiptColor;
   final bool waitingForRadio;
   final bool showReceipt;
@@ -4312,56 +4379,46 @@ class _MessageStamp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final stamp = Row(
+    final status = SizedBox.square(
+      dimension: iconSize,
+      child: waitingForRadio
+          ? Icon(
+              Icons.schedule_rounded,
+              size: iconSize,
+              color: style.messageTime,
+            )
+          : item.delivery.awaitingReceipt
+          ? Center(
+              child: SizedBox.square(
+                dimension: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: style.accent,
+                ),
+              ),
+            )
+          : Icon(
+              item.delivery == Delivery.acknowledged
+                  ? Icons.done_all_rounded
+                  : Icons.error_outline_rounded,
+              size: iconSize,
+              color: item.delivery == Delivery.acknowledged
+                  ? receiptColor ?? style.success
+                  : style.deliveryWarning,
+            ),
+    );
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(time, style: timeStyle),
         if (item.outgoing && showReceipt) ...[
           const SizedBox(width: _gap),
-          Tooltip(
-            message: onRetry == null
-                ? stateLabel
-                : '$stateLabel. ${tr(context, 'Повторить отправку', 'Resend message')}',
-            child: SizedBox.square(
-              dimension: iconSize,
-              child: waitingForRadio
-                  ? Icon(
-                      Icons.schedule_rounded,
-                      size: iconSize,
-                      color: style.messageTime,
-                    )
-                  : item.delivery.awaitingReceipt
-                  ? Center(
-                      child: SizedBox.square(
-                        dimension: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: style.accent,
-                        ),
-                      ),
-                    )
-                  : Icon(
-                      item.delivery == Delivery.acknowledged
-                          ? Icons.done_all_rounded
-                          : Icons.error_outline_rounded,
-                      size: iconSize,
-                      color: item.delivery == Delivery.acknowledged
-                          ? receiptColor ?? style.success
-                          : style.deliveryWarning,
-                    ),
-            ),
-          ),
+          if (retryAnchor case final anchor?)
+            CompositedTransformTarget(link: anchor, child: status)
+          else
+            Tooltip(message: stateLabel, child: status),
         ],
       ],
-    );
-    if (onRetry == null) return stamp;
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onRetry,
-        child: stamp,
-      ),
     );
   }
 }

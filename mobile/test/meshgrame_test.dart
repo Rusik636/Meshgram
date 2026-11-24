@@ -6943,8 +6943,13 @@ void main() {
     },
   );
 
+  final retryMessageTypes = ValueVariant<String>({
+    'Try this again',
+    '👍',
+    'geo:55.758214,52.464570',
+  });
   testWidgets(
-    'retrying from the warning replaces the failed attempt in the chat',
+    'tapping near the warning replaces the failed attempt in the chat',
     (tester) async {
       _reduceMotion(tester);
       const radio = (network: 'test', device: 'one', name: 'Field radio');
@@ -6956,7 +6961,8 @@ void main() {
       );
       await controller.connect(radio);
       final session = adapter.sessions.single..failSends = true;
-      expect(await controller.send(_peer, 'Try this again'), isFalse);
+      final message = retryMessageTypes.currentValue!;
+      expect(await controller.send(_peer, message), isFalse);
       final failed = controller.messages(_peer.id).single;
       expect(failed.delivery, Delivery.failed);
       controller.setDraft(_peer.id, 'Another draft');
@@ -6968,7 +6974,12 @@ void main() {
       await tester.pumpAndSettle();
       session.failSends = false;
       session.autoAcknowledge = false;
-      await tester.tap(find.byIcon(Icons.error_outline_rounded));
+      final warning = tester.getRect(find.byIcon(Icons.error_outline_rounded));
+      final nearWarning = warning.center + const Offset(4, -18);
+      expect(warning.size, const Size.square(15));
+      expect(warning.contains(nearWarning), isFalse);
+      expect(find.bySemanticsLabel(RegExp('Resend message')), findsOneWidget);
+      await tester.tapAt(nearWarning);
       await tester.pump();
       final retried = controller.messages(_peer.id).single;
       expect(retried.id, isNot(failed.id));
@@ -6980,10 +6991,11 @@ void main() {
       session.stream.add(DeliveryUpdate(retried.id, Delivery.acknowledged));
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
-      expect(find.text('Try this again'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Resend message')), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+    variant: retryMessageTypes,
   );
 
   testWidgets(
