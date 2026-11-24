@@ -81,6 +81,159 @@ void _showMessageUnavailable(BuildContext context) {
   );
 }
 
+/// Shows a snapshot of the local history without activating the conversation.
+Future<bool> showMeshChatPreview(
+  BuildContext context,
+  MeshController controller,
+  Peer peer,
+  Rect anchor,
+) async {
+  final messages = controller.messages(peer.id).reversed.take(12).toList();
+  final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  final duration = reduceMotion
+      ? Duration.zero
+      : const Duration(milliseconds: 280);
+  final route = RawDialogRoute<bool>(
+    barrierDismissible: true,
+    barrierLabel: tr(context, 'Закрыть предпросмотр', 'Close preview'),
+    barrierColor: const Color(0x80000000),
+    transitionDuration: duration,
+    pageBuilder: (context, animation, _) {
+      final style = MeshStyle.of(context);
+      final padding = MediaQuery.paddingOf(context);
+      return LayoutBuilder(
+        builder: (context, bounds) {
+          final width = math.min(
+            480.0,
+            bounds.maxWidth - padding.horizontal - 28,
+          );
+          final usableHeight = bounds.maxHeight - padding.vertical;
+          final height = math.min(480.0, usableHeight * .68);
+          final card = Rect.fromLTWH(
+            padding.left + (bounds.maxWidth - padding.horizontal - width) / 2,
+            padding.top + (usableHeight - height) / 2,
+            width,
+            height,
+          );
+          return Stack(
+            children: [
+              AnimatedBuilder(
+                animation: animation,
+                child: Material(
+                  color: style.surface,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: MeshAvatar(
+                          peer.name,
+                          size: 36,
+                          channel: peer.channel,
+                        ),
+                        title: Text(
+                          peer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          tooltip: tr(context, 'Закрыть', 'Close'),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      Expanded(
+                        child: CustomPaint(
+                          painter: _ContourPaper(style),
+                          child: messages.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    tr(
+                                      context,
+                                      'Начало переписки',
+                                      'Start of conversation',
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  primary: false,
+                                  reverse: true,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    8,
+                                    12,
+                                    8,
+                                  ),
+                                  itemCount: messages.length,
+                                  itemBuilder: (_, index) {
+                                    final message = messages[index];
+                                    return _Bubble(
+                                      item: message,
+                                      emoji: null,
+                                      hideText: false,
+                                      channel: peer.channel,
+                                      joinsPrevious: false,
+                                      joinsNext: false,
+                                      quoted: controller.referencedMessage(
+                                        peer.id,
+                                        message.replyTo,
+                                      ),
+                                      reactions: [
+                                        for (final reaction
+                                            in controller.reactionsFor(message))
+                                          (
+                                            reaction: reaction,
+                                            author: controller.reactionAuthor(
+                                              reaction,
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(tr(context, 'Открыть чат', 'Open chat')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                builder: (_, child) {
+                  final progress = reduceMotion
+                      ? 1.0
+                      : Curves.easeInOutCubic.transform(animation.value);
+                  return Positioned.fromRect(
+                    rect: Rect.lerp(anchor, card, progress)!,
+                    child: IgnorePointer(
+                      ignoring: !animation.isCompleted,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(26 * progress),
+                        child: OverflowBox(
+                          minWidth: width,
+                          maxWidth: width,
+                          minHeight: height,
+                          maxHeight: height,
+                          child: child,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  final open = await Navigator.of(context, rootNavigator: true).push(route);
+  await route.completed;
+  return open == true;
+}
+
 class MeshChatPage extends StatefulWidget {
   const MeshChatPage({
     super.key,
