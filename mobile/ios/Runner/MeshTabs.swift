@@ -187,7 +187,7 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
 // Segments can be sized independently to fit the folder labels.
 final class MeshFolderTabs: NSObject, FlutterPlatformView {
   private let root: TabControllerContainer
-  private let control = UISegmentedControl()
+  private let control = MeshFolderSegmentedControl()
   private let boundary = TabTapBoundary(target: nil, action: nil)
   private let channel: FlutterMethodChannel
   private var labels: [String] = []
@@ -263,6 +263,19 @@ final class MeshFolderTabs: NSObject, FlutterPlatformView {
   @objc private func selectSegment() {
     guard boundary.state != .recognized else { return }
     channel.invokeMethod("select", arguments: control.selectedSegmentIndex)
+  }
+}
+
+private final class MeshFolderSegmentedControl: UISegmentedControl {
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if #available(iOS 26.0, *) {
+      // The direct image views are the system track. A custom background image
+      // would also replace the system's interactive selection effect.
+      for case let track as UIImageView in subviews {
+        track.isHidden = true
+      }
+    }
   }
 }
 
