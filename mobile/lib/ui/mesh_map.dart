@@ -384,6 +384,7 @@ class MeshLocationPreview extends StatefulWidget {
     this.pin,
     this.loadTiles = true,
     this.showDetails = true,
+    this.standaloneMessage = false,
   });
 
   final NodePosition position;
@@ -392,6 +393,7 @@ class MeshLocationPreview extends StatefulWidget {
   final MeshMapPin? pin;
   final bool loadTiles;
   final bool showDetails;
+  final bool standaloneMessage;
 
   @override
   State<MeshLocationPreview> createState() => _MeshLocationPreviewState();
@@ -414,6 +416,21 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final label = widget.title ?? tr(context, 'Геопозиция', 'Location');
+    final showDetails = widget.showDetails && !widget.standaloneMessage;
+    final map = IgnorePointer(
+      child: MeshMap(
+        key: ValueKey((widget.position, _refresh)),
+        center: widget.position,
+        zoom: 15,
+        interactive: false,
+        showCrosshair: widget.pin == null,
+        pins: [?widget.pin],
+        loadTiles: widget.loadTiles,
+        attributionAlignment: widget.standaloneMessage
+            ? Alignment.bottomLeft
+            : Alignment.bottomRight,
+      ),
+    );
     final preview = Material(
       color: style.field,
       borderRadius: BorderRadius.circular(14),
@@ -423,22 +440,11 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              height: 112,
-              child: IgnorePointer(
-                child: MeshMap(
-                  key: ValueKey((widget.position, _refresh)),
-                  center: widget.position,
-                  zoom: 15,
-                  interactive: false,
-                  showCrosshair: widget.pin == null,
-                  pins: [?widget.pin],
-                  loadTiles: widget.loadTiles,
-                  attributionAlignment: Alignment.bottomRight,
-                ),
-              ),
-            ),
-            if (widget.showDetails)
+            if (widget.standaloneMessage)
+              AspectRatio(aspectRatio: 2, child: map)
+            else
+              SizedBox(height: 112, child: map),
+            if (showDetails)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 11,
@@ -486,9 +492,12 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
         ),
       ),
     );
-    if (widget.showDetails) return preview;
+    if (showDetails) return preview;
     return Semantics(
       label: tr(context, 'Открыть карту', 'Open map'),
+      value: widget.standaloneMessage
+          ? formatMapCoordinates(widget.position, digits: 6)
+          : null,
       button: true,
       child: preview,
     );

@@ -200,7 +200,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
           );
     final content = [
       ?source,
-      if (position != null)
+      if (position != null && !position.standalone)
         MeshLocationPreview(position: position.point, loadTiles: false),
       if (item.labels.isNotEmpty)
         Wrap(
@@ -225,7 +225,8 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
       joinsNext: false,
       quoted: null,
       reactions: const [],
-      hideText: position?.standalone == true,
+      hideText: false,
+      standalonePosition: position?.standalone == true ? position?.point : null,
       localOnly: true,
       link: firstMessageLink(item.message.text),
       preview: content.isEmpty
