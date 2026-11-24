@@ -54,18 +54,121 @@ private final class ComposerTextView: UITextView {
   }
 }
 
+private final class ComposerSurface: UIView {
+  var onLayout: (() -> Void)?
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    onLayout?()
+  }
+}
+
+private final class ComposerReply: UIView {
+  let open = UIControl()
+  let cancel = UIButton(type: .system)
+  private let author = UILabel()
+  private let excerpt = UILabel()
+  private let accentLine = UIView()
+  private let content = UIView()
+  private var contentHeight: NSLayoutConstraint?
+
+  var preferredHeight: CGFloat {
+    guard !isHidden else { return 0 }
+    return max(44, ceil(author.font.lineHeight + excerpt.font.lineHeight + 12))
+  }
+
+  init() {
+    super.init(frame: .zero)
+    isHidden = true
+    clipsToBounds = true
+    excerpt.font = .preferredFont(forTextStyle: .caption1)
+    for label in [author, excerpt] {
+      label.adjustsFontForContentSizeCategory = true
+      label.lineBreakMode = .byTruncatingTail
+    }
+    author.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
+      for: .systemFont(ofSize: 12, weight: .semibold))
+    accentLine.layer.cornerRadius = 1
+    accentLine.isUserInteractionEnabled = false
+    open.isAccessibilityElement = true
+    open.accessibilityTraits = .button
+    cancel.setImage(UIImage(systemName: "xmark",
+      withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .medium)), for: .normal)
+    let labels = UIStackView(arrangedSubviews: [author, excerpt])
+    labels.axis = .vertical
+    labels.isUserInteractionEnabled = false
+    for (view, parent) in [(content, self), (open, content), (cancel, content),
+      (accentLine, open), (labels, open)] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      parent.addSubview(view)
+    }
+    let height = content.heightAnchor.constraint(equalToConstant: 44)
+    contentHeight = height
+    NSLayoutConstraint.activate([
+      height,
+      content.leadingAnchor.constraint(equalTo: leadingAnchor),
+      content.trailingAnchor.constraint(equalTo: trailingAnchor),
+      content.bottomAnchor.constraint(equalTo: bottomAnchor),
+      open.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+      open.trailingAnchor.constraint(equalTo: cancel.leadingAnchor),
+      open.topAnchor.constraint(equalTo: content.topAnchor),
+      open.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+      cancel.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+      cancel.widthAnchor.constraint(equalToConstant: 44),
+      cancel.topAnchor.constraint(equalTo: content.topAnchor),
+      cancel.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+      accentLine.leadingAnchor.constraint(equalTo: open.leadingAnchor, constant: 22),
+      accentLine.widthAnchor.constraint(equalToConstant: 2),
+      accentLine.topAnchor.constraint(equalTo: labels.topAnchor),
+      accentLine.bottomAnchor.constraint(equalTo: labels.bottomAnchor),
+      labels.leadingAnchor.constraint(equalTo: accentLine.trailingAnchor, constant: 7),
+      labels.trailingAnchor.constraint(equalTo: open.trailingAnchor),
+      labels.centerYAnchor.constraint(equalTo: open.centerYAnchor),
+    ])
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  override func layoutSubviews() {
+    let height = max(44, preferredHeight)
+    if contentHeight?.constant != height { contentHeight?.constant = height }
+    super.layoutSubviews()
+  }
+
+  func update(_ input: [String: Any]) {
+    isHidden = input["author"] == nil
+    author.text = input["author"] as? String
+    excerpt.text = input["text"] as? String
+    open.accessibilityLabel = [author.text, excerpt.text].compactMap { $0 }.joined(separator: ", ")
+    open.accessibilityHint = input["openLabel"] as? String
+    cancel.accessibilityLabel = input["cancelLabel"] as? String
+  }
+
+  func applyColors(accent: UIColor, foreground: UIColor, secondary: UIColor) {
+    accentLine.backgroundColor = accent
+    author.textColor = accent
+    excerpt.textColor = foreground
+    cancel.tintColor = secondary
+  }
+}
+
 final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIGestureRecognizerDelegate {
   private let container = UIView()
-  private let fieldContainer = UIView()
+  private let fieldContainer = ComposerSurface()
   private var glass = MeshInputGlass(effect: nil)
   private var nativeInteractive: Bool?
   private let textView: ComposerTextView
+  private let reply = ComposerReply()
   private let placeholder = UILabel()
   private let channel: FlutterMethodChannel
   private var reportedHeight: CGFloat = 0
+  private var textHeight: CGFloat = 46
+  private var reservesReplySpace = false
   private var surface: UIColor = .secondarySystemBackground
   private var highContrast = false
   private var press: UILongPressGestureRecognizer?
+  private var applyingEditing = false
+  private var pendingFocus = false
 
   init(frame: CGRect, id: Int64, input: [String: Any], messenger: FlutterBinaryMessenger) {
     textView = ComposerTextView(frame: frame)
@@ -83,7 +186,6 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       fieldContainer.topAnchor.constraint(equalTo: container.topAnchor, constant: outset),
       fieldContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -outset),
     ])
-    textView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     textView.delegate = self
     textView.backgroundColor = .clear
     textView.textContainerInset = UIEdgeInsets(top: 12, left: 22, bottom: 12, right: 22)
@@ -91,7 +193,7 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     textView.autocapitalizationType = .sentences
     textView.adjustsFontForContentSizeCategory = true
     textView.font = .preferredFont(forTextStyle: .body)
-    textView.text = input["text"] as? String ?? ""
+    applyEditing(input)
 
     placeholder.translatesAutoresizingMaskIntoConstraints = false
     placeholder.font = textView.font
@@ -104,7 +206,15 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       placeholder.topAnchor.constraint(equalTo: textView.frameLayoutGuide.topAnchor, constant: 12),
       placeholder.trailingAnchor.constraint(lessThanOrEqualTo: textView.frameLayoutGuide.trailingAnchor, constant: -22),
     ])
-    textView.onLayout = { [weak self] in self?.updateHeight() }
+    textView.onLayout = { [weak self] in
+      self?.updateHeight()
+      self?.focusWhenReady()
+    }
+    fieldContainer.onLayout = { [weak self] in self?.layoutEditor() }
+    reply.open.addTarget(self, action: #selector(openReply), for: .touchUpInside)
+    reply.cancel.addTarget(self, action: #selector(cancelReply), for: .touchUpInside)
+    reply.update(input["reply"] as? [String: Any] ?? [:])
+    reservesReplySpace = !reply.isHidden
 
     let press = UILongPressGestureRecognizer(target: self, action: #selector(pressChanged))
     press.minimumPressDuration = 0
@@ -128,18 +238,23 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       case "appearance":
         if let appearance = call.arguments as? [String: Any] { self.updateAppearance(appearance) }
       case "dismissKeyboard":
+        self.pendingFocus = false
         self.textView.resignFirstResponder()
       case "focus":
-        if self.container.isUserInteractionEnabled { self.textView.becomeFirstResponder() }
-      case "replaceText":
-        if let value = call.arguments as? String {
-          if value != self.textView.text {
-            self.textView.text = value
-            self.updatePlaceholder()
-          }
+        self.pendingFocus = self.container.isUserInteractionEnabled
+        self.focusWhenReady()
+      case "editing":
+        if let value = call.arguments as? [String: Any] {
+          self.applyEditing(value)
+          self.updatePlaceholder()
           // The initial height may have been measured before Flutter connected the channel.
           self.updateHeight(force: true)
         }
+      case "reply":
+        self.reply.update(call.arguments as? [String: Any] ?? [:])
+        if !self.reply.isHidden { self.reservesReplySpace = true }
+        self.fieldContainer.setNeedsLayout()
+        self.updateHeight()
       default:
         result(FlutterMethodNotImplemented)
         return
@@ -192,6 +307,25 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     }
   }
 
+  @objc private func openReply() {
+    channel.invokeMethod("openReply", arguments: nil)
+  }
+
+  @objc private func cancelReply() {
+    channel.invokeMethod("cancelReply", arguments: nil)
+  }
+
+  private func layoutEditor() {
+    let bounds = fieldContainer.bounds
+    if reply.isHidden && bounds.height <= textHeight + 0.5 {
+      reservesReplySpace = false
+    }
+    let editorHeight = reservesReplySpace ? min(bounds.height, textHeight) : bounds.height
+    let editorTop = bounds.height - editorHeight
+    reply.frame = CGRect(x: 0, y: 0, width: bounds.width, height: editorTop)
+    textView.frame = CGRect(x: 0, y: editorTop, width: bounds.width, height: editorHeight)
+  }
+
   @objc private func updateGlass() {
     let opaque = highContrast || UIAccessibility.isReduceTransparencyEnabled
     var interactive = false
@@ -221,8 +355,9 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       let wasFocused = textView.isFirstResponder
       let selection = textView.selectedRange
       let parent = interactive ? replacement.contentView : fieldContainer
+      parent.addSubview(reply)
       parent.addSubview(textView)
-      textView.frame = parent.bounds
+      layoutEditor()
       glass.removeFromSuperview()
       glass = replacement
       if wasFocused && !textView.isFirstResponder { textView.becomeFirstResponder() }
@@ -235,7 +370,42 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
   func textViewDidChange(_ textView: UITextView) {
     updatePlaceholder()
     updateHeight()
-    channel.invokeMethod("text", arguments: textView.text ?? "")
+    reportEditing()
+  }
+
+  func textViewDidChangeSelection(_ textView: UITextView) {
+    reportEditing()
+  }
+
+  private func reportEditing() {
+    let range = textView.selectedRange
+    guard !applyingEditing, range.location != NSNotFound else { return }
+    channel.invokeMethod("editing", arguments: [
+      "text": textView.text ?? "",
+      "start": range.location,
+      "end": NSMaxRange(range),
+    ])
+  }
+
+  private func applyEditing(_ input: [String: Any]) {
+    guard let text = input["text"] as? String else { return }
+    applyingEditing = true
+    defer { applyingEditing = false }
+    let length = text.utf16.count
+    let start = min(length, max(0, input["start"] as? Int ?? length))
+    let end = min(length, max(start, input["end"] as? Int ?? start))
+    if textView.text != text { textView.text = text }
+    let range = NSRange(location: start, length: end - start)
+    if textView.selectedRange != range { textView.selectedRange = range }
+  }
+
+  private func focusWhenReady() {
+    guard pendingFocus, textView.window != nil else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.pendingFocus, self.textView.window != nil else { return }
+      self.pendingFocus = false
+      if !self.textView.isFirstResponder { self.textView.becomeFirstResponder() }
+    }
   }
 
   private func updatePlaceholder() {
@@ -247,7 +417,12 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let lineHeight = textView.font?.lineHeight ?? 22
     let maximum = min(160, ceil(lineHeight * 4 + 24))
     let measured = textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height
-    let desired = min(maximum, max(46, ceil(measured)))
+    let editorHeight = min(maximum, max(46, ceil(measured)))
+    if textHeight != editorHeight {
+      textHeight = editorHeight
+      fieldContainer.setNeedsLayout()
+    }
+    let desired = editorHeight + reply.preferredHeight
     if textView.isScrollEnabled != (measured > maximum) { textView.isScrollEnabled = measured > maximum }
     guard force || desired != reportedHeight else { return }
     reportedHeight = desired
@@ -258,7 +433,10 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
     let covered = input["coveredByModal"] as? Bool == true
     container.isUserInteractionEnabled = !covered
     container.accessibilityElementsHidden = covered
-    if covered && textView.isFirstResponder { textView.resignFirstResponder() }
+    if covered {
+      pendingFocus = false
+      if textView.isFirstResponder { textView.resignFirstResponder() }
+    }
     let dark = input["dark"] as? Bool ?? false
     let style: UIUserInterfaceStyle = dark ? .dark : .light
     let nextSurface = meshColor(input["surface"], .secondarySystemBackground)
@@ -271,9 +449,13 @@ final class MeshComposer: NSObject, FlutterPlatformView, UITextViewDelegate, UIG
       updateGlass()
     }
     textView.keyboardAppearance = dark ? .dark : .light
-    textView.textColor = meshColor(input["foreground"], .label)
-    textView.tintColor = meshColor(input["accent"], .systemBlue)
-    placeholder.textColor = meshColor(input["secondary"], .placeholderText)
+    let foreground = meshColor(input["foreground"], .label)
+    let accent = meshColor(input["accent"], .systemBlue)
+    let secondary = meshColor(input["secondary"], .placeholderText)
+    textView.textColor = foreground
+    textView.tintColor = accent
+    placeholder.textColor = secondary
+    reply.applyColors(accent: accent, foreground: foreground, secondary: secondary)
     placeholder.text = input["placeholder"] as? String
     textView.accessibilityLabel = placeholder.text
     updatePressAvailability()

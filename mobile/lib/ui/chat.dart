@@ -80,6 +80,7 @@ class _ChatState extends State<MeshChatPage>
   );
   late bool _searching = widget.initialSearch;
   bool _sending = false;
+  Timer? _replyRevealTimer;
   Uri? _dismissedDraftLink;
   bool _menuVisible = false;
   bool _attachmentOpen = false;
@@ -131,6 +132,18 @@ class _ChatState extends State<MeshChatPage>
     _lifecycle = state;
     if (couldPreview != _canPreviewLinks) setState(() {});
     if (state == AppLifecycleState.resumed) _scheduleHistoryUpdate();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (_replyRevealTimer != null && View.of(context).viewInsets.bottom > 0) {
+      _revealReplyAccessory();
+    }
+  }
+
+  void _revealReplyAccessory() {
+    _replyRevealTimer?.cancel();
+    if (mounted) setState(() => _replyRevealTimer = null);
   }
 
   bool get _canPreviewLinks =>
@@ -410,6 +423,7 @@ class _ChatState extends State<MeshChatPage>
     _history.dispose();
     _scroll.dispose();
     _highlight.dispose();
+    _replyRevealTimer?.cancel();
     _draft.dispose();
     _search.dispose();
     super.dispose();
@@ -471,7 +485,8 @@ class _ChatState extends State<MeshChatPage>
   }
 
   Future<void> _send(Peer peer) async {
-    final text = _draft.text.trim();
+    final originalDraft = _draft.text;
+    final text = originalDraft.trim();
     if (_sending || text.isEmpty) return;
     final controller = widget.controller;
     final reply = controller.replyDraft(peer.id);
@@ -486,16 +501,13 @@ class _ChatState extends State<MeshChatPage>
         suppressLinkPreview:
             dismissed != null && firstMessageLink(text) == dismissed,
       );
-      if (mounted &&
-          sent &&
-          reply != null &&
-          controller.replyDraft(peer.id)?.id == reply.id) {
-        controller.setReplyDraft(peer.id, null);
-      }
-      if (mounted && sent && _draft.text.trim() == text) {
-        _draft.clear();
-        _dismissedDraftLink = null;
-        widget.controller.setDraft(peer.id, '');
+      if (mounted && sent && controller.replyDraft(peer.id)?.id == reply?.id) {
+        if (reply != null) controller.setReplyDraft(peer.id, null);
+        if (_draft.text == originalDraft) {
+          _draft.clear();
+          _dismissedDraftLink = null;
+          controller.setDraft(peer.id, '');
+        }
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -678,12 +690,24 @@ class _ChatState extends State<MeshChatPage>
   }
 
   void _selectReply(Peer peer, MeshMessage message) {
-    if (!widget.controller.canUseMessageActions(peer, message)) return;
+    final controller = widget.controller;
+    if (!controller.canUseMessageActions(peer, message)) return;
+    // Android introduces the first accessory as the keyboard starts moving.
+    // A physical keyboard or disabled IME can leave the inset at zero.
+    if (Theme.of(context).platform == TargetPlatform.android &&
+        MediaQuery.viewInsetsOf(context).bottom == 0 &&
+        controller.replyDraft(peer.id) == null &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      _replyRevealTimer = Timer(
+        const Duration(milliseconds: 200),
+        _revealReplyAccessory,
+      );
+    }
     if (_searching) {
       _search.clear();
       setState(() => _searching = false);
     }
-    widget.controller.setReplyDraft(peer.id, message);
+    controller.setReplyDraft(peer.id, message);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _input.currentState?.focusInput();
     });
@@ -1358,7 +1382,7 @@ class _ChatState extends State<MeshChatPage>
                               ),
                               _composerControls(
                                 peer,
-                                reply,
+                                _replyRevealTimer == null ? reply : null,
                                 previewLink,
                                 canSend: canSend,
                                 send: send,
@@ -1386,68 +1410,68 @@ class _ChatState extends State<MeshChatPage>
   }) {
     final controller = widget.controller;
     final native = useIosControls;
-    Widget accessory(Widget child) => native
-        ? Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: GlassSurface(radius: 16, child: child),
-          )
-        : child;
-    final composer = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (reply != null)
-          accessory(
-            Padding(
-              padding: EdgeInsets.fromLTRB(12, 6, 3, native ? 4 : 0),
-              child: Row(
-                children: [
-                  Expanded(
+    Widget accessory(Widget child) => Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: GlassSurface(radius: 16, child: child),
+    );
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final replyAccessory = native || reply == null
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsetsDirectional.only(start: 12, end: 3),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 120),
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: AlignmentDirectional.centerStart,
+                      children: [
+                        for (final child in previous)
+                          ExcludeSemantics(child: IgnorePointer(child: child)),
+                        ?current,
+                      ],
+                    ),
                     child: _MessageQuote(
+                      key: ValueKey(reply.id),
                       message: reply,
                       onTap: () => unawaited(_revealQuote(reply)),
                     ),
                   ),
-                  IconButton(
-                    tooltip: tr(context, 'Отменить ответ', 'Cancel reply'),
-                    onPressed: () => controller.setReplyDraft(peer.id, null),
-                    icon: const Icon(Icons.close_rounded, size: 18),
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  constraints: BoxConstraints.tightFor(width: 48, height: 48),
+                  tooltip: tr(context, 'Отменить ответ', 'Cancel reply'),
+                  onPressed: () => controller.setReplyDraft(peer.id, null),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
+              ],
             ),
-          ),
-        if (previewLink != null)
-          MessageLinkPreview(
-            uri: previewLink,
-            compact: true,
-            autoLoad: _canPreviewLinks,
-            onDismiss: () => setState(() => _dismissedDraftLink = previewLink),
-            builder: (card) => card == null
-                ? const SizedBox.shrink()
-                : accessory(
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(7, 7, 7, native ? 7 : 0),
-                      child: card,
-                    ),
-                  ),
-          ),
-        MessageInput(
-          key: _input,
-          coveredByModal:
-              _controlsCovered || ModalRoute.isCurrentOf(context) == false,
-          controller: _draft,
-          onChanged: (value) {
-            controller.setDraft(peer.id, value);
-            setState(() {
-              if (firstMessageLink(value) != _dismissedDraftLink) {
-                _dismissedDraftLink = null;
-              }
-            });
-          },
-        ),
-      ],
+          );
+    final editor = MessageInput(
+      key: _input,
+      coveredByModal:
+          _controlsCovered || ModalRoute.isCurrentOf(context) == false,
+      controller: _draft,
+      reply: !native || reply == null
+          ? null
+          : (author: _quoteAuthor(context, reply), text: reply.text),
+      onOpenReply: reply == null ? null : () => unawaited(_revealQuote(reply)),
+      onCancelReply: reply == null
+          ? null
+          : () => controller.setReplyDraft(peer.id, null),
+      onChanged: (value) {
+        controller.setDraft(peer.id, value);
+        setState(() {
+          if (firstMessageLink(value) != _dismissedDraftLink) {
+            _dismissedDraftLink = null;
+          }
+        });
+      },
     );
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         ValueListenableBuilder<bool>(
@@ -1471,7 +1495,26 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: native ? composer : GlassSurface(radius: 23, child: composer),
+          child: native
+              ? editor
+              : GlassSurface(
+                  radius: 23,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (reduceMotion)
+                        replyAccessory
+                      else
+                        AnimatedSize(
+                          alignment: Alignment.bottomCenter,
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
+                          child: replyAccessory,
+                        ),
+                      editor,
+                    ],
+                  ),
+                ),
         ),
         const SizedBox(width: 8),
         GlassButton(
@@ -1483,6 +1526,25 @@ class _ChatState extends State<MeshChatPage>
         ),
       ],
     );
+    final footer = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (previewLink != null)
+          MessageLinkPreview(
+            uri: previewLink,
+            compact: true,
+            autoLoad: _canPreviewLinks,
+            onDismiss: () => setState(() => _dismissedDraftLink = previewLink),
+            builder: (card) => card == null
+                ? const SizedBox.shrink()
+                : accessory(
+                    Padding(padding: const EdgeInsets.all(7), child: card),
+                  ),
+          ),
+        row,
+      ],
+    );
+    return native ? footer : TextFieldTapRegion(child: footer);
   }
 
   Widget _heading(Peer peer, MeshStyle style) {
@@ -2584,8 +2646,15 @@ class _ReplySwipeState extends State<_ReplySwipe> {
   });
 }
 
+String _quoteAuthor(BuildContext context, MeshMessage? source) =>
+    source?.outgoing == true
+    ? tr(context, 'Вы', 'You')
+    : source?.author.isNotEmpty == true
+    ? source!.author
+    : tr(context, 'Ответ', 'Reply');
+
 class _MessageQuote extends StatelessWidget {
-  const _MessageQuote({required this.message, this.onTap});
+  const _MessageQuote({super.key, required this.message, this.onTap});
   final MeshMessage? message;
   final VoidCallback? onTap;
 
@@ -2593,11 +2662,7 @@ class _MessageQuote extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final source = message;
-    final author = source?.outgoing == true
-        ? tr(context, 'Вы', 'You')
-        : source?.author.isNotEmpty == true
-        ? source!.author
-        : tr(context, 'Ответ', 'Reply');
+    final author = _quoteAuthor(context, source);
     final quote = Container(
       padding: const EdgeInsets.fromLTRB(7, 3, 4, 3),
       decoration: BoxDecoration(
