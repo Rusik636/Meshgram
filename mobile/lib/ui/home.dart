@@ -982,6 +982,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _desktopRail = desktop;
     final rail = _desktopRail ? ChatFolderRail.width : 0.0;
     final inset = desktop ? meshDesktopWorkspaceInset : 0.0;
+    final theme = Theme.of(context);
+    final style = MeshStyle.of(context);
+    final detailTheme = desktop && _split
+        ? style.desktopConversationTheme(theme)
+        : theme;
     final sidebarLeft = rail + 2 * inset;
     final divider = _split ? (_desktopRail ? 6.0 : 1.0) : 0.0;
     final maximum = math.min(480.0, size.width - sidebarLeft - divider - 400);
@@ -1109,29 +1114,33 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                         ignoring: !_split && !_detailOpen,
                         child: MediaQuery(
                           data: detailMedia,
-                          child: ChatWorkspacePane(
-                            split: _split,
-                            visible: ModalRoute.isCurrentOf(context) != false,
-                            child: NavigatorPopHandler<void>(
-                              enabled: _detailOpen && !sidebarCanGoBack,
-                              onPopWithResult: (_) => unawaited(
-                                _detailKey.currentState?.maybePop(),
-                              ),
-                              child: ScaffoldMessenger(
-                                child: Navigator(
-                                  key: _detailKey,
-                                  observers: [_detailObserver],
-                                  onGenerateRoute: (_) =>
-                                      PageRouteBuilder<void>(
-                                        opaque: false,
-                                        transitionDuration: Duration.zero,
-                                        reverseTransitionDuration:
-                                            Duration.zero,
-                                        pageBuilder: (context, _, _) =>
-                                            ChatWorkspacePane.of(context)!.split
-                                            ? _noConversation(context)
-                                            : const SizedBox.shrink(),
-                                      ),
+                          child: Theme(
+                            data: detailTheme,
+                            child: ChatWorkspacePane(
+                              split: _split,
+                              visible: ModalRoute.isCurrentOf(context) != false,
+                              child: NavigatorPopHandler<void>(
+                                enabled: _detailOpen && !sidebarCanGoBack,
+                                onPopWithResult: (_) => unawaited(
+                                  _detailKey.currentState?.maybePop(),
+                                ),
+                                child: ScaffoldMessenger(
+                                  child: Navigator(
+                                    key: _detailKey,
+                                    observers: [_detailObserver],
+                                    onGenerateRoute: (_) =>
+                                        PageRouteBuilder<void>(
+                                          opaque: false,
+                                          transitionDuration: Duration.zero,
+                                          reverseTransitionDuration:
+                                              Duration.zero,
+                                          pageBuilder: (context, _, _) =>
+                                              ChatWorkspacePane.of(context)!
+                                                  .split
+                                              ? _noConversation(context)
+                                              : const SizedBox.shrink(),
+                                        ),
+                                  ),
                                 ),
                               ),
                             ),

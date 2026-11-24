@@ -27,18 +27,39 @@ EdgeInsets meshScrollPadding(
 ]) => MediaQuery.paddingOf(context) + spacing;
 
 class MeshStyle {
-  const MeshStyle(this.dark);
+  const MeshStyle(this.dark) : _canvas = null;
+  const MeshStyle._withCanvas(this.dark, this._canvas);
   final bool dark;
-  static MeshStyle of(BuildContext context) =>
-      MeshStyle(Theme.of(context).brightness == Brightness.dark);
+  final Color? _canvas;
+  static MeshStyle of(BuildContext context) {
+    final theme = Theme.of(context);
+    return MeshStyle._withCanvas(
+      theme.brightness == Brightness.dark,
+      theme.extension<_ConversationCanvas>()?.color,
+    );
+  }
 
-  Color get canvas =>
+  Color get canvas => _canvas ?? windowCanvas;
+  Color get windowCanvas =>
       dark ? const Color(0xff080a0f) : const Color(MeshGrameV2Light.background);
   Color get surface =>
       dark ? const Color(0xff1a1e26) : const Color(MeshGrameV2Light.surface);
   Color get desktopPanel => dark
-      ? Color.lerp(canvas, surface, .56)!
+      ? Color.lerp(windowCanvas, surface, .56)!
       : const Color(MeshGrameV2Light.canvas);
+  Color get desktopConversationCanvas =>
+      dark ? const Color(0xff0b0d12) : const Color(0xffe1e4e7);
+  List<Color> get desktopChatWallpaper => dark
+      ? const [Color(0xff0d1017), Color(0xff090c12), Color(0xff10131a)]
+      : const [Color(0xffe3e5e7), Color(0xffe1e4e7), Color(0xffdce0e3)];
+
+  ThemeData desktopConversationTheme(ThemeData base) => base.copyWith(
+    scaffoldBackgroundColor: desktopConversationCanvas,
+    extensions: [
+      ...base.extensions.values,
+      _ConversationCanvas(desktopConversationCanvas),
+    ],
+  );
   Color get field => dark ? const Color(0xff1c2029) : const Color(0xffeaf0f8);
   Color get searchField => dark
       ? const Color(MeshGrameV2Dark.searchField)
@@ -103,6 +124,22 @@ class MeshStyle {
       ),
     );
   }
+}
+
+class _ConversationCanvas extends ThemeExtension<_ConversationCanvas> {
+  const _ConversationCanvas(this.color);
+
+  final Color color;
+
+  @override
+  _ConversationCanvas copyWith({Color? color}) =>
+      _ConversationCanvas(color ?? this.color);
+
+  @override
+  _ConversationCanvas lerp(_ConversationCanvas? other, double t) =>
+      other == null
+      ? this
+      : _ConversationCanvas(Color.lerp(color, other.color, t)!);
 }
 
 class MessageMenuBackdrop extends InheritedWidget {

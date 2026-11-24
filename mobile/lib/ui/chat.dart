@@ -5412,7 +5412,9 @@ class _ContourPaper extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: style.dark
+        colors: blendWithWorkspace
+            ? style.desktopChatWallpaper
+            : style.dark
             ? const [Color(0xff101521), Color(0xff0b0e16), Color(0xff171b2d)]
             : style.lightChatWallpaper,
       ).createShader(area);
@@ -5448,7 +5450,7 @@ class _ContourPaper extends CustomPainter {
     }
     canvas.restore();
     if (blendWithWorkspace) {
-      paintChatWorkspaceEdge(canvas, size, style.canvas);
+      paintChatWorkspaceEdge(canvas, size, style.windowCanvas);
     }
   }
 

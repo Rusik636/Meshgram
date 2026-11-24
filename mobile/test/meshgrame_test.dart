@@ -2569,6 +2569,23 @@ void main() {
       final rail = find.byType(ChatFolderRail);
       final desktop = defaultTargetPlatform == TargetPlatform.windows;
       if (desktop) {
+        final right = tester.element(chatButton('Close chat'));
+        expect(MeshStyle.of(right).canvas, const Color(0xffe1e4e7));
+        expect(
+          Theme.of(right).scaffoldBackgroundColor,
+          const Color(0xffe1e4e7),
+        );
+        for (final style in [const MeshStyle(false), const MeshStyle(true)]) {
+          final leftLuminance = style.desktopPanel.computeLuminance();
+          expect(
+            style.desktopConversationCanvas.computeLuminance(),
+            lessThan(leftLuminance),
+          );
+          expect(
+            style.desktopChatWallpaper.map((color) => color.computeLuminance()),
+            everyElement(lessThan(leftLuminance)),
+          );
+        }
         expect(
           tester.getCenter(chatButton('Close chat')).dy,
           closeTo(tester.getCenter(find.text('Edit')).dy, .5),
@@ -2631,6 +2648,10 @@ void main() {
       expect(tester.getTopLeft(pane).dx, 0);
       expect(tester.state(chat), same(conversation));
       expect(chatButton('Back'), findsOneWidget);
+      expect(
+        MeshStyle.of(tester.element(chatButton('Back'))).canvas,
+        const Color(0xffeff1f3),
+      );
       tester.view.physicalSize = const Size(1150, 820);
       await tester.pumpAndSettle();
       expect(tester.state(chat), same(conversation));
