@@ -570,7 +570,10 @@ void main() {
       await tester.pumpAndSettle();
       final grip = find.byKey(const ValueKey('attachment-grip'));
       final compact = tester.getRect(grip);
-      expect(compact.height, 48);
+      final panel = find.byKey(const ValueKey('attachment-sheet-panel'));
+      expect(compact.height, 18);
+      expect(compact.bottom, tester.getTopLeft(panel).dy);
+      // The remaining 30 px of the drag target still overlap the header.
       await tester.flingFrom(
         compact.topCenter + const Offset(0, 36),
         const Offset(0, -104),

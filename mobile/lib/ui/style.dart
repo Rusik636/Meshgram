@@ -981,36 +981,52 @@ Future<T?> showMeshSheet<T>({
     builder: (context) {
       final style = MeshStyle.of(context);
       final sheet = Material(
+        key: const ValueKey('mesh-sheet-panel'),
         color: style.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         clipBehavior: Clip.antiAlias,
-        child: MeshSheetScrollContent(
-          dragArea: 44,
-          builder: (context) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 7, top: 5),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: style.secondary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const SizedBox(width: 34, height: 4),
-                ),
-              ),
-              Flexible(child: builder(context)),
-            ],
-          ),
+        child: Builder(builder: builder),
+      );
+      return MeshSheetScrollContent(
+        dragArea: 44,
+        builder: (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const MeshSheetGrip(key: ValueKey('mesh-sheet-grip')),
+            Flexible(
+              child: useIosControls
+                  ? MeshOpaqueSheetRegion(
+                      presentingRoute: presentingRoute,
+                      child: sheet,
+                    )
+                  : sheet,
+            ),
+          ],
         ),
       );
-      return useIosControls
-          ? MeshOpaqueSheetRegion(
-              presentingRoute: presentingRoute,
-              child: sheet,
-            )
-          : sheet;
     },
+  );
+}
+
+class MeshSheetGrip extends StatelessWidget {
+  const MeshSheetGrip({super.key});
+
+  static const height = 18.0;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    width: double.infinity,
+    child: Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: MeshStyle.of(context).secondary.withValues(alpha: .75),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const SizedBox(width: 34, height: 4),
+      ),
+    ),
   );
 }
 
