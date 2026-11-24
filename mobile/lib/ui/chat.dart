@@ -9,6 +9,7 @@ import 'dart:ui' show ImageByteFormat, ImageFilter;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, setEquals;
 import 'package:flutter/material.dart' hide Radio;
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:leap_sliver_list/leap_sliver_list.dart';
@@ -86,26 +87,60 @@ void _showMessageUnavailable(BuildContext context) {
   );
 }
 
+class _ChatPreviewRoute extends RawDialogRoute<bool> {
+  _ChatPreviewRoute({
+    required super.pageBuilder,
+    required super.barrierLabel,
+    required super.transitionDuration,
+    required this.reverseTransitionDuration,
+  }) : super(
+         barrierColor: Colors.transparent,
+         transitionBuilder: (_, _, _, child) => child,
+       );
+
+  @override
+  final Duration reverseTransitionDuration;
+}
+
+final _iosPreviewSpring = SpringSimulation(
+  const SpringDescription(mass: 5, stiffness: 900, damping: 104),
+  0,
+  1,
+  0,
+);
+
+double _previewOpeningProgress(double time, {required bool ios}) {
+  if (time == 0 || time == 1) return time;
+  // The iOS spring settles in 0.741 seconds before being fit to the route.
+  if (ios) return _iosPreviewSpring.x(.741194 * time);
+  final remaining = time - 1;
+  return 1 + remaining * remaining * (2.02 * remaining + 1.02);
+}
+
 /// Shows a snapshot of the local history without activating the conversation.
 Future<bool> showMeshChatPreview(
   BuildContext context,
   MeshController controller,
   Peer peer,
-  Rect anchor,
-) async {
+  Rect anchor, {
+  required Widget sourceRow,
+}) async {
   final messages = controller.messages(peer.id).reversed.take(12).toList();
   final reduceMotion = MediaQuery.disableAnimationsOf(context);
+  final ios = Theme.of(context).platform == TargetPlatform.iOS;
   final duration = reduceMotion
       ? Duration.zero
-      : const Duration(milliseconds: 280);
-  final route = RawDialogRoute<bool>(
-    barrierDismissible: true,
+      : Duration(milliseconds: ios ? 420 : 190);
+  final route = _ChatPreviewRoute(
     barrierLabel: tr(context, 'Закрыть предпросмотр', 'Close preview'),
-    barrierColor: const Color(0x80000000),
     transitionDuration: duration,
+    reverseTransitionDuration: reduceMotion
+        ? Duration.zero
+        : Duration(milliseconds: ios ? 200 : 150),
     pageBuilder: (context, animation, _) {
       final style = MeshStyle.of(context);
       final padding = MediaQuery.paddingOf(context);
+      var fullyOpened = false;
       return LayoutBuilder(
         builder: (context, bounds) {
           final width = math.min(
@@ -120,115 +155,168 @@ Future<bool> showMeshChatPreview(
             width,
             height,
           );
-          return Stack(
-            children: [
-              AnimatedBuilder(
-                animation: animation,
-                child: Material(
-                  color: style.surface,
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: MeshAvatar(
-                          peer.name,
-                          size: 36,
-                          channel: peer.channel,
-                        ),
-                        title: Text(
-                          peer.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          tooltip: tr(context, 'Закрыть', 'Close'),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                      Expanded(
-                        child: CustomPaint(
-                          painter: _ContourPaper(style),
-                          child: messages.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    tr(
-                                      context,
-                                      'Начало переписки',
-                                      'Start of conversation',
-                                    ),
-                                  ),
-                                )
-                              : ListView.builder(
-                                  primary: false,
-                                  reverse: true,
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    8,
-                                    12,
-                                    8,
-                                  ),
-                                  itemCount: messages.length,
-                                  itemBuilder: (_, index) {
-                                    final message = messages[index];
-                                    return _Bubble(
-                                      item: message,
-                                      emoji: null,
-                                      hideText: false,
-                                      channel: peer.channel,
-                                      joinsPrevious: false,
-                                      joinsNext: false,
-                                      quoted: controller.referencedMessage(
-                                        peer.id,
-                                        message.replyTo,
-                                      ),
-                                      reactions: [
-                                        for (final reaction
-                                            in controller.reactionsFor(message))
-                                          (
-                                            reaction: reaction,
-                                            author: controller.reactionAuthor(
-                                              reaction,
-                                            ),
-                                          ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(tr(context, 'Открыть чат', 'Open chat')),
-                        ),
-                      ),
-                    ],
+          return AnimatedBuilder(
+            animation: animation,
+            child: Material(
+              color: style.surface,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: MeshAvatar(
+                      peer.name,
+                      size: 36,
+                      channel: peer.channel,
+                    ),
+                    title: Text(
+                      peer.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: tr(context, 'Закрыть', 'Close'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ),
-                ),
-                builder: (_, child) {
-                  final progress = reduceMotion
-                      ? 1.0
-                      : Curves.easeInOutCubic.transform(animation.value);
-                  return Positioned.fromRect(
-                    rect: Rect.lerp(anchor, card, progress)!,
+                  Expanded(
+                    child: CustomPaint(
+                      painter: _ContourPaper(style),
+                      child: messages.isEmpty
+                          ? Center(
+                              child: Text(
+                                tr(
+                                  context,
+                                  'Начало переписки',
+                                  'Start of conversation',
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              primary: false,
+                              reverse: true,
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                              itemCount: messages.length,
+                              itemBuilder: (_, index) {
+                                final message = messages[index];
+                                return _Bubble(
+                                  item: message,
+                                  emoji: null,
+                                  hideText: false,
+                                  channel: peer.channel,
+                                  joinsPrevious: false,
+                                  joinsNext: false,
+                                  quoted: controller.referencedMessage(
+                                    peer.id,
+                                    message.replyTo,
+                                  ),
+                                  reactions: [
+                                    for (final reaction
+                                        in controller.reactionsFor(message))
+                                      (
+                                        reaction: reaction,
+                                        author: controller.reactionAuthor(
+                                          reaction,
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: Text(tr(context, 'Открыть чат', 'Open chat')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            builder: (_, child) {
+              if (animation.isCompleted) fullyOpened = true;
+              final closing =
+                  fullyOpened && animation.status == AnimationStatus.reverse;
+              final time = animation.value;
+              const quint = Cubic(.23, 1, .32, 1);
+              final position = reduceMotion
+                  ? 1.0
+                  : closing
+                  ? 1 - (ios ? Curves.easeInOut : quint).transform(1 - time)
+                  : _previewOpeningProgress(time, ios: ios);
+              final amount = position.clamp(0.0, 1.0);
+              final details = reduceMotion
+                  ? 1.0
+                  : !ios
+                  ? amount
+                  : closing
+                  ? ((time - .2) / .8).clamp(0.0, 1.0)
+                  : (time * 420 / 150).clamp(0.0, 1.0);
+              final dim = ios && !reduceMotion
+                  ? (closing ? time : (time * 420 / 200).clamp(0.0, 1.0))
+                  : amount;
+              final scale = 1 + math.max(0.0, position - 1) * .3;
+              final extent = Size.lerp(anchor.size, card.size, amount)!;
+              final frame = Rect.fromCenter(
+                center: Offset.lerp(anchor.center, card.center, position)!,
+                width: extent.width * scale,
+                height: extent.height * scale,
+              );
+              return Stack(
+                children: [
+                  Positioned.fill(
                     child: IgnorePointer(
-                      ignoring: !animation.isCompleted,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(26 * progress),
-                        child: OverflowBox(
-                          minWidth: width,
-                          maxWidth: width,
-                          minHeight: height,
-                          maxHeight: height,
-                          child: child,
+                      child: ColoredBox(
+                        color: Colors.black.withValues(
+                          alpha: dim * (ios ? .40 : 46 / 255),
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
-            ],
+                  ),
+                  Positioned.fromRect(
+                    key: const ValueKey('chat-preview-card'),
+                    rect: frame,
+                    child: IgnorePointer(
+                      ignoring: !animation.isCompleted,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          (ios ? 26 : 12) * amount,
+                        ),
+                        child: ColoredBox(
+                          color: style.canvas,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (details < 1)
+                                ExcludeSemantics(
+                                  child: OverflowBox(
+                                    minWidth: anchor.width,
+                                    maxWidth: anchor.width,
+                                    minHeight: anchor.height,
+                                    maxHeight: anchor.height,
+                                    child: sourceRow,
+                                  ),
+                                ),
+                              Opacity(
+                                opacity: details,
+                                child: OverflowBox(
+                                  minWidth: width,
+                                  maxWidth: width,
+                                  minHeight: height,
+                                  maxHeight: height,
+                                  child: child,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       );
