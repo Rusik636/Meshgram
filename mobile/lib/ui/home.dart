@@ -77,12 +77,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   final _chatEditButton = GlobalKey();
   final _previewBackground = GlobalKey();
   final _folderTabsScroll = ScrollController();
+  Radio? _folderProfile;
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
   MeshController get controller => widget.controller;
   @override
   void initState() {
     super.initState();
+    _folderProfile = controller.active;
     controller.addListener(_changed);
     if (controller.hideSystemNavigation) unawaited(_applySystemNavigation());
     _lifecycle = AppLifecycleListener(
@@ -159,7 +161,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      final profile = controller.active;
+      if (profile != _folderProfile) {
+        _folderProfile = profile;
+        if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
+      }
+    });
   }
 
   @override
@@ -309,8 +318,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final hide = _archiveRevealed && event.metrics.extentBefore >= 72;
       if (reveal || hide) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_showHidden)
+          if (mounted && !_showHidden) {
             setState(() => _archiveRevealed = reveal);
+          }
         });
       }
       _archivePull = 0;
