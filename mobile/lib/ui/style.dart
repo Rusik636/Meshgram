@@ -343,6 +343,7 @@ class GlassActionButton extends StatelessWidget {
     required this.onTap,
     this.primary = true,
     this.symbol,
+    this.icon,
     this.width = double.infinity,
     this.height,
     this.wrapLabel = false,
@@ -352,6 +353,7 @@ class GlassActionButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool primary;
   final String? symbol;
+  final IconData? icon;
   final double width;
   final double? height;
   final bool wrapLabel;
@@ -370,10 +372,8 @@ class GlassActionButton extends StatelessWidget {
       textScaler: textScaler,
       maxLines: 1,
     )..layout();
-    final result = (measure.width.ceilToDouble() + 28).clamp(
-      48.0,
-      double.infinity,
-    );
+    final result = (measure.width.ceilToDouble() + 28 + (icon == null ? 0 : 24))
+        .clamp(48.0, double.infinity);
     measure.dispose();
     return result;
   }
@@ -387,6 +387,12 @@ class GlassActionButton extends StatelessWidget {
         ? (textScaler.scale(17) * 2.4 + 8).clamp(48.0, double.infinity)
         : (48 + (textScaler.scale(16) - 16)).clamp(48.0, 80.0);
     if (!useIosControls) {
+      final title = Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: wrapLabel ? 2 : 1,
+        overflow: TextOverflow.ellipsis,
+      );
       return SizedBox(
         height: height ?? defaultHeight,
         width: buttonWidth,
@@ -411,12 +417,16 @@ class GlassActionButton extends StatelessWidget {
             ),
           ),
           onPressed: onTap,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: wrapLabel ? 2 : 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: icon == null
+              ? title
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18),
+                    const SizedBox(width: 5),
+                    Flexible(child: title),
+                  ],
+                ),
         ),
       );
     }
@@ -427,8 +437,9 @@ class GlassActionButton extends StatelessWidget {
         label: label,
         primary: primary,
         onTap: onTap,
-        symbol: symbol,
+        symbol: symbol ?? (icon == null ? null : meshGlassButtonSymbol(icon!)),
         stacked: symbol != null,
+        inlineSymbol: icon != null,
       ),
     );
   }
@@ -443,6 +454,7 @@ class _NativeGlassButton extends StatelessWidget {
     this.onLongPress,
     this.longPressLabel,
     this.stacked = false,
+    this.inlineSymbol = false,
     this.coveredByModal = false,
     this.decorative = false,
   });
@@ -452,7 +464,7 @@ class _NativeGlassButton extends StatelessWidget {
   final VoidCallback? onTap, onLongPress;
   final String? longPressLabel;
   final bool primary;
-  final bool stacked, coveredByModal, decorative;
+  final bool stacked, inlineSymbol, coveredByModal, decorative;
 
   @override
   Widget build(BuildContext context) {
@@ -475,6 +487,7 @@ class _NativeGlassButton extends StatelessWidget {
             .toARGB32(),
         'symbol': ?symbol,
         'stacked': stacked,
+        if (inlineSymbol) 'inlineSymbol': true,
         'coveredByModal':
             coveredByModal || ModalRoute.isCurrentOf(context) == false,
       },

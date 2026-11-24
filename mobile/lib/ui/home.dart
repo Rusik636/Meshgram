@@ -74,7 +74,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   bool _archiveRevealed = false;
   double _archivePull = 0;
   String? _revealedChat;
-  final _chatEditButton = GlobalKey();
   final _previewBackground = GlobalKey();
   final _folderTabsScroll = ScrollController();
   Radio? _folderProfile;
@@ -335,14 +334,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   };
 
   ChatFolder? _folderAt(int index) =>
-      index < 4 ? null : controller.chatFolders.elementAtOrNull(index - 4);
+      index < 3 ? null : controller.chatFolders.elementAtOrNull(index - 3);
 
   ChatFolder? get _chatFolder =>
       _showHidden ? null : _folderAt(_chatCategories.shown);
 
   bool _matchesChatTab(Peer peer, int index) {
     if (_showHidden) return true;
-    if (index == 3) return controller.isChatUnread(peer.id);
     return _inCategory(peer, index) &&
         (_folderAt(index)?.chats.contains(peer.id) ?? true);
   }
@@ -459,13 +457,12 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _select(_chatCategories, index);
   }
 
-  void _showFolderTab(String id, {bool scrollToEnd = false}) {
+  void _showNewFolder(String id) {
     final index = controller.chatFolders.indexWhere(
       (folder) => folder.id == id,
     );
     if (index < 0) return;
-    _selectChatTab(index + 4);
-    if (!scrollToEnd) return;
+    _selectChatTab(index + 3);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_folderTabsScroll.hasClients) return;
       final end = _folderTabsScroll.position.maxScrollExtent;
@@ -484,20 +481,27 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _editFolder(ChatFolder? folder) async {
+  Future<void> _addFolder() async {
     final profile = controller.active;
+    final chats = Set<String>.of(_selectedChats);
+    final name = await nameNewChatFolder(context);
+    if (!mounted || controller.active != profile || name == null) return;
+    final id = controller.saveChatFolder(name: name, chats: chats);
+    if (id != null) _showNewFolder(id);
+  }
+
+  Future<void> _editFolder(String id) async {
+    final profile = controller.active;
+    final folder = controller.chatFolders.firstWhere(
+      (folder) => folder.id == id,
+    );
     final result = await editChatFolder(
       context,
       folder: folder,
       chats: [...controller.conversations, ...controller.hiddenConversations],
     );
     if (!mounted || controller.active != profile || result == null) return;
-    final id = controller.saveChatFolder(
-      id: folder?.id,
-      name: result.name,
-      chats: result.chats,
-    );
-    if (id != null) _showFolderTab(id, scrollToEnd: folder == null);
+    controller.saveChatFolder(id: id, name: result.name, chats: result.chats);
   }
 
   void _refreshFolderOrder(VoidCallback action) {
@@ -507,68 +511,40 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final index = controller.chatFolders.indexWhere(
       (folder) => folder.id == current,
     );
-    setState(() => _chatCategories.jumpTo(index < 0 ? 0 : index + 4));
+    setState(() => _chatCategories.jumpTo(index < 0 ? 0 : index + 3));
   }
 
-  Future<void> _openChatEditMenu() async {
-    if (_editingChats || _showHidden) {
-      _toggleChatEditing();
-      return;
-    }
-    final box = _chatEditButton.currentContext?.findRenderObject();
-    final overlay = Overlay.of(
-      context,
-      rootOverlay: true,
-    ).context.findRenderObject();
-    if (box is! RenderBox || overlay is! RenderBox) return;
-    final anchor = box.localToGlobal(
-      Offset(0, box.size.height),
-      ancestor: overlay,
+  void _reorderFolders(int from, int to) {
+    if (from == to) return;
+    final ids = controller.chatFolders.map((folder) => folder.id).toList();
+    ids.insert(to, ids.removeAt(from));
+    _refreshFolderOrder(() => controller.reorderChatFolders(ids));
+  }
+
+  Future<void> _deleteFolder(String id) async {
+    final profile = controller.active;
+    final folder = controller.chatFolders.firstWhere(
+      (folder) => folder.id == id,
     );
-    final action = await showMenu<String>(
+    final confirmed = await showMeshDialog<bool>(
       context: context,
-      position: RelativeRect.fromSize(anchor & Size.zero, overlay.size),
-      items: [
-        PopupMenuItem(
-          value: 'select',
-          child: Text(tr(context, 'Выбрать чаты', 'Select chats')),
-        ),
-        if (controller.active != null)
-          PopupMenuItem(
-            value: 'new',
-            child: Text(tr(context, 'Новая папка', 'New folder')),
+      builder: (context) => MeshDialog(
+        title: Text(tr(context, 'Удалить папку?', 'Delete folder?')),
+        content: Text(folder.name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr(context, 'Отмена', 'Cancel')),
           ),
-        if (controller.chatFolders.isNotEmpty)
-          PopupMenuItem(
-            value: 'folders',
-            child: Text(tr(context, 'Управление папками', 'Manage folders')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(tr(context, 'Удалить', 'Delete')),
           ),
-        if (controller.hiddenConversations.isNotEmpty)
-          PopupMenuItem(
-            value: 'archive',
-            child: Text(tr(context, 'Архив', 'Archive')),
-          ),
-      ],
+        ],
+      ),
     );
-    if (!mounted) return;
-    switch (action) {
-      case 'select':
-        _toggleChatEditing();
-      case 'new':
-        await _editFolder(null);
-      case 'folders':
-        await showChatFolders(
-          context,
-          controller: controller,
-          onEdit: _editFolder,
-          onDelete: (id) =>
-              _refreshFolderOrder(() => controller.removeChatFolder(id)),
-          onReorder: (ids) =>
-              _refreshFolderOrder(() => controller.reorderChatFolders(ids)),
-        );
-      case 'archive':
-        _showChats(true);
-    }
+    if (!mounted || controller.active != profile || confirmed != true) return;
+    _refreshFolderOrder(() => controller.removeChatFolder(id));
   }
 
   void _changeVisibility(Iterable<Peer> peers) {
@@ -824,7 +800,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           : null;
       final heading = PageHeading(
         caption,
-        sideWidth: _editingChats || _showHidden ? 92 : 104,
+        sideWidth: _editingChats
+            ? 112
+            : _showHidden
+            ? 92
+            : 104,
         leading: _showHidden && !_editingChats
             ? GlassButton(
                 icon: Icons.arrow_back_ios_new_rounded,
@@ -832,7 +812,6 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 onTap: () => _showChats(false),
               )
             : GlassActionButton(
-                key: _chatEditButton,
                 primary: false,
                 width: _editingChats ? 84 : 68,
                 label: _editingChats
@@ -840,7 +819,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     : tr(context, 'Изм.', 'Edit'),
                 onTap: _removingChats || (!categoriesInChats && !_editingChats)
                     ? null
-                    : _openChatEditMenu,
+                    : _toggleChatEditing,
               ),
         trailing: _showHidden && !_editingChats
             ? GlassActionButton(
@@ -852,7 +831,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     : null,
               )
             : _editingChats
-            ? null
+            ? (_showHidden
+                  ? null
+                  : GlassActionButton(
+                      primary: false,
+                      width: 112,
+                      icon: Icons.create_new_folder_outlined,
+                      label: tr(context, 'Добавить', 'Add'),
+                      onTap: controller.active == null || _removingChats
+                          ? null
+                          : () => unawaited(_addFolder()),
+                    ))
             : GlassButton(
                 icon: Icons.edit_note_rounded,
                 label: tr(context, 'Новый чат', 'New chat'),
@@ -860,30 +849,26 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 onTap: _newChat,
               ),
       );
-      final categoryBar = ChatFilters(
-        labels: _searchActive || _showHidden
-            ? null
-            : [
+      final categoryBar = _searchActive || _showHidden
+          ? ChatFilters(
+              selected: _searchActive ? _searchCategories.selected : 0,
+              onSelect: (index) => _select(_searchCategories, index),
+            )
+          : ChatFolderTabs(
+              builtInLabels: [
                 tr(context, 'Все', 'All'),
                 tr(context, 'Личные', 'Direct'),
                 tr(context, 'Каналы', 'Channels'),
-                tr(context, 'Непрочитанные', 'Unread'),
-                for (final folder in controller.chatFolders) folder.name,
               ],
-        scrollController: _folderTabsScroll,
-        selected: _searchActive
-            ? _searchCategories.selected
-            : _showHidden
-            ? 0
-            : _chatCategories.selected,
-        onSelect: (index) {
-          if (_searchActive) {
-            _select(_searchCategories, index);
-          } else if (!_showHidden) {
-            _selectChatTab(index);
-          }
-        },
-      );
+              folders: controller.chatFolders,
+              scrollController: _folderTabsScroll,
+              selected: _chatCategories.selected,
+              editing: _editingChats,
+              onSelect: _selectChatTab,
+              onReorder: _reorderFolders,
+              onEdit: (id) => unawaited(_editFolder(id)),
+              onDelete: (id) => unawaited(_deleteFolder(id)),
+            );
       final closeSearch = GlassButton(
         icon: Icons.close_rounded,
         label: tr(context, 'Закрыть поиск', 'Close search'),
