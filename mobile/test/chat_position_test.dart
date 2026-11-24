@@ -25,13 +25,16 @@ void main() {
       point: point,
       standalone: false,
     ));
+  });
+
+  test('a bare coordinate pair is a standalone location message', () {
     expect(chatPosition('51.5, -0.12'), (
       point: (latitude: 51.5, longitude: -.12),
-      standalone: false,
+      standalone: true,
     ));
     expect(chatPosition('55.725; -52.401'), (
       point: (latitude: 55.725, longitude: -52.401),
-      standalone: false,
+      standalone: true,
     ));
   });
 
@@ -54,7 +57,7 @@ void main() {
   test('preserves legitimate zero and boundary coordinates', () {
     const zero = (latitude: 0.0, longitude: 0.0);
     expect(chatPosition('geo:0,0'), (point: zero, standalone: true));
-    expect(chatPosition('0, 0'), (point: zero, standalone: false));
+    expect(chatPosition('0, 0'), (point: zero, standalone: true));
     expect(chatPosition('geo:-90,180'), (
       point: (latitude: -90.0, longitude: 180.0),
       standalone: true,

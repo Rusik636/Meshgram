@@ -248,9 +248,19 @@ void main() {
     final preview = find.byType(MeshLocationPreview);
     expect(preview, findsOneWidget);
     expect(tester.widget<MeshLocationPreview>(preview).position, point);
-    await tester.tap(
-      find.descendant(of: preview, matching: find.text('Location')),
+    expect(
+      tester.widget<MeshLocationPreview>(preview).standaloneMessage,
+      isTrue,
     );
+    expect(find.text('Location'), findsNothing);
+    final mapBounds = tester.getRect(preview);
+    expect(mapBounds.width, closeTo(mapBounds.height * 2, .1));
+    final stamp = tester.getRect(
+      find.byKey(const ValueKey('location-message-stamp')),
+    );
+    expect(mapBounds.contains(stamp.topLeft), isTrue);
+    expect(mapBounds.contains(stamp.bottomRight), isTrue);
+    await tester.tap(preview);
     await tester.pumpAndSettle();
     expect(find.byTooltip('Copy coordinates'), findsOneWidget);
     expect(find.text('55.750000, 49.140000'), findsOneWidget);

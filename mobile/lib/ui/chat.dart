@@ -17,6 +17,7 @@ import '../app_name.dart';
 import '../mesh/chat_position.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
+import '../mesh/nodes.dart' show NodePosition;
 import '../mesh/radio_outbox.dart';
 import '../radio/channel_invitation.dart';
 import 'channel_avatars.dart';
@@ -280,6 +281,17 @@ Future<bool> showMeshChatPreview(
                                           item: message,
                                           emoji: null,
                                           hideText: false,
+                                          standalonePosition:
+                                              switch (chatPosition(
+                                                message.text,
+                                              )) {
+                                                (
+                                                  point: final point,
+                                                  standalone: true,
+                                                ) =>
+                                                  point,
+                                                _ => null,
+                                              },
                                           channel: peer.channel,
                                           joinsPrevious: false,
                                           joinsNext: false,
@@ -2449,7 +2461,7 @@ class _ChatState extends State<MeshChatPage>
                                   onWrite: open,
                                 );
                               }
-                              if (location != null) {
+                              if (location != null && !location.standalone) {
                                 return MeshLocationPreview(
                                   position: location.point,
                                   loadTiles: false,
@@ -2463,9 +2475,10 @@ class _ChatState extends State<MeshChatPage>
                                 item: item,
                                 emoji: emoji,
                                 displayedText: shared?.caption,
-                                hideText:
-                                    shared?.caption.isEmpty == true ||
-                                    location?.standalone == true,
+                                hideText: shared?.caption.isEmpty == true,
+                                standalonePosition: location?.standalone == true
+                                    ? location?.point
+                                    : null,
                                 preview: attachment == null || onMenu != null
                                     ? attachment
                                     : IgnorePointer(child: attachment),
@@ -3423,6 +3436,7 @@ class _Bubble extends StatelessWidget {
     required this.quoted,
     required this.reactions,
     required this.hideText,
+    this.standalonePosition,
     this.preview,
     this.link,
     this.onMenu,
@@ -3443,6 +3457,7 @@ class _Bubble extends StatelessWidget {
   final MeshMessage item;
   final String? emoji;
   final bool hideText;
+  final NodePosition? standalonePosition;
   final Widget? preview;
   final Uri? link;
   final bool channel, joinsPrevious, joinsNext;
@@ -3466,6 +3481,7 @@ class _Bubble extends StatelessWidget {
     final style = MeshStyle.of(context);
     final own = item.outgoing;
     final sticker = emoji;
+    final mapOnly = standalonePosition != null;
     final showAuthor = channel && !own && (sticker != null || !joinsPrevious);
     const corner = Radius.circular(19), join = Radius.circular(7);
     final subtitle = waitingForRadio
@@ -3512,29 +3528,38 @@ class _Bubble extends StatelessWidget {
                   onOpen: tap,
                   child: CustomPaint(
                     key: ValueKey(('bubble', item.id)),
-                    painter: _BubbleShape(
-                      color: own ? style.outgoing : style.incoming,
-                      highlight: highlight,
-                      highlightColor: style.accent,
-                      gradient: own && style.dark
-                          ? const LinearGradient(
-                              colors: [Color(0xff433a9d), Color(0xff2845a7)],
-                            )
-                          : null,
-                      corners: BorderRadius.only(
-                        topLeft: !own && joinsPrevious ? join : corner,
-                        topRight: own && joinsPrevious ? join : corner,
-                        bottomLeft: !own ? join : corner,
-                        bottomRight: own ? join : corner,
-                      ),
-                      tail: !joinsNext,
-                      outgoing: own,
-                    ),
+                    painter: mapOnly
+                        ? null
+                        : _BubbleShape(
+                            color: own ? style.outgoing : style.incoming,
+                            highlight: highlight,
+                            highlightColor: style.accent,
+                            gradient: own && style.dark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(0xff433a9d),
+                                      Color(0xff2845a7),
+                                    ],
+                                  )
+                                : null,
+                            corners: BorderRadius.only(
+                              topLeft: !own && joinsPrevious ? join : corner,
+                              topRight: own && joinsPrevious ? join : corner,
+                              bottomLeft: !own ? join : corner,
+                              bottomRight: own ? join : corner,
+                            ),
+                            tail: !joinsNext,
+                            outgoing: own,
+                          ),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 7, 9, 5),
+                      padding: mapOnly
+                          ? EdgeInsets.zero
+                          : const EdgeInsets.fromLTRB(12, 7, 9, 5),
                       child: _MessageContent(
                         item: item,
-                        hideText: hideText,
+                        hideText: hideText || mapOnly,
+                        standalonePosition: standalonePosition,
+                        mapHighlight: highlight,
                         preview: preview,
                         link: link,
                         stateLabel: subtitle,
@@ -3734,6 +3759,8 @@ class _MessageContent extends StatelessWidget {
     required this.quoted,
     required this.reactions,
     required this.hideText,
+    this.standalonePosition,
+    this.mapHighlight,
     this.preview,
     this.link,
     this.onTap,
@@ -3754,6 +3781,8 @@ class _MessageContent extends StatelessWidget {
   final MeshMessage item;
   final String stateLabel;
   final bool hideText;
+  final NodePosition? standalonePosition;
+  final Animation<double>? mapHighlight;
   final Widget? preview;
   final Uri? link;
   final bool showAuthor;
@@ -3805,6 +3834,74 @@ class _MessageContent extends StatelessWidget {
     return textKey == null ? body : Opacity(opacity: 0, child: body);
   }
 
+  Widget _standaloneMap(
+    NodePosition position,
+    String time,
+    MeshStyle style,
+    double width,
+  ) => SizedBox(
+    width: width,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        children: [
+          IgnorePointer(
+            ignoring: onTap == null,
+            child: MeshLocationPreview(
+              position: position,
+              standaloneMessage: true,
+              loadTiles: false,
+            ),
+          ),
+          if (mapHighlight case final highlight?)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: FadeTransition(
+                  opacity: highlight,
+                  child: ColoredBox(color: style.accent),
+                ),
+              ),
+            ),
+          PositionedDirectional(
+            end: 7,
+            bottom: 6,
+            child: DecoratedBox(
+              key: const ValueKey('location-message-stamp'),
+              decoration: BoxDecoration(
+                color: const Color(0xa32a3038),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: math.max(0, width - 28),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _MessageStamp(
+                      item: item,
+                      time: time,
+                      timeStyle: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                      ),
+                      stateLabel: stateLabel,
+                      receiptColor: Colors.white,
+                      onRetry: onRetry,
+                      waitingForRadio: waitingForRadio,
+                      showReceipt: !localOnly,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
@@ -3840,6 +3937,7 @@ class _MessageContent extends StatelessWidget {
         )..layout(maxWidth: maxWidth);
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mapPosition = standalonePosition;
         final timePainter = measure(time, timeStyle, double.infinity);
         final stampSize = item.outgoing
             ? Size(
@@ -3950,29 +4048,32 @@ class _MessageContent extends StatelessWidget {
                     padding: EdgeInsets.only(top: hideText ? 0 : 7, bottom: 3),
                     child: SizedBox(width: maxWidth, child: card),
                   ),
+                if (mapPosition != null)
+                  _standaloneMap(mapPosition, time, style, maxWidth),
                 ?chips,
-                if (!inlineText && !inlineReactions)
+                if (mapPosition == null && !inlineText && !inlineReactions)
                   SizedBox(height: stampSize.height + 2),
               ],
             ),
-            Positioned(
-              right: 0,
-              bottom: inlineReactions ? 5 : 0,
-              width: stampWidth,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: _MessageStamp(
-                  item: item,
-                  time: time,
-                  timeStyle: timeStyle,
-                  stateLabel: stateLabel,
-                  onRetry: onRetry,
-                  waitingForRadio: waitingForRadio,
-                  showReceipt: !localOnly,
+            if (mapPosition == null)
+              Positioned(
+                right: 0,
+                bottom: inlineReactions ? 5 : 0,
+                width: stampWidth,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: _MessageStamp(
+                    item: item,
+                    time: time,
+                    timeStyle: timeStyle,
+                    stateLabel: stateLabel,
+                    onRetry: onRetry,
+                    waitingForRadio: waitingForRadio,
+                    showReceipt: !localOnly,
+                  ),
                 ),
               ),
-            ),
           ],
         );
       },
