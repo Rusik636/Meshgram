@@ -278,7 +278,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _openSettings() {
     if (_flashingFirmware) return;
-    if (_split && _detailKey.currentState != null) {
+    if (_workspaceEnabled && _detailKey.currentState != null) {
       final detail = _detailKey.currentState!;
       if (_workspaceSettings case final existing? when existing.isActive) {
         detail.popUntil((route) => route.isFirst || route == existing);
@@ -312,8 +312,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) async {
     if (_flashingFirmware) return null;
+    final inWorkspace = _split || _workspaceSettings?.isActive == true;
     final navigation =
-        (_split ? _detailKey.currentState : null) ?? Navigator.of(context);
+        (inWorkspace ? _detailKey.currentState : null) ?? Navigator.of(context);
     return navigation.push<T>(route);
   }
 
@@ -325,7 +326,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _selectTab(int index) {
     FocusScope.of(context).unfocus();
-    if (_split && _detailKey.currentState != null) {
+    if (_workspaceEnabled && _detailKey.currentState != null) {
       if (index == 1) {
         _openSettings();
         return;
