@@ -75,9 +75,9 @@ class RunnerTests: XCTestCase {
     let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 128),
       id: 1, input: appearance(dark: false).merging([
         "text": draft, "start": 1, "end": 5, "visualOutset": 8,
-        "reply": [
-          "author": "Мира", "text": "На месте", "openLabel": "Исходное сообщение",
-          "cancelLabel": "Отменить ответ",
+        "accessory": [
+          "title": "Мира", "text": "На месте", "openLabel": "Исходное сообщение",
+          "dismissLabel": "Отменить ответ",
         ],
       ]) { _, value in value }, messenger: messenger)
     let root = composer.view()
@@ -96,7 +96,7 @@ class RunnerTests: XCTestCase {
     let controls = try XCTUnwrap(quote.subviews.first).subviews.compactMap { $0 as? UIControl }
     XCTAssertEqual(controls.count, 2)
     controls.forEach { $0.sendActions(for: .touchUpInside) }
-    XCTAssertEqual(Array(messenger.methods.suffix(2)), ["openReply", "cancelReply"])
+    XCTAssertEqual(Array(messenger.methods.suffix(2)), ["openAccessory", "dismissAccessory"])
   }
 
   @MainActor

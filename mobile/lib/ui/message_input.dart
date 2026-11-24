@@ -12,21 +12,28 @@ import 'ios_control.dart';
 import 'sheet_control_clip.dart';
 import 'style.dart';
 
+typedef MessageInputAccessory = ({
+  String title,
+  String text,
+  Uint8List? image,
+  bool link,
+});
+
 class MessageInput extends StatefulWidget {
   const MessageInput({
     super.key,
     required this.controller,
     required this.onChanged,
     this.coveredByModal = false,
-    this.reply,
-    this.onOpenReply,
-    this.onCancelReply,
+    this.accessory,
+    this.onOpenAccessory,
+    this.onDismissAccessory,
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final bool coveredByModal;
-  final ({String author, String text})? reply;
-  final VoidCallback? onOpenReply, onCancelReply;
+  final MessageInputAccessory? accessory;
+  final VoidCallback? onOpenAccessory, onDismissAccessory;
 
   @override
   MessageInputState createState() => MessageInputState();
@@ -56,9 +63,9 @@ class MessageInputState extends State<MessageInput> {
   MethodChannel? _channel;
   TextEditingValue? _nativeValue;
   Map<String, Object>? _appearance;
-  Map<String, Object>? _nativeReply;
+  Map<String, Object>? _nativeAccessory;
   double _height = 46;
-  bool _replyHeightChanging = false;
+  bool _accessoryHeightChanging = false;
   Duration _heightDuration = const Duration(milliseconds: 100);
 
   bool get _native => useIosControls;
@@ -81,10 +88,10 @@ class MessageInputState extends State<MessageInput> {
       _pendingFocus = false;
       _syncAppearance();
     }
-    if (_native && widget.reply != oldWidget.reply) {
-      _replyHeightChanging =
-          (widget.reply == null) != (oldWidget.reply == null);
-      _syncReply();
+    if (_native && widget.accessory != oldWidget.accessory) {
+      _accessoryHeightChanging =
+          (widget.accessory == null) != (oldWidget.accessory == null);
+      _syncAccessory();
     }
   }
 
@@ -93,32 +100,36 @@ class MessageInputState extends State<MessageInput> {
     super.didChangeDependencies();
     if (_native) {
       _syncAppearance();
-      _syncReply();
+      _syncAccessory();
     }
   }
 
-  void _syncReply() {
-    final reply = _replyArguments;
-    if (!mapEquals(reply, _nativeReply)) {
-      _nativeReply = reply;
-      _send('reply', reply);
+  void _syncAccessory() {
+    final accessory = _accessoryArguments;
+    if (!mapEquals(accessory, _nativeAccessory)) {
+      _nativeAccessory = accessory;
+      _send('accessory', accessory);
     }
   }
 
-  Map<String, Object> get _replyArguments {
-    final reply = widget.reply;
-    return reply == null
-        ? const {}
-        : {
-            'author': reply.author,
-            'text': reply.text,
-            'openLabel': tr(
+  Map<String, Object> get _accessoryArguments {
+    final accessory = widget.accessory;
+    if (accessory == null) return const {};
+    return {
+      'title': accessory.title,
+      'text': accessory.text,
+      'image': ?accessory.image,
+      'openLabel': accessory.link
+          ? tr(context, 'Открыть ссылку', 'Open link')
+          : tr(
               context,
               'Перейти к исходному сообщению',
               'Go to original message',
             ),
-            'cancelLabel': tr(context, 'Отменить ответ', 'Cancel reply'),
-          };
+      'dismissLabel': accessory.link
+          ? tr(context, 'Убрать предпросмотр', 'Remove preview')
+          : tr(context, 'Отменить ответ', 'Cancel reply'),
+    };
   }
 
   void _syncAppearance() {
@@ -196,22 +207,22 @@ class MessageInputState extends State<MessageInput> {
           if (height != _height) {
             setState(() {
               _height = height;
-              _heightDuration = _replyHeightChanging
+              _heightDuration = _accessoryHeightChanging
                   ? const Duration(milliseconds: 400)
                   : const Duration(milliseconds: 100);
-              _replyHeightChanging = false;
+              _accessoryHeightChanging = false;
             });
           }
-        case 'openReply':
-          widget.onOpenReply?.call();
-        case 'cancelReply':
-          widget.onCancelReply?.call();
+        case 'openAccessory':
+          widget.onOpenAccessory?.call();
+        case 'dismissAccessory':
+          widget.onDismissAccessory?.call();
       }
     });
     _nativeValue = null;
     _syncEditing();
     if (_appearance case final appearance?) _send('appearance', appearance);
-    _send('reply', _replyArguments);
+    _send('accessory', _accessoryArguments);
     if (_pendingFocus) focusInput();
   }
 
@@ -241,7 +252,7 @@ class MessageInputState extends State<MessageInput> {
               creationParams: {
                 ...?_appearance,
                 ..._editingArguments(widget.controller.value),
-                'reply': _replyArguments,
+                'accessory': _accessoryArguments,
                 'visualOutset': meshIosGlassOutset,
               },
               creationParamsCodec: const StandardMessageCodec(),

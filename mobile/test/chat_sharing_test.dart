@@ -280,6 +280,7 @@ void main() {
     const text = 'Check https://example.org/route';
     await tester.enterText(find.byType(TextField), text);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 210));
     final preview = find.byType(MessageLinkPreview);
     expect(tester.widget<MessageLinkPreview>(preview).compact, isTrue);
 

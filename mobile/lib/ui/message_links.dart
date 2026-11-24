@@ -81,7 +81,7 @@ Iterable<({int start, int end, Uri uri})> _messageLinks(String text) sync* {
 
 Uri? firstMessageLink(String text) => _messageLinks(text).firstOrNull?.uri;
 
-Future<void> _openMessageLink(BuildContext context, Uri uri) async {
+Future<void> openMessageLink(BuildContext context, Uri uri) async {
   try {
     if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
   } on PlatformException {
@@ -144,7 +144,7 @@ class _MessageLinkifiedTextState extends State<MessageLinkifiedText> {
         start: link.start,
         end: link.end,
         tap: TapGestureRecognizer()
-          ..onTap = () => _openMessageLink(context, link.uri),
+          ..onTap = () => openMessageLink(context, link.uri),
       ));
     }
   }
@@ -276,6 +276,8 @@ class _MessageLinkPreviewCache {
   }
 }
 
+typedef DraftLinkPreview = ({String title, String text, Uint8List? image});
+
 class MessageLinkPreview extends StatefulWidget {
   const MessageLinkPreview({
     super.key,
@@ -285,8 +287,9 @@ class MessageLinkPreview extends StatefulWidget {
     this.foreground,
     this.onDismiss,
     this.builder,
+    this.draftBuilder,
     this.loadMetadata = fetchMessageLinkMetadata,
-  });
+  }) : assert(draftBuilder == null || compact);
 
   final Uri uri;
   final bool compact;
@@ -294,6 +297,7 @@ class MessageLinkPreview extends StatefulWidget {
   final Color? foreground;
   final VoidCallback? onDismiss;
   final Widget Function(Widget? card)? builder;
+  final Widget Function(DraftLinkPreview?)? draftBuilder;
   final Future<MessageLinkMetadata?> Function(Uri) loadMetadata;
 
   @override
@@ -387,6 +391,19 @@ class _MessageLinkPreviewState extends State<MessageLinkPreview> {
             snapshot.connectionState != ConnectionState.done &&
             _canAutoLoad &&
             canFetchMessageLink(widget.uri);
+        if (widget.draftBuilder case final build?) {
+          return build(
+            data == null && !loading
+                ? null
+                : (
+                    title: data == null
+                        ? tr(context, 'Загрузка превью…', 'Loading preview…')
+                        : data.title ?? data.siteName ?? widget.uri.host,
+                    text: data?.description ?? widget.uri.toString(),
+                    image: data?.image,
+                  ),
+          );
+        }
         final card = data != null || loading
             ? _MessageLinkCard(
                 uri: widget.uri,
@@ -475,7 +492,7 @@ class _MessageLinkCard extends StatelessWidget {
         children: [
           Expanded(
             child: InkWell(
-              onTap: () => _openMessageLink(context, uri),
+              onTap: () => openMessageLink(context, uri),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
                 child: Column(
