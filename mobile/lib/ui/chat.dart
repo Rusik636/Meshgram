@@ -992,6 +992,7 @@ class _ChatState extends State<MeshChatPage>
     List<ChatReaction> reactions,
   ) async {
     final controller = widget.controller;
+    final profile = controller.active;
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     _dismissKeyboard();
@@ -1019,6 +1020,9 @@ class _ChatState extends State<MeshChatPage>
         recentReactions: controller.recentReactionEmojis,
         canReply: controller.canUseMessageActions(peer, message),
         saved: controller.isMessageSaved(message),
+        pinned: profile == null
+            ? null
+            : controller.pinnedMessageId(peer.id) == message.id,
         outgoing: message.outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -1047,6 +1051,11 @@ class _ChatState extends State<MeshChatPage>
       _selectReply(peer, message);
     } else if (value == 'copy') {
       await Clipboard.setData(ClipboardData(text: message.text));
+    } else if (value == 'pin' && controller.active == profile) {
+      controller.setPinnedMessage(
+        peer.id,
+        controller.pinnedMessageId(peer.id) == message.id ? null : message.id,
+      );
     } else if (value == 'saved') {
       if (!await controller.toggleSavedMessage(peer, message) && mounted) {
         _notice(
@@ -1166,6 +1175,42 @@ class _ChatState extends State<MeshChatPage>
     );
   }
 
+  Widget _pinnedMessage(Peer peer, String id, MeshMessage? message) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+    child: GlassSurface(
+      radius: 18,
+      child: Row(
+        children: [
+          Expanded(
+            child: ListTile(
+              visualDensity: VisualDensity.compact,
+              leading: const Icon(Icons.push_pin_rounded, size: 18),
+              title: Text(
+                tr(context, 'Закреплённое сообщение', 'Pinned message'),
+              ),
+              subtitle: Text(
+                message?.text ??
+                    tr(
+                      context,
+                      'Вне локальной истории',
+                      'Outside local history',
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => unawaited(_revealMessage(id)),
+            ),
+          ),
+          IconButton(
+            tooltip: tr(context, 'Открепить', 'Unpin message'),
+            icon: const Icon(Icons.close_rounded, size: 18),
+            onPressed: () => widget.controller.setPinnedMessage(peer.id, null),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Future<void> _openPeerProfile(Peer peer) {
     if (peer.id == widget.peer.id) return _profile(peer);
     return Navigator.of(context).push<void>(
@@ -1215,6 +1260,7 @@ class _ChatState extends State<MeshChatPage>
           bytes <= limit;
       final query = _search.text.trim().toLowerCase();
       final history = controller.messages(peer.id);
+      final pin = controller.pinnedMessageId(peer.id);
       final messages = _searching
           ? history
                 .where(
@@ -1581,9 +1627,17 @@ class _ChatState extends State<MeshChatPage>
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (!_searching)
-                          _heading(peer, style)
-                        else
+                        if (!_searching) ...[
+                          _heading(peer, style),
+                          if (pin != null)
+                            _pinnedMessage(
+                              peer,
+                              pin,
+                              history
+                                  .where((item) => item.id == pin)
+                                  .firstOrNull,
+                            ),
+                        ] else
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
                             child: Row(

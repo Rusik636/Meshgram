@@ -575,7 +575,7 @@
         "02",
         "05"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -595,11 +595,28 @@
         "02",
         "05"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Папки переиспользуют категории и «Скрытые чаты». Названия и состав сохраняются на устройстве."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListFilterPresetController.swift#L554-L609",
+          "behavior": "Редактор хранит имя, состав включённых чатов и фильтр прочитанного."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/FilterCreateActivity.java#L208-L223",
+          "behavior": "Список закреплений принадлежит конкретной папке."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Созданы папки из двух чатов. Фильтр «Непрочитанные» показал только непрочитанные. Перезагрузка формата локального кэша сохранила состав, имя и порядок.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-folders.png"
+        }
+      ]
     },
     {
       "id": "06.pins",
@@ -614,12 +631,29 @@
         "02",
         "05"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Чат закрепляется вверху своей папки. Закреплённое сообщение видно внутри чата и использует общий переход.",
         "Закрепления сохраняются после перезапуска, работают без рации."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatPinnedMessageTitlePanelNode.swift#L991-L1005",
+          "behavior": "Тап по панели закреплённого сообщения вызывает переход к ID сообщения."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L11935-L11960",
+          "behavior": "Закреплённое сообщение показано в верхней панели. Тап прокручивает историю к этому сообщению."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Свайп закрепил чат над более свежим. Закреплённое сообщение появилось в шапке и подсветилось в истории после тапа. Тест подтвердил работу без открытия транспорта.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-pinned-message.png"
+        }
+      ]
     },
     {
       "id": "07",

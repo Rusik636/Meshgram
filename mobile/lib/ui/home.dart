@@ -13,8 +13,10 @@ import '../app_name.dart';
 import '../local_notifications.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
+import '../mesh/store.dart';
 import 'about.dart';
 import 'chat.dart';
+import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
 import 'emoji_text.dart';
@@ -70,6 +72,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   bool _searchActive = false;
   bool _editingChats = false, _showHidden = false, _removingChats = false;
   String? _revealedChat;
+  String? _chatFolderView;
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
   MeshController get controller => widget.controller;
@@ -277,10 +280,126 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _ => true,
   };
 
-  List<Peer> _visibleChats([int? filter]) =>
-      (_showHidden ? controller.hiddenConversations : controller.conversations)
-          .where((peer) => _inCategory(peer, filter ?? _chatCategories.shown))
-          .toList();
+  ChatFolder? get _chatFolder =>
+      _showHidden ? null : controller.cache?.folders[_chatFolderView];
+
+  List<Peer> _visibleChats([int? filter]) {
+    final folder = _chatFolder;
+    final unread = !_showHidden && _chatFolderView == 'unread';
+    final chats = _showHidden
+        ? controller.hiddenConversations
+        : controller.conversations;
+    final peers = {
+      for (final peer in chats)
+        if (_inCategory(peer, filter ?? _chatCategories.shown) &&
+            (!unread || controller.isChatUnread(peer.id)) &&
+            (folder == null || folder.chats.contains(peer.id)))
+          peer.id: peer,
+    };
+    if (folder == null) return peers.values.toList();
+    return [for (final id in folder.pinned) ?peers.remove(id), ...peers.values];
+  }
+
+  void _setFolderView(String? value) => setState(() {
+    _chatFolderView = value;
+    _revealedChat = null;
+    _selectedChats.clear();
+  });
+
+  Future<void> _editFolder(ChatFolder? folder) async {
+    final profile = controller.active;
+    final result = await editChatFolder(
+      context,
+      folder: folder,
+      chats: [...controller.conversations, ...controller.hiddenConversations],
+    );
+    if (!mounted || controller.active != profile || result == null) return;
+    final id = controller.saveChatFolder(
+      id: folder?.id,
+      name: result.name,
+      chats: result.chats,
+    );
+    if (id != null) _setFolderView(id);
+  }
+
+  Widget _folderPicker() {
+    final folder = _chatFolder;
+    final unread = tr(context, 'Непрочитанные', 'Unread');
+    final label =
+        folder?.name ??
+        (_chatFolderView == 'unread'
+            ? unread
+            : tr(context, 'Папки', 'Folders'));
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: GlassSurface(
+        radius: 24,
+        child: PopupMenuButton<String>(
+          tooltip: tr(context, 'Папки чатов', 'Chat folders'),
+          enabled: !_editingChats,
+          onSelected: (value) {
+            switch (value) {
+              case 'all':
+                _setFolderView(null);
+              case 'new':
+                unawaited(_editFolder(null));
+              case 'edit':
+                unawaited(_editFolder(folder));
+              case 'remove':
+                if (folder != null) {
+                  controller.removeChatFolder(folder.id);
+                  _setFolderView(null);
+                }
+              default:
+                _setFolderView(value);
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'all',
+              child: Text(tr(context, 'Все чаты', 'All chats')),
+            ),
+            PopupMenuItem(value: 'unread', child: Text(unread)),
+            for (final entry in controller.chatFolders)
+              PopupMenuItem(value: entry.id, child: Text(entry.name)),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'new',
+              child: Text(tr(context, 'Новая папка', 'New folder')),
+            ),
+            if (folder != null) ...[
+              PopupMenuItem(
+                value: 'edit',
+                child: Text(tr(context, 'Изменить папку', 'Edit folder')),
+              ),
+              PopupMenuItem(
+                value: 'remove',
+                child: Text(tr(context, 'Удалить папку', 'Delete folder')),
+              ),
+            ],
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.folder_outlined, size: 18),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.expand_more_rounded, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _changeVisibility(Iterable<Peer> peers) {
     final items = peers.toList();
@@ -729,6 +848,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Widget _chats(MeshStyle style, double headerHeight, double collapseRange) {
     final hiddenCount = controller.hiddenConversations.length;
+    final folder = _chatFolder;
     final visible = _visibleChats();
     Widget item(BuildContext context, int index) {
       final peer = visible[index];
@@ -738,6 +858,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         editing: _editingChats,
         reorderIndex: index,
         selected: _selectedChats.contains(peer.id),
+        pinned: folder?.pinned.contains(peer.id) ?? false,
         onTap: _editingChats
             ? () {
                 if (!_removingChats) {
@@ -767,6 +888,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     setState(() => _revealedChat = opened ? peer.id : null),
                 onVisibility: () => _changeVisibility([peer]),
                 onDelete: () => unawaited(_deleteChats([peer])),
+                onPin: folder == null
+                    ? null
+                    : () {
+                        setState(() => _revealedChat = null);
+                        controller.toggleFolderPin(folder.id, peer.id);
+                      },
+                pinned: folder?.pinned.contains(peer.id) ?? false,
                 child: row,
               ),
             if (index != visible.length - 1)
@@ -791,6 +919,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
+          if (!_showHidden && controller.active != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                child: _folderPicker(),
+              ),
+            ),
           if (_showHidden || hiddenCount > 0)
             SliverToBoxAdapter(
               child: Padding(
@@ -1213,6 +1348,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     MeshStyle style, {
     bool editing = false,
     bool selected = false,
+    bool pinned = false,
     int reorderIndex = 0,
     VoidCallback? onTap,
   }) {
@@ -1301,6 +1437,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                             Icons.notifications_off_outlined,
                             size: 14,
                             color: style.secondary,
+                          ),
+                        ),
+                      if (pinned)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.push_pin_rounded,
+                            size: 14,
+                            color: style.secondary,
+                            semanticLabel: tr(context, 'Закреплён', 'Pinned'),
                           ),
                         ),
                     ],

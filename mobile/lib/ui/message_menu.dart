@@ -23,6 +23,7 @@ Future<String?> showMessageMenu({
   List<String> recentReactions = const [],
   required bool canReply,
   bool saved = false,
+  bool? pinned,
   required bool outgoing,
   required Widget bubble,
   required List<ChatReaction> reactions,
@@ -46,6 +47,7 @@ Future<String?> showMessageMenu({
         recentReactions: recentReactions,
         canReply: canReply,
         saved: saved,
+        pinned: pinned,
         outgoing: outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -66,6 +68,7 @@ class _MessageMenu extends StatefulWidget {
     required this.recentReactions,
     required this.canReply,
     required this.saved,
+    required this.pinned,
     required this.outgoing,
     required this.bubble,
     required this.reactions,
@@ -75,6 +78,7 @@ class _MessageMenu extends StatefulWidget {
 
   final Rect anchor;
   final bool canReact, canReply, outgoing, saved;
+  final bool? pinned;
   final List<String> recentReactions;
   final Widget bubble, details;
   final List<ChatReaction> reactions;
@@ -284,6 +288,14 @@ class _MessageMenuState extends State<_MessageMenu> {
               : tr(context, 'В Избранное', 'Save message'),
           () => _select('saved'),
         ),
+        if (widget.pinned case final pinned?)
+          _action(
+            pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+            pinned
+                ? tr(context, 'Открепить', 'Unpin message')
+                : tr(context, 'Закрепить', 'Pin message'),
+            () => _select('pin'),
+          ),
         _action(
           Icons.info_outline_rounded,
           tr(context, 'О сообщении', 'Message info'),
