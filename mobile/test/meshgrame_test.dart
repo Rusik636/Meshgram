@@ -7370,14 +7370,25 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('pulling past the end of the quick phrase strip opens the list', (
+  testWidgets('the quick phrase pull can be reversed before release', (
     tester,
   ) async {
-    _reduceMotion(tester);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(375, 760);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    var readyHaptics = 0;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate' &&
+          call.arguments == 'HapticFeedbackType.mediumImpact') {
+        readyHaptics++;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
     final store = MeshStore(await SharedPreferences.getInstance());
     await store.setQuickPhrases([
       for (var index = 1; index <= 8; index++) 'Quick reply $index',
@@ -7398,6 +7409,10 @@ void main() {
     await tester.tap(find.byTooltip('Quick phrases'));
     await tester.pumpAndSettle();
     final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    expect(
+      find.descendant(of: strip, matching: find.byType(VerticalDivider)),
+      findsWidgets,
+    );
     final position = tester
         .state<ScrollableState>(
           find.descendant(of: strip, matching: find.byType(Scrollable)),
@@ -7414,9 +7429,47 @@ void main() {
 
     position.jumpTo(position.maxScrollExtent);
     await tester.pump();
-    await tester.drag(strip, const Offset(-100, 0));
+    final arrow = find.byKey(const ValueKey('pull-arrow'));
+    final pencil = find.byKey(const ValueKey('quick-phrase-pencil'));
+    double arrowScale() =>
+        tester.widget<Transform>(arrow).transform.entry(0, 0);
+    final reversed = await tester.startGesture(tester.getCenter(strip));
+    await reversed.moveBy(const Offset(-25, 0));
+    await reversed.moveBy(const Offset(-24, 0));
+    await tester.pumpAndSettle();
+    expect(arrow, findsOneWidget);
+    expect(readyHaptics, 0);
+    final initialScale = arrowScale();
+
+    await reversed.moveBy(const Offset(-45, 0));
+    await tester.pumpAndSettle();
+    expect(arrowScale(), greaterThan(initialScale));
+    expect(readyHaptics, 1);
+    expect(sheet, findsNothing);
+    await reversed.moveBy(const Offset(56, 0));
+    await tester.pumpAndSettle();
+    expect(arrowScale(), lessThan(initialScale));
+    await reversed.moveBy(const Offset(25, 0));
+    await tester.pumpAndSettle();
+    expect(pencil, findsOneWidget);
+    expect(arrow, findsNothing);
+    await reversed.up();
+    await tester.pumpAndSettle();
+    expect(sheet, findsNothing);
+    expect(readyHaptics, 1);
+
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    final confirmed = await tester.startGesture(tester.getCenter(strip));
+    await confirmed.moveBy(const Offset(-25, 0));
+    await confirmed.moveBy(const Offset(-75, 0));
+    await tester.pumpAndSettle();
+    expect(readyHaptics, 2);
+    expect(sheet, findsNothing);
+    await confirmed.up();
     await tester.pumpAndSettle();
     expect(sheet, findsOneWidget);
+    expect(readyHaptics, 2);
     await tester.tap(find.byTooltip('Add phrase'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'Added from the list');
