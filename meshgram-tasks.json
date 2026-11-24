@@ -3560,6 +3560,32 @@
           "result": "Универсальная сборка 114 для arm64 и x86_64."
         }
       ]
+    },
+    {
+      "id": "68",
+      "parent_id": null,
+      "title": "Установить сборку 115 на iPhone и Redmi",
+      "platform": ["ios", "android"],
+      "branch": "task/68-install-mobile-115",
+      "depends_on": ["67"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сборка 0.3.62 (115) установлена поверх текущих версий и запущена на физических iPhone и Redmi."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-115-iOS.zip",
+          "result": "Обновлена сборка 106. CoreDevice подтвердил версию 115, запуск и работающий процесс. Подпись приложения и целостность архива проверены."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-115-arm64.apk",
+          "result": "Сборка 103 обновлена до 115 через ADB с сохранением даты первой установки. Холодный запуск MainActivity завершился успешно. Подпись APK проверена."
+        }
+      ]
     }
   ]
 }
