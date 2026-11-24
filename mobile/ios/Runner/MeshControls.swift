@@ -292,6 +292,11 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     button.addAction(UIAction { [weak self] _ in
       self?.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
+    if kind == "chatTitle" {
+      button.addGestureRecognizer(
+        UILongPressGestureRecognizer(target: self, action: #selector(titleHeld(_:)))
+      )
+    }
 
     observer = NotificationCenter.default.addObserver(
       forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil, queue: .main
@@ -313,6 +318,17 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
   }
 
   func view() -> UIView { root }
+
+  @objc private func titleHeld(_ gesture: UILongPressGestureRecognizer) {
+    if gesture.state == .began { _ = handleTitleHold() }
+  }
+
+  private func handleTitleHold() -> Bool {
+    guard root.isUserInteractionEnabled, button.isEnabled,
+      input["longPressLabel"] is String else { return false }
+    channel.invokeMethod("longPress", arguments: nil)
+    return true
+  }
 
   func update(_ values: [String: Any]) {
     var appearance = values
@@ -399,6 +415,11 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     configuration.baseForegroundColor = labelColor
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
+      button.accessibilityCustomActions = (input["longPressLabel"] as? String).map { label in
+        [UIAccessibilityCustomAction(name: label) { [weak self] _ in
+          self?.handleTitleHold() ?? false
+        }]
+      }
       if readOnly {
         button.accessibilityTraits = [.header, .staticText]
       }

@@ -39,6 +39,7 @@ import 'message_search.dart';
 import 'navigation.dart';
 import 'node_actions.dart';
 import 'position_picker.dart';
+import 'search_field.dart';
 import '../mesh/store.dart';
 
 /// Opens a chat at an exact entry in the active radio profile's local history.
@@ -102,6 +103,8 @@ class _ChatState extends State<MeshChatPage>
     text: widget.controller.draft(widget.peer.id),
   );
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _iosSearch = GlobalKey<IosControlState>();
   MessageSearchFilters _searchFilters = const MessageSearchFilters();
   final _input = GlobalKey<MessageInputState>();
   final _inputSurface = GlobalKey();
@@ -124,6 +127,7 @@ class _ChatState extends State<MeshChatPage>
     ]),
   );
   late bool _searching = widget.initialSearch;
+  double? _searchOriginOffset;
   bool _sending = false;
   Timer? _replyRevealTimer;
   Uri? _dismissedDraftLink;
@@ -478,6 +482,7 @@ class _ChatState extends State<MeshChatPage>
     _replyRevealTimer?.cancel();
     _draft.dispose();
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -499,14 +504,11 @@ class _ChatState extends State<MeshChatPage>
       _showMessageUnavailable(context);
       return;
     }
-    _dismissKeyboard();
     if (_searching) {
-      setState(() {
-        _search.clear();
-        _searchFilters = const MessageSearchFilters();
-        _searching = false;
-      });
+      _closeSearch(restorePosition: false);
       await WidgetsBinding.instance.endOfFrame;
+    } else {
+      _dismissKeyboard();
     }
     if (!mounted || jump != _messageJump) return;
     int? index() {
@@ -755,7 +757,35 @@ class _ChatState extends State<MeshChatPage>
 
   void _dismissKeyboard() {
     _input.currentState?.dismissKeyboard();
+    _iosSearch.currentState?.dismissKeyboard();
     FocusScope.of(context).unfocus();
+  }
+
+  void _closeSearch({bool restorePosition = true}) {
+    _dismissKeyboard();
+    final offset = _searchOriginOffset;
+    _searchOriginOffset = null;
+    setState(() {
+      _search.clear();
+      _searchFilters = const MessageSearchFilters();
+      _searching = false;
+    });
+    if (restorePosition && offset != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _searching || !_scroll.hasClients) return;
+        final position = _scroll.position;
+        _scroll.jumpTo(
+          offset.clamp(position.minScrollExtent, position.maxScrollExtent),
+        );
+      });
+    }
+  }
+
+  void _beginMessageSearch() {
+    if (_searching) return;
+    if (_scroll.hasClients) _searchOriginOffset = _scroll.offset;
+    _dismissKeyboard();
+    setState(() => _searching = true);
   }
 
   void _selectReply(Peer peer, MeshMessage message) {
@@ -773,8 +803,7 @@ class _ChatState extends State<MeshChatPage>
       );
     }
     if (_searching) {
-      _search.clear();
-      setState(() => _searching = false);
+      _closeSearch();
     }
     _linkBehindReply = firstMessageLink(_draft.text);
     controller.setReplyDraft(peer.id, message);
@@ -905,15 +934,14 @@ class _ChatState extends State<MeshChatPage>
   }
 
   Future<void> _profile(Peer peer) async {
-    final result = await Navigator.push<bool>(
+    final route = meshPageRoute<bool>(
       context,
-      meshPageRoute(
-        context,
-        builder: (_) =>
-            MeshChatProfile(controller: widget.controller, peer: peer),
-      ),
+      builder: (_) =>
+          MeshChatProfile(controller: widget.controller, peer: peer),
     );
-    if (result == true && mounted) setState(() => _searching = true);
+    final result = await Navigator.push(context, route);
+    await route.completed;
+    if (result == true && mounted) _beginMessageSearch();
   }
 
   Future<void> _editSearchFilters(List<MeshMessage> messages) async {
@@ -946,34 +974,42 @@ class _ChatState extends State<MeshChatPage>
     await _revealMessage((message ?? history.lastOrNull)?.id);
   }
 
-  Widget _searchResults(
-    List<MeshMessage> messages,
-    String query,
-    EdgeInsets padding,
-  ) {
-    final controller = widget.controller;
-    final results = messages.reversed
-        .where((item) => _searchFilters.accepts(controller, item, query))
-        .toList();
-    if (results.isEmpty) {
-      return Center(
-        child: Text(tr(context, 'Ничего не найдено', 'No results')),
+  Widget _chatSearchEditor() {
+    final placeholder = tr(context, 'Поиск в чате', 'Search messages');
+    if (useIosControls) {
+      return MeshSearchEditor(
+        placeholder: placeholder,
+        controller: _search,
+        focusNode: _searchFocus,
+        iosKey: _iosSearch,
+        initialText: _search.text,
+        onChanged: (text) {
+          if (_searching && text != _search.text) {
+            setState(() => _search.text = text);
+          }
+        },
+        onDismissKeyboard: _dismissKeyboard,
       );
     }
-    return ListView.builder(
-      padding: padding,
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      itemCount: results.length,
-      itemBuilder: (_, index) {
-        final message = results[index];
-        return MessageSearchResultTile(
-          key: ValueKey(('search', message.id)),
-          controller: controller,
-          message: message,
-          query: query,
-          onTap: () => unawaited(_revealMessage(message.id)),
-        );
-      },
+    return GlassSurface(
+      radius: 100,
+      child: TextField(
+        autofocus: true,
+        controller: _search,
+        focusNode: _searchFocus,
+        onTapOutside: (_) => _dismissKeyboard(),
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search_rounded),
+          hintText: placeholder,
+          border: InputBorder.none,
+          suffixIcon: IconButton(
+            tooltip: tr(context, 'Закрыть поиск', 'Close search'),
+            onPressed: _closeSearch,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1025,7 +1061,15 @@ class _ChatState extends State<MeshChatPage>
           limit != null &&
           bytes <= limit;
       final query = _search.text.trim().toLowerCase();
-      final messages = controller.messages(peer.id);
+      final history = controller.messages(peer.id);
+      final messages = _searching
+          ? history
+                .where(
+                  (message) =>
+                      _searchFilters.accepts(controller, message, query),
+                )
+                .toList()
+          : history;
 
       final padding = MediaQuery.paddingOf(context);
       final top = padding.top;
@@ -1060,18 +1104,7 @@ class _ChatState extends State<MeshChatPage>
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _dismissKeyboard,
-                  child: _searching
-                      ? _searchResults(
-                          messages,
-                          query,
-                          EdgeInsets.fromLTRB(
-                            11,
-                            top + _headerHeight + 8,
-                            11,
-                            historyBottom,
-                          ),
-                        )
-                      : messages.isEmpty
+                  child: messages.isEmpty
                       ? Center(
                           child: GlassSurface(
                             radius: 15,
@@ -1081,11 +1114,17 @@ class _ChatState extends State<MeshChatPage>
                                 vertical: 7,
                               ),
                               child: Text(
-                                tr(
-                                  context,
-                                  'Начало переписки',
-                                  'Start of conversation',
-                                ),
+                                _searching
+                                    ? tr(
+                                        context,
+                                        'Ничего не найдено',
+                                        'No results',
+                                      )
+                                    : tr(
+                                        context,
+                                        'Начало переписки',
+                                        'Start of conversation',
+                                      ),
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: style.secondary,
@@ -1288,6 +1327,17 @@ class _ChatState extends State<MeshChatPage>
                               );
                             }
 
+                            final messageBubble = bubble(
+                              (anchor) => unawaited(
+                                _messageMenu(
+                                  peer,
+                                  item,
+                                  anchor,
+                                  bubble(),
+                                  reactions,
+                                ),
+                              ),
+                            );
                             return Column(
                               key: ValueKey(item.id),
                               mainAxisSize: MainAxisSize.min,
@@ -1314,10 +1364,11 @@ class _ChatState extends State<MeshChatPage>
                                           GlobalKey.new,
                                         ),
                                   onReply:
-                                      controller.canUseMessageActions(
-                                        peer,
-                                        item,
-                                      )
+                                      !_searching &&
+                                          controller.canUseMessageActions(
+                                            peer,
+                                            item,
+                                          )
                                       ? () => _selectReply(peer, item)
                                       : null,
                                   child: Padding(
@@ -1330,17 +1381,21 @@ class _ChatState extends State<MeshChatPage>
                                       opacity: _previewMessageId == item.id
                                           ? 0
                                           : 1,
-                                      child: bubble(
-                                        (anchor) => unawaited(
-                                          _messageMenu(
-                                            peer,
-                                            item,
-                                            anchor,
-                                            bubble(),
-                                            reactions,
-                                          ),
-                                        ),
-                                      ),
+                                      child: _searching
+                                          ? Semantics(
+                                              button: true,
+                                              child: GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: () => unawaited(
+                                                  _revealMessage(item.id),
+                                                ),
+                                                child: IgnorePointer(
+                                                  child: messageBubble,
+                                                ),
+                                              ),
+                                            )
+                                          : messageBubble,
                                     ),
                                   ),
                                 ),
@@ -1373,48 +1428,14 @@ class _ChatState extends State<MeshChatPage>
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _heading(peer, style),
-                        if (_searching)
+                        if (!_searching)
+                          _heading(peer, style)
+                        else
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+                            padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
                             child: Row(
                               children: [
-                                Expanded(
-                                  child: GlassSurface(
-                                    radius: 100,
-                                    child: TextField(
-                                      autofocus: true,
-                                      controller: _search,
-                                      onTapOutside: (_) => _dismissKeyboard(),
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: InputDecoration(
-                                        prefixIcon: const Icon(
-                                          Icons.search_rounded,
-                                        ),
-                                        hintText: tr(
-                                          context,
-                                          'Поиск в чате',
-                                          'Search messages',
-                                        ),
-                                        border: InputBorder.none,
-                                        suffixIcon: IconButton(
-                                          tooltip: tr(
-                                            context,
-                                            'Закрыть поиск',
-                                            'Close search',
-                                          ),
-                                          onPressed: () => setState(() {
-                                            _search.clear();
-                                            _searchFilters =
-                                                const MessageSearchFilters();
-                                            _searching = false;
-                                          }),
-                                          icon: const Icon(Icons.close_rounded),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: _chatSearchEditor()),
                                 const SizedBox(width: 6),
                                 GlassButton(
                                   icon: Icons.tune_rounded,
@@ -1425,7 +1446,7 @@ class _ChatState extends State<MeshChatPage>
                                   ),
                                   primary: !_searchFilters.isEmpty,
                                   onTap: () =>
-                                      unawaited(_editSearchFilters(messages)),
+                                      unawaited(_editSearchFilters(history)),
                                 ),
                                 const SizedBox(width: 6),
                                 GlassButton(
@@ -1435,10 +1456,22 @@ class _ChatState extends State<MeshChatPage>
                                     'Перейти к дате',
                                     'Go to date',
                                   ),
-                                  onTap: messages.isEmpty
+                                  onTap: history.isEmpty
                                       ? null
-                                      : () => unawaited(_jumpToDate(messages)),
+                                      : () => unawaited(_jumpToDate(history)),
                                 ),
+                                if (useIosControls) ...[
+                                  const SizedBox(width: 6),
+                                  GlassButton(
+                                    icon: Icons.close_rounded,
+                                    label: tr(
+                                      context,
+                                      'Закрыть поиск',
+                                      'Close search',
+                                    ),
+                                    onTap: _closeSearch,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -1750,6 +1783,7 @@ class _ChatState extends State<MeshChatPage>
                 subtitle: title,
                 nativeProperties: native ? properties : null,
                 onTap: () => unawaited(_profile(peer)),
+                onLongPress: _beginMessageSearch,
               ),
             ),
           ),
@@ -2658,11 +2692,12 @@ class _ChatTitle extends StatelessWidget {
     required this.subtitle,
     required this.nativeProperties,
     required this.onTap,
+    required this.onLongPress,
   });
 
   final String name, subtitle;
   final Map<String, Object>? nativeProperties;
-  final VoidCallback onTap;
+  final VoidCallback onTap, onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -2705,16 +2740,23 @@ class _ChatTitle extends StatelessWidget {
               properties: {
                 ...properties,
                 'label': name,
+                'longPressLabel': tr(
+                  context,
+                  'Поиск по сообщениям',
+                  'Search messages',
+                ),
                 'subtitle': subtitle,
                 'titleFontSize': scaler.scale(16),
                 'subtitleFontSize': scaler.scale(11),
               },
               onSelect: (_) => onTap(),
+              onLongPress: onLongPress,
             )
           : GlassSurface(
               radius: 100,
               child: InkWell(
                 onTap: onTap,
+                onLongPress: onLongPress,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: padding),
                   child: Column(

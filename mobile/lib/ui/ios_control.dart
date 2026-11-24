@@ -50,6 +50,7 @@ class IosControl extends StatefulWidget {
     required this.kind,
     required this.properties,
     this.onSelect,
+    this.onLongPress,
     this.onTextChanged,
     this.horizontalDrag = false,
     this.eagerGestures = false,
@@ -58,6 +59,7 @@ class IosControl extends StatefulWidget {
   final String kind;
   final Map<String, Object> properties;
   final ValueChanged<int>? onSelect;
+  final VoidCallback? onLongPress;
   final ValueChanged<String>? onTextChanged;
   final bool horizontalDrag;
   final bool eagerGestures;
@@ -134,6 +136,8 @@ class IosControlState extends State<IosControl> {
           switch ((call.method, call.arguments)) {
             case ('select', final int index):
               widget.onSelect?.call(index);
+            case ('longPress', _):
+              widget.onLongPress?.call();
             case ('text', final String text):
               widget.onTextChanged?.call(text);
           }
