@@ -3240,6 +3240,104 @@
           "result": "Запись на физические платы и нативные сборки Windows и Linux ещё требуют проверки."
         }
       ]
+    },
+    {
+      "id": "57",
+      "parent_id": null,
+      "title": "Плавное переключение экранов и настройки в левой панели",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/57-workspace-transitions",
+      "depends_on": [
+        "52"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "При обычном переходе новый экран постепенно появляется поверх старого. Жест возврата на iOS продолжает работать.",
+        "На широком экране настройки открываются слева, выбранный чат остаётся справа."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тесты проверяют промежуточный кадр смены экрана, удержание чата при переключении настроек и жест возврата на iOS."
+        },
+        {
+          "kind": "check",
+          "device": "iPad Pro 13-inch (M5), симулятор iOS 27.2",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iPad-настройки-109.png",
+          "result": "На сборке 109 открыты настройки слева и переписка справа. Заголовок и поле ввода используют стекло UIKit."
+        }
+      ]
+    },
+    {
+      "id": "58",
+      "parent_id": null,
+      "title": "Редактирование папок в боковой панели компьютера",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/58-desktop-folders",
+      "depends_on": [
+        "57"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Папки используют вертикальную панель. В режиме редактирования рядом с пользовательскими папками появляются крестики.",
+        "Папки переставляются зажатием, а список чатов на компьютере имеет скруглённые края."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/overtake/TelegramSwift",
+          "result": "Исходник Telegram для macOS использован как референс разделения рабочего пространства."
+        },
+        {
+          "kind": "check",
+          "result": "На macOS 27.2 проверены боковая панель и крестики. Вариант Flutter для Windows проверяет перестановку и удаление папок."
+        }
+      ]
+    },
+    {
+      "id": "59",
+      "parent_id": null,
+      "title": "Системное стекло и окно без верхней рамки на macOS",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/59-macos-glass",
+      "depends_on": [
+        "58"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На macOS 26 и новее элементы используют стекло AppKit при доступности эффекта.",
+        "Контент доходит до верхнего края окна, а системные кнопки окна сохранены."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://developer.apple.com/documentation/appkit/nswindow/titlebarappearstransparent",
+          "result": "Прозрачная область заголовка и полноразмерный контент реализованы средствами AppKit."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-109-macOS.zip",
+          "result": "Проверены локальная подпись и целостность универсального архива arm64 и x86_64. На macOS 27.2 проверены оконная раскладка, заголовок и поле ввода чата с системным стеклом."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows, Linux и физический iPad",
+          "result": "Нативные прогоны Windows и Linux не выполнялись. iPad проверен на симуляторе."
+        }
+      ]
     }
   ]
 }
