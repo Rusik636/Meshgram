@@ -365,6 +365,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
 
   @override
   Widget build(BuildContext context) {
+    final style = MeshStyle.of(context);
     final height = ChatFilters.contentHeight(context);
     final native = useIosControls && !widget.editing;
     // Telegram iOS gives the header panel a 40 pt strip at the default
@@ -389,13 +390,23 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: verticalInset),
       child: native
-          ? DecoratedBox(
-              decoration: ShapeDecoration(
-                shape: StadiumBorder(
-                  side: BorderSide(color: MeshStyle.of(context).separator),
+          ? Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: IosControl(
+                      key: ValueKey(('folderGlass', style.dark)),
+                      kind: 'modalGlass',
+                      properties: {
+                        'clear': true,
+                        'radius': barHeight / 2,
+                        'dark': style.dark,
+                      },
+                    ),
+                  ),
                 ),
-              ),
-              child: viewport,
+                viewport,
+              ],
             )
           : GlassSurface(modal: true, radius: height / 2, child: viewport),
     );

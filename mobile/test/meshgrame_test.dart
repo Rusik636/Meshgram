@@ -2456,6 +2456,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       final picker = find.byType(ChatFolderTabs);
+      final background = find.descendant(
+        of: picker,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'modalGlass',
+        ),
+      );
+      expect(tester.widget<IosControl>(background).properties['clear'], isTrue);
+      expect(tester.getSize(background).height, 40);
       final control = find.descendant(
         of: picker,
         matching: find.byWidgetPredicate(
