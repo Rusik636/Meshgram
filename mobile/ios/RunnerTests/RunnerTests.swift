@@ -9,6 +9,30 @@ import XCTest
 
 class RunnerTests: XCTestCase {
   @MainActor
+  func testPassiveGlassKeepsMaterialInsideItsVisibleOutline() throws {
+    guard #available(iOS 26.0, *) else { return }
+    let frame = CGRect(x: 0, y: 0, width: 168, height: 40)
+    let factory = MeshControlsFactory(TestMessenger())
+    let view = factory.create(withFrame: frame, viewIdentifier: 0, arguments: [
+      "kind": "modalGlass", "radius": 20,
+    ])
+    let surface = view.view()
+    surface.layoutIfNeeded()
+    let glass = try XCTUnwrap(surface.subviews.first as? UIVisualEffectView)
+    XCTAssertTrue(glass.effect is UIGlassEffect)
+    XCTAssertGreaterThan(glass.frame.width, surface.bounds.width)
+    let mask = try XCTUnwrap(glass.mask)
+    XCTAssertEqual(glass.convert(mask.frame, to: surface), surface.bounds)
+    XCTAssertEqual(mask.layer.cornerRadius, 20)
+
+    surface.frame.size.height = 32
+    surface.layoutIfNeeded()
+    let resized = try XCTUnwrap(glass.mask)
+    XCTAssertEqual(glass.convert(resized.frame, to: surface), surface.bounds)
+    XCTAssertEqual(resized.layer.cornerRadius, 16)
+  }
+
+  @MainActor
   func testComposerUsesInteractiveGlassAndKeepsTheSameEditor() throws {
     let draft = "Первая строка\nВторая 👋"
     let input = appearance(dark: true).merging([
