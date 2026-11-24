@@ -673,7 +673,7 @@
       "depends_on": [
         "06"
       ],
-      "status": "pending",
+      "status": "in_progress",
       "acceptance_criteria": [
         "Критерии всех подзадач проверены.",
         "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
@@ -692,12 +692,35 @@
       "depends_on": [
         "06"
       ],
-      "status": "pending",
+      "status": "verified",
       "acceptance_criteria": [
         "Предустановлены «На месте», «Задержусь» и «Пришли координаты». Можно добавлять, изменять и удалять фразы.",
         "Шаблон подставляется в редактируемый черновик. Отправка происходит после явного действия."
       ],
-      "evidence": []
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Settings/AutomaticBusinessMessageSetupScreen/Sources/QuickReplySetupScreen.swift#L605-L648",
+          "behavior": "Быстрые ответы управляются через отдельный список с редактором шаблона."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Business/QuickRepliesActivity.java#L201-L231",
+          "behavior": "Из списка быстрых ответов можно создать шаблон и открыть существующий для редактирования."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "«Задержусь» появился в нативном редакторе. Проверено окно редактирования. Число сообщений сохранилось.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-draft.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Добавлена тестовая фраза. После перезапуска она дополнила текущий черновик; кнопка добавления экспортируется отдельным элементом доступности.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-draft.png"
+        }
+      ]
     },
     {
       "id": "08",

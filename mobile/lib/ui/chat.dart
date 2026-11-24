@@ -39,6 +39,7 @@ import 'message_search.dart';
 import 'navigation.dart';
 import 'node_actions.dart';
 import 'position_picker.dart';
+import 'quick_phrases.dart';
 import 'search_field.dart';
 import '../mesh/store.dart';
 
@@ -823,6 +824,43 @@ class _ChatState extends State<MeshChatPage>
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<void> _insertQuickPhrase(Peer peer) async {
+    final controller = widget.controller;
+    final radio = controller.active;
+    _dismissKeyboard();
+    final phrase = await pickQuickPhrase(context, controller.store);
+    if (!mounted || controller.active != radio || phrase == null) return;
+    final draft = _draft.value;
+    final selection =
+        draft.selection.isValid && draft.selection.end <= draft.text.length
+        ? draft.selection
+        : TextSelection.collapsed(offset: draft.text.length);
+    final before = draft.text.substring(0, selection.start);
+    final after = draft.text.substring(selection.end);
+    final separator = RegExp(r'\s');
+    final prefix =
+        selection.isCollapsed &&
+            before.isNotEmpty &&
+            !separator.hasMatch(before[before.length - 1])
+        ? ' '
+        : '';
+    final suffix =
+        selection.isCollapsed &&
+            after.isNotEmpty &&
+            !separator.hasMatch(after[0])
+        ? ' '
+        : '';
+    final text = '$before$prefix$phrase$suffix$after';
+    _draft.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: before.length + prefix.length + phrase.length + suffix.length,
+      ),
+    );
+    controller.setDraft(peer.id, text);
+    setState(() {});
   }
 
   bool get _contactContextIsCurrent {
@@ -1726,6 +1764,21 @@ class _ChatState extends State<MeshChatPage>
                                 padding: const EdgeInsets.fromLTRB(8, 0, 7, 5),
                                 child: Row(
                                   children: [
+                                    GlassButton(
+                                      coveredByModal: _controlsCovered,
+                                      icon: Icons.short_text_rounded,
+                                      label: tr(
+                                        context,
+                                        'Быстрые фразы',
+                                        'Quick phrases',
+                                      ),
+                                      onTap: _sending
+                                          ? null
+                                          : () => unawaited(
+                                              _insertQuickPhrase(peer),
+                                            ),
+                                    ),
+                                    const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
                                         !controller.connected

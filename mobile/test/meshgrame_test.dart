@@ -6749,6 +6749,46 @@ void main() {
     }),
   );
 
+  testWidgets('quick phrases are edited locally and append to a draft', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final store = MeshStore(await SharedPreferences.getInstance());
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: store,
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final messages = controller.messages(peer.id).length;
+    controller.setDraft(peer.id, 'Team:');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Quick phrases'));
+    await tester.pumpAndSettle();
+    expect(find.text('I’m here'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit phrase').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'At the ridge');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.quickPhrases?.first, 'At the ridge');
+    await tester.tap(find.text('At the ridge'));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), 'Team: At the ridge');
+    expect(controller.messages(peer.id), hasLength(messages));
+    expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   testWidgets('local folders and message pins survive a cache reload', (
     tester,
   ) async {

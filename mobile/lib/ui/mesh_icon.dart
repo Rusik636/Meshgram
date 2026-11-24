@@ -27,6 +27,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.refresh_rounded => 'arrow.clockwise',
   Icons.search_rounded => 'magnifyingglass',
   Icons.share_outlined => 'square.and.arrow.up',
+  Icons.short_text_rounded => 'text.bubble',
   Icons.sort_rounded => 'line.3.horizontal.decrease',
   Icons.tune_rounded => 'slider.horizontal.3',
   Icons.delete_outline_rounded => 'trash',
