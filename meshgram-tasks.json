@@ -2729,6 +2729,79 @@
           "result": "Тест измеряет ширину вкладок, промежуточное положение индикатора и горизонтальную прокрутку при переполнении. Весь набор из 245 тестов Flutter и анализ прошли."
         }
       ]
+    },
+    {
+      "id": "46",
+      "parent_id": null,
+      "title": "Плавное появление, затухание и доводка Архива",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/46-archive-snap-fade",
+      "depends_on": [
+        "37",
+        "42"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Прозрачность Архива плавно меняется при протягивании и уходе под заголовок.",
+        "После отпускания или отмены жеста строка доходит до полностью открытого или скрытого положения.",
+        "После полного скрытия позиции видимых чатов сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L2679-L2683",
+          "result": "Анимация смены состояния временно показанного Архива."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L2784-L2790",
+          "result": "Сброс временного раскрытия после ухода строки из видимой области."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L2244-L2288",
+          "result": "Плавная доводка строки до конечного положения при отпускании и отмене жеста."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-appear-104.mov",
+          "result": "Временный Архив появляется при протягивании списка вниз."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-snap-104.mov",
+          "result": "При прокрутке вверх строка теряет непрозрачность и полностью исчезает после отпускания."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-snap-104.png",
+          "result": "После короткой прокрутки вверх Архив возвращается целиком. Более длинная прокрутка его скрывает."
+        },
+        {
+          "kind": "check",
+          "result": "247 тестов Flutter и статический анализ прошли. На Android Emulator и iPhone Simulator проверены оба конечных положения с обычными настройками анимации и с уменьшением движения."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (104) установлена и запущена. На iPhone через Видеоповтор проверен экран чатов, жест проверен на симуляторе."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-104-arm64.apk",
+          "result": "APK 0.3.62 (104) собран. Redmi отсутствовал в списке ADB."
+        }
+      ]
     }
   ]
 }
