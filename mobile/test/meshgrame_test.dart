@@ -27,6 +27,7 @@ import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/message_packet.dart';
 import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/mesh/nodes.dart';
+import 'package:meshgrame/mesh/radio_outbox.dart';
 import 'package:meshgrame/mesh/route_trace.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshcore.dart';
@@ -289,8 +290,10 @@ class _FakeNetwork
   int textLimit(Peer peer) => 60;
   bool autoAcknowledge = true;
   bool failSends = false;
+  Completer<void>? sendCompletion;
   @override
   Future<void> send(Peer peer, MeshMessage message) async {
+    if (sendCompletion case final completion?) await completion.future;
     if (failSends) throw StateError('Test transport declined the message');
     if (autoAcknowledge) {
       stream.add(DeliveryUpdate(message.id, Delivery.acknowledged));
@@ -6749,6 +6752,155 @@ void main() {
     }),
   );
 
+  testWidgets(
+    'outbox waits for its profile and requires a retry after failure',
+    (tester) async {
+      const first = (network: 'test', device: 'one', name: 'Field radio');
+      const second = (network: 'test', device: 'two', name: 'Backup radio');
+      final adapter = _FakeAdapter(first.network);
+      final store = MeshStore(await SharedPreferences.getInstance());
+      var foreground = false;
+      final controller = MeshController(
+        store: store,
+        transport: _TestTransport(),
+        adapters: [adapter],
+        isChatForeground: () => foreground,
+      );
+      await controller.connect(first);
+      final firstSession = adapter.sessions.single..failSends = true;
+      expect(
+        await controller.enqueueRadioMessage(_peer, 'Radio check'),
+        isTrue,
+      );
+      final queued = controller.outboxFor(_peer.id).single;
+      expect(store.loadOutbox().single.status, OutboxStatus.waiting);
+      expect(controller.messages(_peer.id), isEmpty);
+      await controller.connect(second);
+      foreground = true;
+      await controller.flushOutbox();
+      expect(controller.outboxFor(_peer.id), isEmpty);
+      expect(controller.messages(_peer.id), isEmpty);
+      await controller.connect(first);
+      await tester.pumpAndSettle();
+      final failed = controller.messages(_peer.id).single;
+      final review = controller.outboxFor(_peer.id).single;
+      expect(review.id, queued.id);
+      expect(review.status, OutboxStatus.uncertain);
+      expect(review.attemptId, failed.id);
+      expect(
+        OutboxMessage.decode(
+          review.withChanges(status: OutboxStatus.sending).toJson(),
+        )?.status,
+        OutboxStatus.uncertain,
+      );
+      firstSession.failSends = false;
+      await controller.flushOutbox();
+      expect(controller.messages(_peer.id).single.id, failed.id);
+      expect(await controller.retryMessage(_peer, failed.id), isFalse);
+      controller.setDraft(_peer.id, 'Keep this draft');
+      expect(await controller.updateOutbox(review, _peer, retry: true), isTrue);
+      await tester.pumpAndSettle();
+      expect(controller.outboxFor(_peer.id), isEmpty);
+      expect(
+        controller.messages(_peer.id).single.delivery,
+        Delivery.acknowledged,
+      );
+      expect(controller.messages(_peer.id).single.id, isNot(failed.id));
+      expect(controller.draft(_peer.id), 'Keep this draft');
+      controller.dispose();
+    },
+  );
+
+  test('a radio loss after handoff does not resend the outbox item', () async {
+    const radio = (network: 'test', device: 'one', name: 'Field radio');
+    final adapter = _FakeAdapter(radio.network);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: [adapter],
+    );
+    await controller.connect(radio);
+    final completion = Completer<void>();
+    adapter.sessions.single
+      ..autoAcknowledge = false
+      ..sendCompletion = completion;
+    expect(
+      await controller.enqueueRadioMessage(_peer, 'Status from the ridge'),
+      isTrue,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.outboxFor(_peer.id).single.status, OutboxStatus.sending);
+    final attempt = controller.messages(_peer.id).single;
+    await controller.disconnectRadio(radio);
+    completion.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      controller.outboxFor(_peer.id).single.status,
+      OutboxStatus.uncertain,
+    );
+    expect(controller.messages(_peer.id).single.delivery, Delivery.unconfirmed);
+    await controller.connect(radio);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.messages(_peer.id).single.id, attempt.id);
+    expect(
+      controller.outboxFor(_peer.id).single.status,
+      OutboxStatus.uncertain,
+    );
+    controller.dispose();
+  });
+
+  testWidgets('holding a disabled send arrow opens the offline radio outbox', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final store = MeshStore(await SharedPreferences.getInstance());
+    final controller = MeshController(
+      store: store,
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final profile = controller.active!;
+    await controller.disconnectRadio(profile);
+    final peer = controller.cache!.peers['node:a']!;
+    final messages = controller.messages(peer.id).length;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Ready at the pass');
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send when the radio connects'));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), isEmpty);
+    expect(controller.messages(peer.id), hasLength(messages));
+    expect(store.loadOutbox().single.text, 'Ready at the pass');
+    await tester.tap(find.byTooltip('Radio outbox'));
+    await tester.pumpAndSettle();
+    expect(find.text('Waiting to send'), findsOneWidget);
+    expect(find.text('Radio disconnected'), findsOneWidget);
+    await tester.longPress(find.text('Ready at the pass'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Ready at the ridge');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.loadOutbox().single.text, 'Ready at the ridge');
+    await tester.longPress(find.text('Ready at the ridge'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove from outbox'));
+    await tester.pumpAndSettle();
+    expect(store.loadOutbox(), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   for (final network in ['meshtastic', 'meshcore']) {
     testWidgets('selected excerpts and text forwarding on $network', (
       tester,
@@ -6760,8 +6912,9 @@ void main() {
         adapters: const [MeshtasticAdapter(), MeshCoreAdapter()],
         preview: true,
       );
-      if (network == 'meshcore')
+      if (network == 'meshcore') {
         await controller.connect(controller.radios.last);
+      }
       final peer = controller.cache!.peers['node:a']!;
       final source = controller
           .messages(peer.id)

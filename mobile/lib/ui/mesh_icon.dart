@@ -25,6 +25,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.qr_code_2_rounded => 'qrcode',
   Icons.qr_code_scanner_rounded => 'qrcode.viewfinder',
   Icons.refresh_rounded => 'arrow.clockwise',
+  Icons.schedule_rounded => 'clock',
   Icons.search_rounded => 'magnifyingglass',
   Icons.share_outlined => 'square.and.arrow.up',
   Icons.short_text_rounded => 'text.bubble',

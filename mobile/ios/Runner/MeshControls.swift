@@ -279,6 +279,9 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
   private var button: UIButton { root.button }
   private var input: [String: Any] = [:]
   private var observer: NSObjectProtocol?
+  private lazy var longPress = UILongPressGestureRecognizer(
+    target: self, action: #selector(controlHeld(_:))
+  )
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     root = MeshButtonHost(frame: frame)
@@ -290,12 +293,11 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     root.verticalVisualOutset = (input["verticalVisualOutset"] as? NSNumber)
       .map { CGFloat($0.doubleValue) } ?? root.visualOutset
     button.addAction(UIAction { [weak self] _ in
-      self?.channel.invokeMethod("select", arguments: 0)
+      guard let self, self.input["enabled"] as? Bool == true else { return }
+      self.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
-    if kind == "chatTitle" {
-      button.addGestureRecognizer(
-        UILongPressGestureRecognizer(target: self, action: #selector(titleHeld(_:)))
-      )
+    if kind == "chatTitle" || kind == "button" {
+      button.addGestureRecognizer(longPress)
     }
 
     observer = NotificationCenter.default.addObserver(
@@ -319,11 +321,11 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
 
   func view() -> UIView { root }
 
-  @objc private func titleHeld(_ gesture: UILongPressGestureRecognizer) {
-    if gesture.state == .began { _ = handleTitleHold() }
+  @objc private func controlHeld(_ gesture: UILongPressGestureRecognizer) {
+    if gesture.state == .began { _ = handleLongPress() }
   }
 
-  private func handleTitleHold() -> Bool {
+  private func handleLongPress() -> Bool {
     guard root.isUserInteractionEnabled, button.isEnabled,
       input["longPressLabel"] is String else { return false }
     channel.invokeMethod("longPress", arguments: nil)
@@ -385,8 +387,15 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let primary = input["primary"] as? Bool == true
     let enabled = input["enabled"] as? Bool == true
     let title = input["label"] as? String ?? ""
-    button.isEnabled = enabled
+    let longPressLabel = input["longPressLabel"] as? String
+    longPress.isEnabled = longPressLabel != nil
+    button.isEnabled = enabled || longPressLabel != nil
     button.accessibilityLabel = title
+    button.accessibilityCustomActions = longPressLabel.map { label in
+      [UIAccessibilityCustomAction(name: label) { [weak self] _ in
+        self?.handleLongPress() ?? false
+      }]
+    }
     let dark = root.overrideUserInterfaceStyle == .dark
     let symbol = input["symbol"] as? String
     let stacked = input["stacked"] as? Bool == true
@@ -415,11 +424,6 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     configuration.baseForegroundColor = labelColor
     configuration.cornerStyle = .capsule
     if kind == "chatTitle" {
-      button.accessibilityCustomActions = (input["longPressLabel"] as? String).map { label in
-        [UIAccessibilityCustomAction(name: label) { [weak self] _ in
-          self?.handleTitleHold() ?? false
-        }]
-      }
       if readOnly {
         button.accessibilityTraits = [.header, .staticText]
       }

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import 'ios_control.dart';
 import 'mesh_icon.dart';
@@ -229,12 +230,15 @@ class GlassButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.onLongPress,
+    this.longPressLabel,
     this.primary = false,
     this.coveredByModal = false,
   });
   final IconData icon;
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback? onTap, onLongPress;
+  final String? longPressLabel;
   final bool primary, coveredByModal;
 
   @override
@@ -248,13 +252,16 @@ class GlassButton extends StatelessWidget {
           symbol: symbol,
           label: label,
           onTap: onTap,
+          onLongPress: onLongPress,
+          longPressLabel: longPressLabel,
           primary: primary,
           coveredByModal: coveredByModal,
         ),
       );
     }
-    return Tooltip(
+    final button = Tooltip(
       message: label,
+      triggerMode: onLongPress == null ? null : TooltipTriggerMode.manual,
       child: GlassSurface(
         color: primary ? style.accent : null,
         child: IconButton(
@@ -267,6 +274,18 @@ class GlassButton extends StatelessWidget {
           disabledColor: style.secondary,
           onPressed: onTap,
         ),
+      ),
+    );
+    final hold = onLongPress;
+    if (hold == null) return button;
+    return Semantics(
+      customSemanticsActions: {
+        CustomSemanticsAction(label: longPressLabel ?? label): hold,
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: hold,
+        child: button,
       ),
     );
   }
@@ -376,13 +395,16 @@ class _NativeGlassButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     required this.primary,
+    this.onLongPress,
+    this.longPressLabel,
     this.stacked = false,
     this.coveredByModal = false,
   });
 
   final String? symbol;
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback? onTap, onLongPress;
+  final String? longPressLabel;
   final bool primary;
   final bool stacked, coveredByModal;
 
@@ -392,9 +414,11 @@ class _NativeGlassButton extends StatelessWidget {
     return IosControl(
       kind: 'button',
       onSelect: (_) => onTap?.call(),
+      onLongPress: onLongPress,
       properties: {
         'label': label,
         'enabled': onTap != null,
+        if (onLongPress != null) 'longPressLabel': longPressLabel ?? label,
         'primary': primary,
         'dark': style.dark,
         'accent': style.accent.toARGB32(),

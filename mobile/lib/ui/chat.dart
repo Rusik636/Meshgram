@@ -17,6 +17,7 @@ import '../app_name.dart';
 import '../mesh/chat_position.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
+import '../mesh/radio_outbox.dart';
 import 'channel_avatars.dart';
 import 'chat_attachments.dart';
 import 'style.dart';
@@ -43,6 +44,8 @@ import 'position_picker.dart';
 import 'quick_phrases.dart';
 import 'search_field.dart';
 import '../mesh/store.dart';
+
+part 'radio_outbox.dart';
 
 /// Opens a chat at an exact entry in the active radio profile's local history.
 Future<void> openMeshMessage(
@@ -263,6 +266,7 @@ class _ChatState extends State<MeshChatPage>
   MessageSearchFilters _searchFilters = const MessageSearchFilters();
   final _input = GlobalKey<MessageInputState>();
   final _inputSurface = GlobalKey();
+  final _sendControl = GlobalKey();
   final _scroll = ScrollController(keepScrollOffset: false);
   final _history = ListController();
   AssetBundle? _emojiBundle;
@@ -745,6 +749,106 @@ class _ChatState extends State<MeshChatPage>
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _openOutbox(Peer peer) async {
+    final controller = widget.controller;
+    final profile = controller.active;
+    if (profile == null) return;
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+    _dismissKeyboard();
+    await Navigator.of(context).push(
+      meshPageRoute<void>(
+        context,
+        builder: (_) => RadioOutboxPage(
+          controller: controller,
+          peer: peer,
+          profile: profile,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendOptions(Peer peer) async {
+    final controller = widget.controller;
+    final profile = controller.active;
+    final box = _sendControl.currentContext?.findRenderObject();
+    if (profile == null || box is! RenderBox || !box.hasSize || _sending) {
+      return;
+    }
+    final draft = _draft.text;
+    final text = draft.trim();
+    final limit = controller.limit(peer);
+    final reply = controller.replyDraft(peer.id);
+    final canQueue =
+        controller.canSendTo(peer) &&
+        text.isNotEmpty &&
+        limit != null &&
+        utf8.encode(text).length <= limit &&
+        (reply == null || controller.canDraftMessageReply(peer, reply));
+    final hasOutbox = controller.outboxFor(peer.id).isNotEmpty;
+    if (!canQueue && !hasOutbox) return;
+    final overlay = Navigator.of(context).overlay?.context.findRenderObject();
+    final anchor = box.localToGlobal(Offset.zero, ancestor: overlay) & box.size;
+    Uint8List? backdrop;
+    if (useIosControls && !MediaQuery.highContrastOf(context)) {
+      try {
+        backdrop = await _glassBackdrop();
+      } on Exception {
+        // The regular menu surface remains available if the snapshot fails.
+      }
+    }
+    if (!mounted || controller.active != profile) return;
+    final action = await showRadioSendMenu(
+      context,
+      button: anchor,
+      canQueue: canQueue,
+      hasOutbox: hasOutbox,
+      draft: text,
+      backdrop: backdrop,
+    );
+    if (!mounted || controller.active != profile || action == null) return;
+    if (action == RadioSendOption.openOutbox) {
+      await _openOutbox(peer);
+      return;
+    }
+    final suppress =
+        _dismissedDraftLink != null &&
+        firstMessageLink(text) == _dismissedDraftLink;
+    setState(() => _sending = true);
+    final saved = await controller.enqueueRadioMessage(
+      peer,
+      text,
+      reply: reply,
+      excerpt: controller.replyDraftExcerpt(peer.id),
+      suppressLinkPreview: suppress,
+    );
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (controller.active != profile) return;
+    if (!saved) {
+      _notice(
+        tr(
+          context,
+          'Не удалось сохранить в очередь',
+          'Could not add to outbox',
+        ),
+      );
+      return;
+    }
+    if (_draft.text == draft &&
+        controller.replyDraft(peer.id)?.id == reply?.id) {
+      if (reply != null) controller.setReplyDraft(peer.id, null);
+      _dismissedDraftLink = null;
+      _updateDraft(peer, '');
+    }
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      await _openOutbox(peer);
+    } else {
+      _notice(
+        tr(context, 'Добавлено в очередь рации', 'Added to radio outbox'),
+      );
     }
   }
 
@@ -1372,6 +1476,13 @@ class _ChatState extends State<MeshChatPage>
       final replyExcerpt = controller.replyDraftExcerpt(peer.id);
       final canCompose = controller.canOpenChat(peer);
       final canSend = controller.canSendTo(peer);
+      final canQueue =
+          canSend &&
+          !_sending &&
+          bytes > 0 &&
+          limit != null &&
+          bytes <= limit &&
+          (reply == null || controller.canDraftMessageReply(peer, reply));
       final send =
           controller.connected &&
           canSend &&
@@ -1633,6 +1744,7 @@ class _ChatState extends State<MeshChatPage>
                                 onRetry:
                                     canSend &&
                                         item.delivery.canRetry &&
+                                        !controller.isOutboxAttempt(item.id) &&
                                         onMenu != null
                                     ? () => unawaited(_retry(peer, item))
                                     : null,
@@ -1880,6 +1992,22 @@ class _ChatState extends State<MeshChatPage>
                                             ),
                                     ),
                                     const SizedBox(width: 6),
+                                    if (controller
+                                        .outboxFor(peer.id)
+                                        .isNotEmpty) ...[
+                                      GlassButton(
+                                        coveredByModal: _controlsCovered,
+                                        icon: Icons.schedule_rounded,
+                                        label: tr(
+                                          context,
+                                          'Очередь рации',
+                                          'Radio outbox',
+                                        ),
+                                        onTap: () =>
+                                            unawaited(_openOutbox(peer)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
                                     Expanded(
                                       child: Text(
                                         !controller.connected
@@ -1954,6 +2082,7 @@ class _ChatState extends State<MeshChatPage>
                                 previewLink,
                                 canSend: canSend,
                                 send: send,
+                                canQueue: canQueue,
                               ),
                             ],
                           ],
@@ -1975,6 +2104,7 @@ class _ChatState extends State<MeshChatPage>
     Uri? previewLink, {
     required bool canSend,
     required bool send,
+    required bool canQueue,
   }) {
     final controller = widget.controller;
     final native = useIosControls;
@@ -2099,11 +2229,18 @@ class _ChatState extends State<MeshChatPage>
         ),
         const SizedBox(width: 8),
         GlassButton(
+          key: _sendControl,
           coveredByModal: _controlsCovered,
           icon: Icons.arrow_upward_rounded,
           primary: send,
           label: tr(context, 'Отправить', 'Send'),
           onTap: send ? () => unawaited(_send(peer)) : null,
+          longPressLabel: tr(context, 'Варианты отправки', 'Send options'),
+          onLongPress:
+              !_sending &&
+                  (canQueue || controller.outboxFor(peer.id).isNotEmpty)
+              ? () => unawaited(_sendOptions(peer))
+              : null,
         ),
       ],
     );
@@ -2369,6 +2506,7 @@ class _Bubble extends StatelessWidget {
     this.highlight,
     this.highlightedExcerpt,
     this.excerptAnimation,
+    this.waitingForRadio = false,
   });
   final VoidCallback? onAuthor;
   final MeshMessage item;
@@ -2386,6 +2524,7 @@ class _Bubble extends StatelessWidget {
   final Animation<double>? highlight;
   final MessageExcerpt? highlightedExcerpt;
   final Animation<double>? excerptAnimation;
+  final bool waitingForRadio;
 
   @override
   Widget build(BuildContext context) {
@@ -2394,11 +2533,9 @@ class _Bubble extends StatelessWidget {
     final sticker = emoji;
     final showAuthor = channel && !own && (sticker != null || !joinsPrevious);
     const corner = Radius.circular(19), join = Radius.circular(7);
-    final subtitle = messageDeliveryLabel(
-      context,
-      item.delivery,
-      channel: channel,
-    );
+    final subtitle = waitingForRadio
+        ? tr(context, 'Ожидает отправки', 'Waiting to send')
+        : messageDeliveryLabel(context, item.delivery, channel: channel);
     return LayoutBuilder(
       builder: (context, layout) => Align(
         alignment: own ? Alignment.centerRight : Alignment.centerLeft,
@@ -2469,6 +2606,7 @@ class _Bubble extends StatelessWidget {
                         quoted: quoted,
                         highlightedExcerpt: highlightedExcerpt,
                         excerptAnimation: excerptAnimation,
+                        waitingForRadio: waitingForRadio,
                         reactions: reactions,
                         onTap: tap,
                         onReact: onReact,
@@ -2662,6 +2800,7 @@ class _MessageContent extends StatelessWidget {
     this.onAuthor,
     this.highlightedExcerpt,
     this.excerptAnimation,
+    required this.waitingForRadio,
   });
 
   final VoidCallback? onAuthor;
@@ -2679,6 +2818,7 @@ class _MessageContent extends StatelessWidget {
   final VoidCallback? onQuote;
   final MessageExcerpt? highlightedExcerpt;
   final Animation<double>? excerptAnimation;
+  final bool waitingForRadio;
 
   Widget _text(MeshStyle style, TextStyle textStyle) {
     final highlighted = highlightedExcerpt;
@@ -2866,6 +3006,7 @@ class _MessageContent extends StatelessWidget {
                   timeStyle: timeStyle,
                   stateLabel: stateLabel,
                   onRetry: onRetry,
+                  waitingForRadio: waitingForRadio,
                 ),
               ),
             ),
@@ -3023,6 +3164,7 @@ class _MessageStamp extends StatelessWidget {
     required this.stateLabel,
     this.onRetry,
     this.receiptColor,
+    this.waitingForRadio = false,
   });
 
   static const iconSize = 15.0;
@@ -3033,6 +3175,7 @@ class _MessageStamp extends StatelessWidget {
   final TextStyle timeStyle;
   final VoidCallback? onRetry;
   final Color? receiptColor;
+  final bool waitingForRadio;
 
   @override
   Widget build(BuildContext context) {
@@ -3049,7 +3192,13 @@ class _MessageStamp extends StatelessWidget {
                 : '$stateLabel. ${tr(context, 'Повторить отправку', 'Resend message')}',
             child: SizedBox.square(
               dimension: iconSize,
-              child: item.delivery.awaitingReceipt
+              child: waitingForRadio
+                  ? Icon(
+                      Icons.schedule_rounded,
+                      size: iconSize,
+                      color: style.messageTime,
+                    )
+                  : item.delivery.awaitingReceipt
                   ? Center(
                       child: SizedBox.square(
                         dimension: 12,
