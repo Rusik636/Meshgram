@@ -2172,6 +2172,41 @@
         "Поле ввода заблокировано до подключения рации, открытая клавиатура закрывается. Черновик восстанавливается при подключении."
       ],
       "evidence": []
+    },
+    {
+      "id": "35",
+      "parent_id": null,
+      "title": "Текст атрибуции на карте сообщения",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/35-map-attribution-text",
+      "depends_on": [
+        "30"
+      ],
+      "status": "in_progress",
+      "acceptance_criteria": [
+        "В сообщении карта показывает подпись OpenStreetMap без подложки. На полной карте ссылка атрибуции доступна."
+      ],
+      "evidence": []
+    },
+    {
+      "id": "36",
+      "parent_id": null,
+      "title": "Индикатор категорий из навбара iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/36-native-folder-indicator",
+      "depends_on": [
+        "33"
+      ],
+      "status": "pending",
+      "acceptance_criteria": [
+        "Категории показывают индикатор на основе UIKit UITabBarController из основного навбара. Переключение по тапу, свайп прокручивает полоску."
+      ],
+      "evidence": []
     }
   ]
 }

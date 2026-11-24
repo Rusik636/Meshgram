@@ -84,6 +84,7 @@ class MeshMap extends StatefulWidget {
     this.fitPins = false,
     this.showAttribution = true,
     this.attributionAlignment = Alignment.bottomCenter,
+    this.attributionTextOnly = false,
   });
 
   final NodePosition? center;
@@ -91,6 +92,7 @@ class MeshMap extends StatefulWidget {
   final MapController? controller;
   final bool interactive, showCrosshair, loadTiles, fitPins, showAttribution;
   final AlignmentGeometry attributionAlignment;
+  final bool attributionTextOnly;
   final List<MeshMapPin> pins;
   final ValueChanged<NodePosition>? onCenterChanged, onMapTap;
 
@@ -207,7 +209,7 @@ class _MeshMapState extends State<MeshMap> {
             if (widget.showAttribution)
               Align(
                 alignment: widget.attributionAlignment,
-                child: const MeshMapAttribution(),
+                child: MeshMapAttribution(textOnly: widget.attributionTextOnly),
               ),
             MarkerLayer(
               markers: [
@@ -328,7 +330,9 @@ class _MapMarker extends StatelessWidget {
 }
 
 class MeshMapAttribution extends StatelessWidget {
-  const MeshMapAttribution({super.key});
+  const MeshMapAttribution({super.key, this.textOnly = false});
+
+  final bool textOnly;
 
   static const _label = '© OpenStreetMap contributors';
   static const _padding = EdgeInsets.symmetric(horizontal: 9, vertical: 4);
@@ -353,6 +357,15 @@ class MeshMapAttribution extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = Padding(
+      padding: _padding,
+      child: Text(
+        _label,
+        textAlign: TextAlign.center,
+        style: _textStyle(context),
+      ),
+    );
+    if (textOnly) return label;
     final style = MeshStyle.of(context);
     return Material(
       color: style.dark ? const Color(0xd43a3a3a) : const Color(0xd4e2e2e2),
@@ -362,14 +375,7 @@ class MeshMapAttribution extends StatelessWidget {
         onTap: () => unawaited(
           launchUrl(Uri.https('www.openstreetmap.org', '/copyright')),
         ),
-        child: Padding(
-          padding: _padding,
-          child: Text(
-            _label,
-            textAlign: TextAlign.center,
-            style: _textStyle(context),
-          ),
-        ),
+        child: label,
       ),
     );
   }
@@ -385,6 +391,7 @@ class MeshLocationPreview extends StatefulWidget {
     this.loadTiles = true,
     this.showDetails = true,
     this.standaloneMessage = false,
+    this.attributionTextOnly = false,
   });
 
   final NodePosition position;
@@ -394,6 +401,7 @@ class MeshLocationPreview extends StatefulWidget {
   final bool loadTiles;
   final bool showDetails;
   final bool standaloneMessage;
+  final bool attributionTextOnly;
 
   @override
   State<MeshLocationPreview> createState() => _MeshLocationPreviewState();
@@ -426,6 +434,7 @@ class _MeshLocationPreviewState extends State<MeshLocationPreview> {
         showCrosshair: widget.pin == null,
         pins: [?widget.pin],
         loadTiles: widget.loadTiles,
+        attributionTextOnly: widget.attributionTextOnly,
         attributionAlignment: widget.standaloneMessage
             ? Alignment.bottomLeft
             : Alignment.bottomRight,
