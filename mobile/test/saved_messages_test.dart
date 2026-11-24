@@ -8,7 +8,7 @@ import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/mesh_map.dart';
-import 'package:meshgrame/ui/saved_messages.dart';
+import 'package:meshgrame/ui/chat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -94,6 +94,56 @@ void main() {
     expect(transport.connections, 0);
     await tester.pumpWidget(const SizedBox());
     restored.dispose();
+  });
+
+  testWidgets('opening our own node saves notes locally in the same chat', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = MeshStore(await SharedPreferences.getInstance());
+    const radio = (device: 'test', name: 'Heltec', network: 'meshtastic');
+    const own = (
+      id: 'node:42',
+      name: 'My radio',
+      channel: false,
+      writable: false,
+    );
+    final cache = ChatCache()..radioNodeNumber = 42;
+    await store.setRadios([radio]);
+    await store.setActive(radioKey(radio));
+    await store.save(radioKey(radio), cache);
+    final transport = _OfflineTransport();
+    final controller = MeshController(
+      store: store,
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showMeshChat(context, controller, own),
+            child: const Text('Open own node'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open own node'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavedMessagesPage), findsOneWidget);
+    expect(find.byType(MeshChatPage), findsNothing);
+    const note = 'Keep this for later';
+    await tester.enterText(find.byType(EditableText), note);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Save note'));
+    await tester.pumpAndSettle();
+    expect(find.text(note), findsOneWidget);
+    expect(store.savedMessages.single.isNote, isTrue);
+    expect(store.savedMessages.single.message.text, note);
+    expect(store.savedChatDraft, isEmpty);
+    expect(transport.connections, 0);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
   });
 }
 

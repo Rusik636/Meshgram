@@ -522,12 +522,14 @@ class SavedMessage {
     required this.chatName,
     required this.author,
     required this.savedAt,
+    this.isNote = false,
     Iterable<String> labels = const [],
   }) : labels = List.unmodifiable(labels);
 
   final MeshMessage message;
   final String profile, radioName, chatName, author;
   final DateTime savedAt;
+  final bool isNote;
   final List<String> labels;
 
   (String, String, String) get key => (profile, message.chat, message.id);
@@ -539,6 +541,7 @@ class SavedMessage {
     chatName: chatName,
     author: author,
     savedAt: savedAt,
+    isNote: isNote,
     labels: next,
   );
 
@@ -549,6 +552,7 @@ class SavedMessage {
     'chatName': chatName,
     'author': author,
     'savedAt': savedAt.millisecondsSinceEpoch,
+    if (isNote) 'isNote': true,
     'labels': labels,
   };
 
@@ -562,6 +566,7 @@ class SavedMessage {
         chatName: json['chatName'] as String,
         author: json['author'] as String,
         savedAt: DateTime.fromMillisecondsSinceEpoch(json['savedAt'] as int),
+        isNote: json['isNote'] == true,
         labels: (json['labels'] as List? ?? []).whereType<String>(),
       );
     } on Object {
@@ -711,6 +716,12 @@ class MeshStore {
     for (final entry in preferences.getStringList('${_key}savedMessages') ?? [])
       ?SavedMessage.decode(entry),
   ];
+
+  String get savedChatDraft =>
+      preferences.getString('${_key}savedChatDraft') ?? '';
+
+  Future<bool> setSavedChatDraft(String value) =>
+      preferences.setString('${_key}savedChatDraft', value);
 
   Future<bool> setSavedMessages(List<SavedMessage> items) =>
       preferences.setStringList('${_key}savedMessages', [

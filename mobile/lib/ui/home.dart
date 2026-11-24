@@ -26,7 +26,6 @@ import 'navigation.dart';
 import 'nodes.dart';
 import 'notification_settings.dart';
 import 'radio_settings.dart';
-import 'saved_messages.dart';
 import 'profile_page.dart';
 import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
@@ -764,15 +763,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   GlassButton(
                     icon: Icons.bookmark_border_rounded,
                     label: tr(context, 'Избранное', 'Saved Messages'),
-                    onTap: () => unawaited(
-                      Navigator.of(context).push<void>(
-                        meshPageRoute(
-                          context,
-                          builder: (_) =>
-                              SavedMessagesPage(controller: controller),
-                        ),
-                      ),
-                    ),
+                    onTap: () => unawaited(showSavedChat(context, controller)),
                   ),
                   const SizedBox(width: 6),
                   GlassButton(
@@ -1681,6 +1672,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         onTap: _editProfile,
       ),
       children: [
+        _settingsGroup([
+          MeshRow(
+            title: tr(context, 'Избранное', 'Saved Messages'),
+            icon: Icons.bookmark_border_rounded,
+            tint: _blue,
+            onTap: () => unawaited(showSavedChat(context, controller)),
+          ),
+        ]),
+        const SizedBox(height: 16),
         _sectionTitle(tr(context, 'Рации', 'Radios'), style),
         _settingsGroup([
           for (final radio in controller.radios) _radioRow(radio),
