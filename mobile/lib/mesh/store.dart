@@ -411,6 +411,62 @@ int compareChatMessages(MeshMessage first, MeshMessage second) {
   return byTime != 0 ? byTime : first.id.compareTo(second.id);
 }
 
+class SavedMessage {
+  SavedMessage({
+    required this.message,
+    required this.profile,
+    required this.radioName,
+    required this.chatName,
+    required this.author,
+    required this.savedAt,
+    Iterable<String> labels = const [],
+  }) : labels = List.unmodifiable(labels);
+
+  final MeshMessage message;
+  final String profile, radioName, chatName, author;
+  final DateTime savedAt;
+  final List<String> labels;
+
+  (String, String, String) get key => (profile, message.chat, message.id);
+
+  SavedMessage withLabels(Iterable<String> next) => SavedMessage(
+    message: message,
+    profile: profile,
+    radioName: radioName,
+    chatName: chatName,
+    author: author,
+    savedAt: savedAt,
+    labels: next,
+  );
+
+  Map<String, Object> toJson() => {
+    'message': message.toJson(),
+    'profile': profile,
+    'radioName': radioName,
+    'chatName': chatName,
+    'author': author,
+    'savedAt': savedAt.millisecondsSinceEpoch,
+    'labels': labels,
+  };
+
+  static SavedMessage? decode(String entry) {
+    try {
+      final json = jsonDecode(entry) as Map<String, dynamic>;
+      return SavedMessage(
+        message: MeshMessage.fromJson(json['message'] as Map<String, dynamic>),
+        profile: json['profile'] as String,
+        radioName: json['radioName'] as String,
+        chatName: json['chatName'] as String,
+        author: json['author'] as String,
+        savedAt: DateTime.fromMillisecondsSinceEpoch(json['savedAt'] as int),
+        labels: (json['labels'] as List? ?? []).whereType<String>(),
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
 class MeshStore {
   MeshStore(this.preferences);
   final SharedPreferences preferences;
@@ -523,4 +579,14 @@ class MeshStore {
 
   Future<bool> save(String key, ChatCache cache) =>
       preferences.setString('${_key}cache.$key', jsonEncode(cache.toJson()));
+
+  List<SavedMessage> get savedMessages => [
+    for (final entry in preferences.getStringList('${_key}savedMessages') ?? [])
+      ?SavedMessage.decode(entry),
+  ];
+
+  Future<bool> setSavedMessages(List<SavedMessage> items) =>
+      preferences.setStringList('${_key}savedMessages', [
+        for (final item in items) jsonEncode(item.toJson()),
+      ]);
 }

@@ -85,6 +85,11 @@ class MeshController extends ChangeNotifier {
   final _caches = <String, ChatCache>{};
   final _radioRoutes = <String, List<String>>{};
   Future<void> _radioWrites = Future.value();
+  Future<void> _savedWrites = Future.value();
+  late List<SavedMessage> _savedMessages = List.unmodifiable(
+    store.savedMessages,
+  );
+  List<SavedMessage> get savedMessages => _savedMessages;
   final _random = Random.secure();
   final _connections = <String, _RadioConnection>{};
   final _autoConnections = <String>{};
@@ -836,6 +841,10 @@ class MeshController extends ChangeNotifier {
   Future<void> connect(Radio radio) async {
     if (_closed || !adapters.containsKey(radio.network)) return;
     final profile = _savedRadio(radioKey(radio)) ?? radio;
+    await _connect(_selectProfile(profile));
+  }
+
+  _RadioConnection _selectProfile(Radio profile) {
     final connection = _connection(profile);
     if (!identical(connection, _selected)) {
       _draftTimer?.cancel();
@@ -851,7 +860,7 @@ class MeshController extends ChangeNotifier {
       }
       _changed();
     }
-    await _connect(connection);
+    return connection;
   }
 
   Future<void> _connect(_RadioConnection connection, {bool retry = false}) {
@@ -1960,6 +1969,84 @@ class MeshController extends ChangeNotifier {
     return sender == null
         ? _uniqueNodeNamed(message.author)
         : cache?.peers[sender];
+  }
+
+  bool isMessageSaved(MeshMessage message) {
+    final radio = active;
+    if (radio == null) return false;
+    final key = (_profileKey(radio), message.chat, message.id);
+    return _savedMessages.any((item) => item.key == key);
+  }
+
+  Future<bool> toggleSavedMessage(Peer peer, MeshMessage message) {
+    final radio = active;
+    if (radio == null || peer.id != message.chat) return Future.value(false);
+    final item = SavedMessage(
+      message: message,
+      profile: _profileKey(radio),
+      radioName: radio.name,
+      chatName: peer.name,
+      author: message.outgoing
+          ? profileName
+          : messageAuthor(message)?.name ?? message.author,
+      savedAt: DateTime.now(),
+    );
+    return _editSavedMessages((items) {
+      final index = items.indexWhere((other) => other.key == item.key);
+      if (index == -1) {
+        items.insert(0, item);
+      } else {
+        items.removeAt(index);
+      }
+    });
+  }
+
+  Future<bool> setSavedLabels(SavedMessage item, Iterable<String> labels) {
+    final cleaned = labels
+        .map((label) => label.trim())
+        .where((label) => label.isNotEmpty)
+        .toSet();
+    return _editSavedMessages((items) {
+      final index = items.indexWhere((other) => other.key == item.key);
+      if (index != -1) items[index] = items[index].withLabels(cleaned);
+    });
+  }
+
+  Future<bool> removeSavedMessage(SavedMessage item) => _editSavedMessages(
+    (items) => items.removeWhere((other) => other.key == item.key),
+  );
+
+  bool selectSavedMessageSource(SavedMessage item) {
+    final radio = _savedRadio(item.profile);
+    if (radio == null) return false;
+    final cache = _cacheFor(radio);
+    if (!cache.peers.containsKey(item.message.chat) ||
+        !cache
+            .history(item.message.chat)
+            .any((message) => message.id == item.message.id)) {
+      return false;
+    }
+    _selectProfile(radio);
+    return true;
+  }
+
+  Future<bool> _editSavedMessages(void Function(List<SavedMessage>) edit) {
+    final write = _savedWrites.then((_) async {
+      if (_closed) return false;
+      final next = _savedMessages.toList();
+      edit(next);
+      try {
+        if (!await store.setSavedMessages(next)) return false;
+      } on Exception catch (error) {
+        debugPrint('Meshgram saved messages: $error');
+        return false;
+      }
+      _savedMessages = List.unmodifiable(next);
+      if (!_closed) _changed();
+      return true;
+    });
+    _savedWrites = write.then<void>((_) {});
+    return write;
   }
 
   Peer? _uniqueNodeNamed(String name) {

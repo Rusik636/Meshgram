@@ -8,6 +8,7 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.arrow_back_ios_new_rounded => 'chevron.left',
   Icons.arrow_upward_rounded => 'arrow.up',
   Icons.attach_file_rounded => 'paperclip',
+  Icons.bookmark_border_rounded => 'bookmark',
   Icons.check_rounded => 'checkmark',
   Icons.close_fullscreen_rounded => 'arrow.down.right.and.arrow.up.left',
   Icons.close_rounded => 'xmark',

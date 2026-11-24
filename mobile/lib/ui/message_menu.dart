@@ -22,6 +22,7 @@ Future<String?> showMessageMenu({
   required bool canReact,
   List<String> recentReactions = const [],
   required bool canReply,
+  bool saved = false,
   required bool outgoing,
   required Widget bubble,
   required List<ChatReaction> reactions,
@@ -44,6 +45,7 @@ Future<String?> showMessageMenu({
         canReact: canReact,
         recentReactions: recentReactions,
         canReply: canReply,
+        saved: saved,
         outgoing: outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -63,6 +65,7 @@ class _MessageMenu extends StatefulWidget {
     required this.canReact,
     required this.recentReactions,
     required this.canReply,
+    required this.saved,
     required this.outgoing,
     required this.bubble,
     required this.reactions,
@@ -71,7 +74,7 @@ class _MessageMenu extends StatefulWidget {
   });
 
   final Rect anchor;
-  final bool canReact, canReply, outgoing;
+  final bool canReact, canReply, outgoing, saved;
   final List<String> recentReactions;
   final Widget bubble, details;
   final List<ChatReaction> reactions;
@@ -271,6 +274,15 @@ class _MessageMenuState extends State<_MessageMenu> {
           Icons.content_copy_rounded,
           tr(context, 'Копировать', 'Copy'),
           () => _select('copy'),
+        ),
+        _action(
+          widget.saved
+              ? Icons.bookmark_remove_outlined
+              : Icons.bookmark_border_rounded,
+          widget.saved
+              ? tr(context, 'Убрать из Избранного', 'Remove from Saved')
+              : tr(context, 'В Избранное', 'Save message'),
+          () => _select('saved'),
         ),
         _action(
           Icons.info_outline_rounded,

@@ -24,6 +24,7 @@ import 'navigation.dart';
 import 'nodes.dart';
 import 'notification_settings.dart';
 import 'radio_settings.dart';
+import 'saved_messages.dart';
 import 'profile_page.dart';
 import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
@@ -530,7 +531,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           : null;
       final heading = PageHeading(
         caption,
-        sideWidth: 92,
+        sideWidth: _editingChats || _showHidden ? 92 : 104,
         leading: GlassActionButton(
           primary: false,
           width: _editingChats ? 84 : 68,
@@ -543,11 +544,30 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
         trailing: _editingChats || _showHidden
             ? null
-            : GlassButton(
-                icon: Icons.edit_note_rounded,
-                label: tr(context, 'Новый чат', 'New chat'),
-                primary: true,
-                onTap: _newChat,
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GlassButton(
+                    icon: Icons.bookmark_border_rounded,
+                    label: tr(context, 'Избранное', 'Saved Messages'),
+                    onTap: () => unawaited(
+                      Navigator.of(context).push<void>(
+                        meshPageRoute(
+                          context,
+                          builder: (_) =>
+                              SavedMessagesPage(controller: controller),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GlassButton(
+                    icon: Icons.edit_note_rounded,
+                    label: tr(context, 'Новый чат', 'New chat'),
+                    primary: true,
+                    onTap: _newChat,
+                  ),
+                ],
               ),
       );
       final categoryBar = ChatFilters(
