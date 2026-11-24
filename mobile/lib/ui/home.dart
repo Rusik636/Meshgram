@@ -75,6 +75,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   double _archivePull = 0;
   String? _revealedChat;
   final _chatEditButton = GlobalKey();
+  final _previewBackground = GlobalKey();
   final _folderTabsScroll = ScrollController();
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
@@ -711,49 +712,52 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       child: Scaffold(
         // The keyboard can resize the content without relocating the navigation.
         resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                bottom: keyboard,
-                child: IgnorePointer(
-                  ignoring: _tabs.shown != _tabs.selected,
-                  child: FadeTransition(
-                    opacity: _tabs.opacity,
-                    child: _tabs.shown == 0
-                        ? _chatScene(style, keyboard)
-                        : _settings(style),
-                  ),
-                ),
-              ),
-              if (_tabs.shown == 0 && _editingChats && !_searchActive)
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: MeshNavigation.bottomContentInset(context),
-                  child: _chatActionsBar(),
-                )
-              else if (!_searchActive)
-                Positioned(
-                  left: nativeNavigation ? 0 : 14,
-                  right: nativeNavigation ? 0 : 14,
-                  bottom: MeshNavigation.bottomBarOffset(context),
-                  child: ExcludeSemantics(
-                    excluding: keyboard > 0,
-                    child: IgnorePointer(
-                      ignoring: keyboard > 0,
-                      child: MeshNavigation(
-                        index: _tabs.selected,
-                        unread: controller.unreadTotal,
-                        settingsUnread: controller.unreadOnOtherRadios,
-                        onSelect: _selectTab,
-                      ),
+        body: RepaintBoundary(
+          key: _previewBackground,
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  bottom: keyboard,
+                  child: IgnorePointer(
+                    ignoring: _tabs.shown != _tabs.selected,
+                    child: FadeTransition(
+                      opacity: _tabs.opacity,
+                      child: _tabs.shown == 0
+                          ? _chatScene(style, keyboard)
+                          : _settings(style),
                     ),
                   ),
                 ),
-            ],
+                if (_tabs.shown == 0 && _editingChats && !_searchActive)
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: MeshNavigation.bottomContentInset(context),
+                    child: _chatActionsBar(),
+                  )
+                else if (!_searchActive)
+                  Positioned(
+                    left: nativeNavigation ? 0 : 14,
+                    right: nativeNavigation ? 0 : 14,
+                    bottom: MeshNavigation.bottomBarOffset(context),
+                    child: ExcludeSemantics(
+                      excluding: keyboard > 0,
+                      child: IgnorePointer(
+                        ignoring: keyboard > 0,
+                        child: MeshNavigation(
+                          index: _tabs.selected,
+                          unread: controller.unreadTotal,
+                          settingsUnread: controller.unreadOnOtherRadios,
+                          onSelect: _selectTab,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1550,6 +1554,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                   child: row(rowContext, preview: true),
                 ),
                 actions: _previewActions(peer, folder, profile),
+                backdropSource: _previewBackground,
               );
               if (open && mounted && controller.active == profile) {
                 await _openChat(peer);
