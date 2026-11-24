@@ -67,14 +67,14 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
       48.0,
       80.0,
     );
-    return Row(
-      children: [
-        Expanded(
-          child: GlassSurface(
-            modal: true,
-            radius: height / 2,
-            child: SizedBox(
-              height: height,
+    return GlassSurface(
+      modal: true,
+      radius: height / 2,
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            Expanded(
               child: NotificationListener<ScrollNotification>(
                 onNotification: _trackPull,
                 child: ListView.separated(
@@ -114,19 +114,22 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
                 ),
               ),
             ),
-          ),
+            SizedBox.square(
+              dimension: 48,
+              child: IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                color: style.text,
+                tooltip: tr(
+                  context,
+                  'Развернуть быстрые фразы',
+                  'Expand quick phrases',
+                ),
+                onPressed: widget.onExpand,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 4),
-        GlassButton(
-          icon: Icons.keyboard_arrow_up_rounded,
-          label: tr(
-            context,
-            'Развернуть быстрые фразы',
-            'Expand quick phrases',
-          ),
-          onTap: widget.onExpand,
-        ),
-      ],
+      ),
     );
   }
 }
