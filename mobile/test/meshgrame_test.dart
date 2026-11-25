@@ -2710,6 +2710,104 @@ void main() {
     }),
   );
 
+  testWidgets(
+    'desktop secondary click opens the message menu within the chat pane',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1150, 820);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.cache!.messages.add(
+        MeshMessage(
+          id: 'desktop-context-menu',
+          chat: 'ch:0',
+          author: 'Meshgram',
+          text: 'Context menu message',
+          time: DateTime.now(),
+          delivery: Delivery.acknowledged,
+          remoteId: '56',
+        ),
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Тропа').first);
+      await tester.pumpAndSettle();
+
+      final chat = find.byType(MeshChatPage);
+      final pane = tester.getRect(
+        find.byKey(const ValueKey('conversation-pane')),
+      );
+      final bubble = find.descendant(
+        of: chat,
+        matching: find.text('Context menu message'),
+      );
+      final pointer = tester.getCenter(bubble);
+      final menu = find.byKey(const ValueKey('message-menu'));
+      await tester.tapAt(pointer, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+
+      Future<void> openMenu() async {
+        await tester.tapAt(
+          pointer,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await openMenu();
+      final surfaces = find.descendant(
+        of: menu,
+        matching: find.byType(MessageMenuSurface),
+      );
+      expect(surfaces, findsWidgets);
+      for (final surface in surfaces.evaluate()) {
+        final rect = tester.getRect(find.byWidget(surface.widget));
+        expect(rect.left, greaterThan(pane.left));
+        expect(rect.right, closeTo(pointer.dx, .5));
+        expect(rect.top, greaterThan(pane.top));
+        expect(rect.bottom, lessThan(pointer.dy));
+      }
+      expect(find.byKey(const ValueKey('message-menu-preview')), findsNothing);
+      expect(
+        find.ancestor(
+          of: bubble,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is ImageFiltered && widget.enabled ||
+                widget is Opacity && widget.opacity == 0,
+          ),
+        ),
+        findsNothing,
+      );
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.tap(find.text('Message info'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MessageDetails), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+
+      await openMenu();
+      await tester.tapAt(Offset(pane.left - 20, pane.center.dy));
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+      expect(bubble, findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.windows}),
+  );
+
   test('MeshCore retries admin login after a stale saved route', () async {
     const peer = (
       id: 'node:010203040506',

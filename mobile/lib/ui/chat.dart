@@ -1873,13 +1873,16 @@ class _ChatState extends State<MeshChatPage>
   ) async {
     final controller = widget.controller;
     final profile = controller.active;
+    final desktop = meshDesktop(context);
     final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    _dismissKeyboard();
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()!
+            as RenderBox;
     if (_menuVisible) return;
+    _dismissKeyboard();
+    final chat = _menuBackground.currentContext?.findRenderObject();
     setState(() {
       _menuVisible = true;
-      _previewMessageId = message.id;
+      _previewMessageId = desktop ? null : message.id;
     });
     final MessageMenuChoice? choice;
     try {
@@ -1896,6 +1899,11 @@ class _ChatState extends State<MeshChatPage>
         backdrop: backdrop,
         context: context,
         anchor: overlay.globalToLocal(anchor.topLeft) & anchor.size,
+        desktopBounds: !desktop
+            ? null
+            : chat is RenderBox
+            ? chat.localToGlobal(Offset.zero, ancestor: overlay) & chat.size
+            : Offset.zero & overlay.size,
         canReact: controller.canChooseReaction(peer, message),
         recentReactions: controller.recentReactionEmojis,
         canReply: controller.canUseMessageActions(peer, message),
@@ -2295,7 +2303,9 @@ class _ChatState extends State<MeshChatPage>
           key: _menuBackground,
           child: ImageFiltered(
             enabled:
-                _menuVisible && !MediaQuery.accessibleNavigationOf(context),
+                _menuVisible &&
+                !meshDesktop(context) &&
+                !MediaQuery.accessibleNavigationOf(context),
             imageFilter: ImageFilter.blur(
               sigmaX: 18,
               sigmaY: 18,
@@ -3343,7 +3353,7 @@ class _ChatScrollPhysics extends ScrollPhysics {
 
 class _MessageHold extends StatefulWidget {
   const _MessageHold({required this.onOpen, required this.child});
-  final VoidCallback? onOpen;
+  final void Function([Offset? pointer])? onOpen;
   final Widget child;
 
   @override
@@ -3359,14 +3369,18 @@ class _MessageHoldState extends State<_MessageHold> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.onOpen == null) return widget.child;
+    final open = widget.onOpen;
+    if (open == null) return widget.child;
     return GestureDetector(
+      onSecondaryTapUp: meshDesktop(context)
+          ? (details) => open(details.globalPosition)
+          : null,
       onLongPressDown: (_) => _press(true),
       onLongPressCancel: () => _press(false),
       onLongPressStart: (_) {
         _press(false);
         unawaited(playMeshHaptic(MeshHaptic.light));
-        widget.onOpen!();
+        open();
       },
       child: AnimatedScale(
         scale: pressed ? .97 : 1,
@@ -3568,21 +3582,29 @@ class _Bubble extends StatelessWidget {
             ),
             child: Builder(
               builder: (context) {
-                void openMenu() {
+                void openMenu([Offset? pointer]) {
+                  if (pointer != null) {
+                    onMenu!(pointer & Size.zero);
+                    return;
+                  }
                   final box = context.findRenderObject()! as RenderBox;
                   onMenu!(box.localToGlobal(Offset.zero) & box.size);
                 }
 
                 final tap = onMenu == null ? null : openMenu;
+                final openOnTap = meshDesktop(context) ? null : tap;
                 Widget interactive(Widget body) {
-                  final bubble = _MessageHold(onOpen: tap, child: body);
-                  if (retry == null) return bubble;
-                  return _RetryMessageArea(
-                    anchor: retryAnchor!,
-                    label:
-                        '$subtitle. ${tr(context, 'Повторить отправку', 'Resend message')}',
-                    onTap: retry,
-                    child: bubble,
+                  return _MessageHold(
+                    onOpen: tap,
+                    child: retry == null
+                        ? body
+                        : _RetryMessageArea(
+                            anchor: retryAnchor!,
+                            label:
+                                '$subtitle. ${tr(context, 'Повторить отправку', 'Resend message')}',
+                            onTap: retry,
+                            child: body,
+                          ),
                   );
                 }
 
@@ -3597,7 +3619,7 @@ class _Bubble extends StatelessWidget {
                       reactions: reactions,
                       reactionTarget: reactionTarget,
                       highlight: highlight,
-                      onTap: tap,
+                      onTap: openOnTap,
                       onReact: onReact,
                       retryAnchor: retryAnchor,
                       onQuote: onQuote,
@@ -3653,7 +3675,7 @@ class _Bubble extends StatelessWidget {
                         displayedText: displayedText,
                         reactions: reactions,
                         reactionTarget: reactionTarget,
-                        onTap: tap,
+                        onTap: openOnTap,
                         onReact: onReact,
                         retryAnchor: retryAnchor,
                         onQuote: onQuote,

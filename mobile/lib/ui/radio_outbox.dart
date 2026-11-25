@@ -414,9 +414,14 @@ class RadioOutboxPage extends StatelessWidget {
     Delivery? delivery,
     Rect anchor,
   ) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
     final action = await showMenu<_OutboxAction>(
       context: context,
-      position: RelativeRect.fromSize(anchor, MediaQuery.sizeOf(context)),
+      position: RelativeRect.fromSize(
+        overlay.globalToLocal(anchor.topLeft) & anchor.size,
+        overlay.size,
+      ),
       items: [
         if (delivery != Delivery.acknowledged)
           PopupMenuItem(

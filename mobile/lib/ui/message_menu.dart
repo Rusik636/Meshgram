@@ -38,6 +38,7 @@ Future<MessageMenuChoice?> showMessageMenu({
   Uint8List? backdrop,
   required BuildContext context,
   required Rect anchor,
+  Rect? desktopBounds,
   required bool canReact,
   List<String> recentReactions = const [],
   required bool canReply,
@@ -55,13 +56,14 @@ Future<MessageMenuChoice?> showMessageMenu({
     barrierLabel: tr(context, 'Закрыть меню', 'Close menu'),
     transitionDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 350),
+        : Duration(milliseconds: desktopBounds == null ? 350 : 140),
     transitionBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
     pageBuilder: (_, _, _) => MessageMenuBackdrop(
       image: backdrop,
       child: _MessageMenu(
         anchor: anchor,
+        desktopBounds: desktopBounds,
         canReact: canReact,
         recentReactions: recentReactions,
         canReply: canReply,
@@ -85,6 +87,7 @@ Future<MessageMenuChoice?> showMessageMenu({
 class _MessageMenu extends StatefulWidget {
   const _MessageMenu({
     required this.anchor,
+    required this.desktopBounds,
     required this.canReact,
     required this.recentReactions,
     required this.canReply,
@@ -100,6 +103,7 @@ class _MessageMenu extends StatefulWidget {
   });
 
   final Rect anchor;
+  final Rect? desktopBounds;
   final bool canReact, canReply, outgoing, saved;
   final bool? pinned;
   final bool canForward, canQuoteText;
@@ -124,6 +128,9 @@ class _MessageMenuState extends State<_MessageMenu> {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    if (widget.desktopBounds case final bounds?) {
+      return _desktopMenu(bounds, style);
+    }
     final media = MediaQuery.of(context);
     final showPicker =
         _panel == _MenuPanel.actions || _panel == _MenuPanel.emoji;
@@ -265,6 +272,52 @@ class _MessageMenuState extends State<_MessageMenu> {
       ),
     );
   }
+
+  Widget _desktopMenu(Rect pane, MeshStyle style) => CustomSingleChildLayout(
+    key: const ValueKey('message-menu'),
+    delegate: _DesktopMenuPosition(
+      pointer: widget.anchor.bottomLeft,
+      pane: pane,
+    ),
+    child: SizedBox(
+      width: _panel == _MenuPanel.actions ? 288 : 362,
+      child: LayoutBuilder(
+        builder: (context, bounds) => SingleChildScrollView(
+          primary: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_panel == _MenuPanel.actions && widget.canReact) ...[
+                _QuickReactions(
+                  recent: widget.recentReactions,
+                  onSelect: _select,
+                  onExpand: () => _show(_MenuPanel.emoji),
+                  compact: true,
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (_panel == _MenuPanel.emoji)
+                EmojiPicker(
+                  key: const ValueKey('emoji-catalog'),
+                  gridHeight: (bounds.maxHeight * .55).clamp(95.0, 275.0),
+                  onSelect: _select,
+                  onSelectFrom: _select,
+                  onCollapse: () => _show(_MenuPanel.actions),
+                )
+              else
+                MessageMenuSurface(
+                  radius: 14,
+                  child: _panel == _MenuPanel.actions
+                      ? _actions(style)
+                      : _details(bounds, style),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _actionSurface(Widget child) => useIosControls
       ? MessageMenuSurface(radius: 22, child: child)
@@ -554,17 +607,55 @@ class _MenuPosition extends SingleChildLayoutDelegate {
       old.quickReactions != quickReactions;
 }
 
+class _DesktopMenuPosition extends SingleChildLayoutDelegate {
+  const _DesktopMenuPosition({required this.pointer, required this.pane});
+
+  final Offset pointer;
+  final Rect pane;
+
+  Rect _available(Size size) {
+    final window = Offset.zero & size;
+    final viewport = pane.intersect(window);
+    final visible = viewport.isEmpty ? window : viewport;
+    final inset = math.min(8.0, math.min(visible.width, visible.height) / 2);
+    return visible.deflate(inset);
+  }
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(_available(constraints.biggest).size);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final bounds = _available(size);
+    final maxX = bounds.right - childSize.width;
+    final maxY = bounds.bottom - childSize.height;
+    final left = pointer.dx <= maxX ? pointer.dx : pointer.dx - childSize.width;
+    const gap = 4.0;
+    final top = pointer.dy + gap <= maxY
+        ? pointer.dy + gap
+        : pointer.dy - gap - childSize.height;
+    return Offset(left.clamp(bounds.left, maxX), top.clamp(bounds.top, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_DesktopMenuPosition old) =>
+      old.pointer != pointer || old.pane != pane;
+}
+
 class _QuickReactions extends StatelessWidget {
   const _QuickReactions({
     required this.recent,
     required this.onSelect,
     required this.onExpand,
+    this.compact = false,
   });
 
   final List<String> recent;
 
   final void Function(String emoji, Rect? source) onSelect;
   final VoidCallback onExpand;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -575,9 +666,9 @@ class _QuickReactions extends StatelessWidget {
         if (renderedKeys.add(reactionEmojiKey(emoji))) emoji,
     ];
     return MessageMenuSurface(
-      radius: 29,
+      radius: compact ? 14 : 29,
       child: SizedBox(
-        height: 53,
+        height: compact ? 44 : 53,
         child: Row(
           children: [
             Expanded(
