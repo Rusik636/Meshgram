@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../mesh/network.dart';
+import 'desktop_interaction.dart';
 import 'emoji_picker.dart';
 import 'emoji_text.dart';
 import 'message_reactions.dart';
@@ -429,12 +430,16 @@ class _MessageMenuState extends State<_MessageMenu> {
     String label,
     VoidCallback onTap, {
     Widget? trailing,
-  }) => ListTile(
-    dense: true,
-    leading: Icon(icon, size: 20, color: MeshStyle.of(context).text),
-    title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-    trailing: trailing,
-    onTap: onTap,
+  }) => DesktopSpring(
+    child: ListTile(
+      dense: true,
+      hoverColor: meshDesktop(context) ? Colors.transparent : null,
+      splashColor: meshDesktop(context) ? Colors.transparent : null,
+      leading: Icon(icon, size: 20, color: MeshStyle.of(context).text),
+      title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: trailing,
+      onTap: onTap,
+    ),
   );
 }
 

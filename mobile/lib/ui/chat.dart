@@ -47,6 +47,7 @@ import 'position_picker.dart';
 import 'quick_phrases.dart';
 import 'search_field.dart';
 import 'chat_workspace.dart';
+import 'desktop_interaction.dart' show DesktopSpring;
 import '../mesh/store.dart';
 
 part 'radio_outbox.dart';
@@ -4516,29 +4517,36 @@ class _ChatTitle extends StatelessWidget {
               onSelect: onTap == null ? null : (_) => onTap?.call(),
               onLongPress: onLongPress,
             )
-          : GlassSurface(
-              radius: 100,
-              child: InkWell(
-                onTap: onTap,
-                onLongPress: onLongPress,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: padding),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
-                      ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: subtitleStyle,
-                      ),
-                    ],
+          : DesktopSpring(
+              enabled: onTap != null || onLongPress != null,
+              child: GlassSurface(
+                radius: 100,
+                child: InkWell(
+                  hoverColor: meshDesktop(context) ? Colors.transparent : null,
+                  splashFactory: meshDesktop(context)
+                      ? NoSplash.splashFactory
+                      : null,
+                  onTap: onTap,
+                  onLongPress: onLongPress,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: padding),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: titleStyle,
+                        ),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: subtitleStyle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

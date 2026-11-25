@@ -23,6 +23,7 @@ import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
 import 'chat_workspace.dart';
+import 'desktop_interaction.dart' show DesktopSpring;
 import 'firmware_page.dart';
 import 'emoji_text.dart';
 import 'haptics.dart';
@@ -2309,6 +2310,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     Widget row(BuildContext rowContext, {bool preview = false}) => InkWell(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
+      hoverColor: meshDesktop(context) ? Colors.transparent : null,
       onTap: preview ? null : onTap ?? () => unawaited(_openChat(peer)),
       onSecondaryTapDown:
           !preview && !editing && !_searchActive && meshDesktop(context)
@@ -2497,7 +2499,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
       ),
     );
-    final chat = Builder(builder: row);
+    final chat = DesktopSpring(
+      enabled: !_removingChats,
+      child: Builder(builder: row),
+    );
     if (!_split || editing) return chat;
     return Semantics(
       selected: current,

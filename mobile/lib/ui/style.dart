@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
+import 'desktop_interaction.dart';
 import 'ios_control.dart';
 import 'macos_glass.dart';
 import 'mesh_icon.dart';
@@ -329,28 +330,55 @@ class GlassSurface extends StatelessWidget {
   }
 }
 
-class MeshIconButton extends IconButton {
+class MeshIconButton extends StatelessWidget {
   const MeshIconButton({
     super.key,
     required this.label,
-    required super.icon,
-    required super.onPressed,
-    super.alignment,
-    super.color,
-    super.constraints,
-    super.isSelected,
-    super.onLongPress,
-    super.padding,
-    super.style,
-    super.visualDensity,
+    required this.icon,
+    required this.onPressed,
+    this.alignment,
+    this.color,
+    this.constraints,
+    this.isSelected,
+    this.onLongPress,
+    this.padding,
+    this.style,
+    this.visualDensity,
   });
 
   final String label;
+  final Widget icon;
+  final VoidCallback? onPressed, onLongPress;
+  final AlignmentGeometry? alignment;
+  final Color? color;
+  final BoxConstraints? constraints;
+  final bool? isSelected;
+  final EdgeInsetsGeometry? padding;
+  final ButtonStyle? style;
+  final VisualDensity? visualDensity;
 
   @override
-  Widget build(BuildContext context) =>
-      Semantics(label: label, child: super.build(context));
+  Widget build(BuildContext context) => Semantics(
+    label: label,
+    child: DesktopSpring(
+      enabled: onPressed != null,
+      child: IconButton(
+        icon: icon,
+        onPressed: onPressed,
+        alignment: alignment,
+        color: color,
+        constraints: constraints,
+        isSelected: isSelected,
+        onLongPress: onLongPress,
+        padding: padding,
+        style: meshDesktopButtonStyle(context, style),
+        visualDensity: visualDensity,
+      ),
+    ),
+  );
 }
+
+const meshGlassButtonExtent = 48.0;
 
 class GlassButton extends StatelessWidget {
   const GlassButton({
@@ -375,7 +403,7 @@ class GlassButton extends StatelessWidget {
     final symbol = useIosControls ? meshGlassButtonSymbol(icon) : null;
     if (symbol != null) {
       return SizedBox.square(
-        dimension: 48,
+        dimension: meshGlassButtonExtent,
         child: _NativeGlassButton(
           symbol: symbol,
           label: label,
@@ -389,17 +417,24 @@ class GlassButton extends StatelessWidget {
     }
     final button = Semantics(
       label: label,
-      child: GlassSurface(
-        color: primary ? style.accent : null,
-        child: IconButton(
-          constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-          padding: EdgeInsets.zero,
-          icon: Icon(icon, size: 20),
-          color: primary
-              ? (style.dark ? const Color(0xff10254b) : Colors.white)
-              : style.text,
-          disabledColor: style.secondary,
-          onPressed: onTap,
+      child: DesktopSpring(
+        enabled: onTap != null || onLongPress != null,
+        child: GlassSurface(
+          color: primary ? style.accent : null,
+          child: IconButton(
+            constraints: const BoxConstraints.tightFor(
+              width: meshGlassButtonExtent,
+              height: meshGlassButtonExtent,
+            ),
+            padding: EdgeInsets.zero,
+            icon: Icon(icon, size: 20),
+            color: primary
+                ? (style.dark ? const Color(0xff10254b) : Colors.white)
+                : style.text,
+            disabledColor: style.secondary,
+            style: meshDesktopButtonStyle(context),
+            onPressed: onTap,
+          ),
         ),
       ),
     );
@@ -486,29 +521,35 @@ class GlassActionButton extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       );
       final button = FilledButton(
-        style: FilledButton.styleFrom(
-          backgroundColor: macGlass
-              ? Colors.transparent
-              : primary
-              ? style.accent
-              : style.pill,
-          foregroundColor: primary
-              ? (style.dark ? const Color(0xff10254b) : Colors.white)
-              : style.text,
-          disabledBackgroundColor: macGlass
-              ? Colors.transparent
-              : primary
-              ? Color.lerp(style.surface, style.text, .27)
-              : style.pill,
-          disabledForegroundColor: style.secondary.withValues(alpha: .58),
-          shape: const StadiumBorder(),
-          side: primary || macGlass
-              ? BorderSide.none
-              : BorderSide(color: style.separator),
-          padding: EdgeInsets.symmetric(horizontal: stacked ? 6 : 12),
-          alignment: Alignment.center,
-          tapTargetSize: macGlass ? MaterialTapTargetSize.shrinkWrap : null,
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        style: meshDesktopButtonStyle(
+          context,
+          FilledButton.styleFrom(
+            backgroundColor: macGlass
+                ? Colors.transparent
+                : primary
+                ? style.accent
+                : style.pill,
+            foregroundColor: primary
+                ? (style.dark ? const Color(0xff10254b) : Colors.white)
+                : style.text,
+            disabledBackgroundColor: macGlass
+                ? Colors.transparent
+                : primary
+                ? Color.lerp(style.surface, style.text, .27)
+                : style.pill,
+            disabledForegroundColor: style.secondary.withValues(alpha: .58),
+            shape: const StadiumBorder(),
+            side: primary || macGlass
+                ? BorderSide.none
+                : BorderSide(color: style.separator),
+            padding: EdgeInsets.symmetric(horizontal: stacked ? 6 : 12),
+            alignment: Alignment.center,
+            tapTargetSize: macGlass ? MaterialTapTargetSize.shrinkWrap : null,
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
         onPressed: onTap,
         child: icon == null
@@ -534,12 +575,15 @@ class GlassActionButton extends StatelessWidget {
       return SizedBox(
         height: height ?? defaultHeight,
         width: buttonWidth,
-        child: macGlass
-            ? GlassSurface(
-                color: primary && onTap != null ? style.accent : null,
-                child: button,
-              )
-            : button,
+        child: DesktopSpring(
+          enabled: onTap != null,
+          child: macGlass
+              ? GlassSurface(
+                  color: primary && onTap != null ? style.accent : null,
+                  child: button,
+                )
+              : button,
+        ),
       );
     }
     return SizedBox(
@@ -855,52 +899,58 @@ class MeshRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final desktop = meshDesktop(context);
     return Semantics(
       selected: selected ? true : null,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-        minTileHeight: 54,
-        leading:
-            leading ??
-            (icon == null
-                ? null
-                : MeshRowIcon(icon: icon!, tint: tint ?? style.accent)),
-        title: Text(
-          title,
-          style: TextStyle(color: titleColor ?? style.text, fontSize: 16),
-        ),
-        subtitle: subtitle == null
-            ? null
-            : Text(
-                subtitle!,
-                style: TextStyle(color: style.secondary, fontSize: 13),
-              ),
-        trailing:
-            trailing ??
-            (selected
-                ? Icon(Icons.check_rounded, size: 21, color: style.accent)
-                : onTap == null || !showChevron
-                ? null
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (detail != null)
-                        Text(
-                          detail!,
-                          style: TextStyle(
-                            color: style.secondary,
-                            fontSize: 13,
+      child: DesktopSpring(
+        enabled: onTap != null || onLongPress != null,
+        child: ListTile(
+          hoverColor: desktop ? Colors.transparent : null,
+          splashColor: desktop ? Colors.transparent : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+          minTileHeight: 54,
+          leading:
+              leading ??
+              (icon == null
+                  ? null
+                  : MeshRowIcon(icon: icon!, tint: tint ?? style.accent)),
+          title: Text(
+            title,
+            style: TextStyle(color: titleColor ?? style.text, fontSize: 16),
+          ),
+          subtitle: subtitle == null
+              ? null
+              : Text(
+                  subtitle!,
+                  style: TextStyle(color: style.secondary, fontSize: 13),
+                ),
+          trailing:
+              trailing ??
+              (selected
+                  ? Icon(Icons.check_rounded, size: 21, color: style.accent)
+                  : onTap == null || !showChevron
+                  ? null
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (detail != null)
+                          Text(
+                            detail!,
+                            style: TextStyle(
+                              color: style.secondary,
+                              fontSize: 13,
+                            ),
                           ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: style.secondary,
+                          size: 19,
                         ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: style.secondary,
-                        size: 19,
-                      ),
-                    ],
-                  )),
-        onTap: onTap,
-        onLongPress: onLongPress,
+                      ],
+                    )),
+          onTap: onTap,
+          onLongPress: onLongPress,
+        ),
       ),
     );
   }
