@@ -284,7 +284,7 @@ class GlassSurface extends StatelessWidget {
               ),
             ),
           ),
-          // Keep UIKit's glass edge outside the clip for the phrase controls.
+          // Keep UIKit's glass edge outside the content clip.
           ClipRRect(
             borderRadius: border,
             child: Material(type: MaterialType.transparency, child: child),

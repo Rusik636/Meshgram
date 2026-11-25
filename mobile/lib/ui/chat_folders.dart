@@ -413,7 +413,13 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
     );
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: verticalInset),
-      child: native
+      child: native && !style.dark
+          ? GlassSurface(
+              nativeButtonMaterial: true,
+              radius: barHeight / 2,
+              child: viewport,
+            )
+          : native
           ? Stack(
               children: [
                 Positioned.fill(
@@ -422,8 +428,7 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                       key: ValueKey(('folderGlass', style.dark)),
                       kind: 'modalGlass',
                       properties: {
-                        'clear': style.dark,
-                        'showsRim': true,
+                        'clear': true,
                         'radius': barHeight / 2,
                         'dark': style.dark,
                       },

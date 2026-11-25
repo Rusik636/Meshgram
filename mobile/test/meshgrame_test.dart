@@ -2960,13 +2960,17 @@ void main() {
       final background = find.descendant(
         of: picker,
         matching: find.byWidgetPredicate(
-          (widget) => widget is IosControl && widget.kind == 'modalGlass',
+          (widget) => widget is GlassSurface && widget.nativeButtonMaterial,
         ),
       );
-      final material = tester.widget<IosControl>(background).properties;
-      expect(material, containsPair('clear', false));
-      expect(material, containsPair('showsRim', true));
       expect(tester.getSize(background).height, 40);
+      final backing = find.descendant(
+        of: background,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'button',
+        ),
+      );
+      expect(tester.widget<IosControl>(backing).properties['readOnly'], isTrue);
       final control = find.descendant(
         of: picker,
         matching: find.byWidgetPredicate(
