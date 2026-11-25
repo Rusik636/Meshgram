@@ -3604,6 +3604,39 @@
           "result": "Формула цвета сверена со сборкой 112. Целевой тест проверил оттенок #F8F9FA и сохранение рамок, фона и поведения рабочей области. Прошли четыре целевых теста Flutter и статический анализ."
         }
       ]
+    },
+    {
+      "id": "70",
+      "parent_id": null,
+      "title": "Обновить телефоны и запустить сборку 116 на Mac",
+      "platform": ["ios", "android", "macos"],
+      "branch": "task/70-deploy-build-116",
+      "depends_on": ["69"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сборка 0.3.62 (116) устанавливается поверх прежней версии на iPhone и Android.",
+        "На Mac запущена сборка 116 с восстановленной палитрой левой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-iOS.zip",
+          "result": "CoreDevice подтвердил обновление с 115 до 116 и работающий процесс приложения. Подпись и целостность архива проверены."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-arm64.apk",
+          "result": "ADB подтвердил обновление с 115 до 116 без изменения даты первой установки и успешный запуск. Подпись APK проверена."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-macOS.zip",
+          "result": "Запущено окно чатов из сборки 116. Проверены версия приложения, подпись, архитектуры arm64 и x86_64 и целостность архива."
+        }
+      ]
     }
   ]
 }
