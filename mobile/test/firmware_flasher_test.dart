@@ -11,6 +11,7 @@ import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/radio/desktop_usb.dart';
 import 'package:meshgrame/radio/firmware_catalog.dart';
 import 'package:meshgrame/radio/firmware_flasher.dart';
+import 'package:meshgrame/ui/firmware_filters.dart';
 import 'package:meshgrame/ui/firmware_page.dart';
 
 class _CatalogAssets extends CachingAssetBundle {
@@ -215,7 +216,7 @@ void main() {
   );
 
   testWidgets(
-    'desktop catalogue can search MeshCore and open the pictured board',
+    'desktop catalogue combines filters and opens the pictured board',
     (tester) async {
       final assets = await tester.runAsync(
         () async => _CatalogAssets({
@@ -248,21 +249,55 @@ void main() {
       expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
       await tester.enterText(search, 'Heltec V3 MeshCore ESP32-S3');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('All manufacturers'));
+      await tester.tap(find.text('Filters'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is PopupMenuItem<String> && widget.value == 'Heltec',
-        ),
+      Finder option(String value) => find.descendant(
+        of: find.byType(FirmwareFilterPanel),
+        matching: find.text(value),
       );
+      await tester.tap(option('Heltec'));
+      await tester.pumpAndSettle();
+      await tester.tap(option('Chip'));
+      await tester.pumpAndSettle();
+      await tester.tap(option('nRF52840'));
+      await tester.pumpAndSettle();
+      expect(find.text('No boards found'), findsOneWidget);
+      await tester.tap(option('ESP32-S3'));
+      await tester.pumpAndSettle();
+      expect(find.text('Boards: 1'), findsOneWidget);
+      await tester.tap(option('Protocol'));
+      await tester.pumpAndSettle();
+      await tester.tap(option('MeshCore'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FirmwareFilterTag), findsNWidgets(4));
+      final selectedChip = find.descendant(
+        of: find.byType(FirmwareFilterTag),
+        matching: find.text('nRF52840'),
+      );
+      await tester.tap(selectedChip);
+      await tester.pumpAndSettle();
+      expect(find.byType(FirmwareFilterTag), findsNWidgets(3));
+      await tester.tap(option('Chip'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilterChip>(
+              find.ancestor(
+                of: option('nRF52840'),
+                matching: find.byType(FilterChip),
+              ),
+            )
+            .selected,
+        isFalse,
+      );
+      await tester.tap(find.text('Filters'));
       await tester.pumpAndSettle();
       final board = find.descendant(
         of: find.byType(Card),
         matching: find.text('Heltec V3'),
       );
       expect(board, findsOneWidget);
-      expect(find.text('ESP32-S3 · Meshtastic · MeshCore'), findsWidgets);
+      expect(find.text('ESP32-S3 · MeshCore'), findsOneWidget);
       await tester.tap(board);
       await tester.pumpAndSettle();
       expect(find.text('Protocol'), findsOneWidget);

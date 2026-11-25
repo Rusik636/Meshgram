@@ -12,6 +12,7 @@ class MacGlass {
   static const windowControlsInset = 30.0;
   static const controlEdgeOutset = 2.0;
   static bool _supported = false;
+  static bool firmwareFiltersAvailable = false;
   static double _regularFontSize = 13;
   static double _smallFontSize = 11;
 
@@ -22,12 +23,14 @@ class MacGlass {
         'configuration',
       );
       _supported = configuration?['glass'] == true;
+      firmwareFiltersAvailable = configuration?['firmwareFilters'] == true;
       _regularFontSize =
           (configuration?['regularFontSize'] as num?)?.toDouble() ?? 13;
       _smallFontSize =
           (configuration?['smallFontSize'] as num?)?.toDouble() ?? 11;
     } on MissingPluginException {
       _supported = false;
+      firmwareFiltersAvailable = false;
     }
   }
 

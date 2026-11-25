@@ -23,6 +23,10 @@ class MainFlutterWindow: NSWindow {
     let registrar = flutterViewController.registrar(forPlugin: "MeshGlass")
     registrar.register(MeshGlassFactory(), withId: "meshgrame/glass")
     registrar.register(MeshWindowControlsFactory(), withId: "meshgrame/window_controls")
+    registrar.register(
+      MeshFirmwareFiltersFactory(messenger: registrar.messenger),
+      withId: "meshgrame/firmware_filters"
+    )
     FlutterMethodChannel(name: "meshgrame/macos_glass", binaryMessenger: registrar.messenger)
       .setMethodCallHandler { call, reply in
         guard call.method == "configuration" else {
@@ -37,6 +41,7 @@ class MainFlutterWindow: NSWindow {
         }
         reply([
           "glass": glass,
+          "firmwareFilters": true,
           "regularFontSize": NSFont.systemFontSize(for: .regular),
           "smallFontSize": NSFont.smallSystemFontSize
         ])

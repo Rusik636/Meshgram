@@ -14,6 +14,7 @@ import '../radio/desktop_usb.dart';
 import '../radio/firmware_catalog.dart';
 import '../radio/firmware_flasher.dart';
 import 'desktop_interaction.dart' show desktopPressedKeys;
+import 'firmware_filters.dart';
 import 'macos_glass.dart';
 import 'page_route.dart';
 import 'style.dart';
@@ -34,7 +35,9 @@ class _FirmwarePageState extends State<FirmwarePage> {
   );
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
-  String _manufacturer = '';
+  final _resultsScroll = ScrollController();
+  FirmwareSelection _selection = {};
+  bool _filtersOpen = false;
   String _query = '';
 
   @override
@@ -68,6 +71,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
     HardwareKeyboard.instance.removeHandler(_findShortcut);
     _search.dispose();
     _searchFocus.dispose();
+    _resultsScroll.dispose();
     super.dispose();
   }
 
@@ -222,6 +226,19 @@ class _FirmwarePageState extends State<FirmwarePage> {
     );
   }
 
+  void _toggleFilter(FirmwareFacet facet, String value) {
+    final values = {...?_selection[facet]};
+    if (!values.remove(value)) values.add(value);
+    setState(() {
+      _selection = {..._selection};
+      if (values.isEmpty) {
+        _selection.remove(facet);
+      } else {
+        _selection[facet] = values;
+      }
+    });
+  }
+
   Widget _boards(
     FirmwareCatalog catalog,
     MeshStyle style, {
@@ -229,51 +246,43 @@ class _FirmwarePageState extends State<FirmwarePage> {
     required double width,
     required double inset,
   }) {
-    final manufacturers = catalog.boards
-        .map((board) => board.manufacturer)
-        .toSet();
+    final options = {
+      for (final facet in FirmwareFacet.values) facet: facet.options(catalog),
+    };
     final boards = catalog.boards
         .where(
           (board) =>
-              (_manufacturer.isEmpty || board.manufacturer == _manufacturer) &&
+              matchesFirmwareSelection(board, _selection) &&
               board.matches(_query),
         )
         .toList();
-    final all = tr(context, 'Все производители', 'All manufacturers');
-    final button = PopupMenuButton<String>(
-      padding: EdgeInsets.zero,
-      tooltip: '',
-      initialValue: _manufacturer,
-      onSelected: (value) => setState(() => _manufacturer = value),
-      itemBuilder: (context) => [
-        PopupMenuItem(value: '', child: Text(all)),
-        for (final manufacturer in manufacturers)
-          PopupMenuItem(value: manufacturer, child: Text(manufacturer)),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.tune_rounded, size: 17),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                _manufacturer.isEmpty ? all : _manufacturer,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
-          ],
-        ),
-      ),
-    );
-    final available = width - 2 * inset;
+    final label = tr(context, 'Фильтры', 'Filters');
+    final native = MacGlass.firmwareFiltersAvailable;
+    void togglePanel() {
+      if (!_filtersOpen && _resultsScroll.hasClients) {
+        _resultsScroll.jumpTo(0);
+      }
+      setState(() => _filtersOpen = !_filtersOpen);
+    }
+
+    final icon = _filtersOpen ? Icons.expand_less_rounded : Icons.tune_rounded;
+    final button = native
+        ? GlassActionButton(
+            label: label,
+            icon: icon,
+            fitContent: true,
+            height: 36,
+            primary: false,
+            onTap: togglePanel,
+          )
+        : OutlinedButton.icon(
+            onPressed: togglePanel,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+          );
     final scaledText = MediaQuery.textScalerOf(context).scale(16);
     final columns =
-        ((available + 12) /
+        ((width - 2 * inset + 12) /
                 (math.max(macGlass ? 224 : 194, scaledText * 10) + 12))
             .floor()
             .clamp(1, 5);
@@ -285,32 +294,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: macGlass
-                          ? GlassSurface(radius: 20, child: button)
-                          : Material(
-                              color: style.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              child: button,
-                            ),
-                    ),
-                    if (_manufacturer.isNotEmpty)
-                      MeshIconButton(
-                        label: tr(
-                          context,
-                          'Сбросить производителя',
-                          'Clear manufacturer',
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 16),
-                        onPressed: () => setState(() => _manufacturer = ''),
-                      ),
-                  ],
-                ),
-              ),
+              Flexible(child: button),
               const SizedBox(width: 12),
               Text(
                 tr(
@@ -324,57 +308,124 @@ class _FirmwarePageState extends State<FirmwarePage> {
           ),
         ),
         Expanded(
-          child: boards.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(inset),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+          child: CustomScrollView(
+            controller: _resultsScroll,
+            slivers: [
+              SliverToBoxAdapter(
+                key: const ValueKey('firmware-filter-panel'),
+                child: AnimatedSize(
+                  alignment: Alignment.topCenter,
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
+                  curve: Curves.easeInOutCubic,
+                  child: _filtersOpen
+                      ? Padding(
+                          padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
+                          child: native
+                              ? Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 420,
+                                    ),
+                                    child: MacFirmwareFilterPanel(
+                                      options: options,
+                                      selection: _selection,
+                                      dark: style.dark,
+                                      onToggle: _toggleFilter,
+                                    ),
+                                  ),
+                                )
+                              : FirmwareFilterPanel(
+                                  options: options,
+                                  selection: _selection,
+                                  onToggle: _toggleFilter,
+                                ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+              if (_selection.isNotEmpty)
+                SliverPadding(
+                  key: const ValueKey('firmware-filter-tags'),
+                  padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          size: 32,
-                          color: style.secondary,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          tr(context, 'Платы не найдены', 'No boards found'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            _search.clear();
-                            setState(() {
-                              _query = '';
-                              _manufacturer = '';
-                            });
-                          },
-                          child: Text(
-                            tr(
-                              context,
-                              'Сбросить поиск и фильтр',
-                              'Reset search and filter',
-                            ),
-                          ),
-                        ),
+                        for (final facet in FirmwareFacet.values)
+                          for (final value in options[facet]!)
+                            if (_selection[facet]?.contains(value) ?? false)
+                              FirmwareFilterTag(
+                                key: ValueKey((facet, value)),
+                                value: value,
+                                onRemove: () => _toggleFilter(facet, value),
+                              ),
                       ],
                     ),
                   ),
-                )
-              : GridView.builder(
-                  key: ValueKey((_manufacturer, _query)),
-                  padding: EdgeInsets.fromLTRB(inset, 0, inset, inset),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisExtent: 146 + scaledText * 4.5,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                  ),
-                  itemCount: boards.length,
-                  itemBuilder: (context, index) {
-                    final board = boards[index];
-                    return _BoardCard(board, onTap: () => _openBoard(board));
-                  },
                 ),
+              if (boards.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(inset),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.search_off_rounded,
+                            size: 32,
+                            color: style.secondary,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            tr(context, 'Платы не найдены', 'No boards found'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              _search.clear();
+                              setState(() {
+                                _query = '';
+                                _selection = {};
+                              });
+                            },
+                            child: Text(
+                              tr(
+                                context,
+                                'Сбросить поиск и фильтры',
+                                'Reset search and filters',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  key: const ValueKey('firmware-board-grid'),
+                  padding: EdgeInsets.fromLTRB(inset, 0, inset, inset),
+                  sliver: SliverGrid.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisExtent: 146 + scaledText * 4.5,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                    ),
+                    itemCount: boards.length,
+                    itemBuilder: (context, index) {
+                      final board = boards[index];
+                      return _BoardCard(board, onTap: () => _openBoard(board));
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -391,7 +442,7 @@ class _BoardCard extends StatelessWidget {
     final style = MeshStyle.of(context);
     final metadata = [
       ...board.chips.map((chip) => chip.label),
-      ...board.protocols,
+      ...board.protocols.where((protocol) => protocol != 'Meshtastic'),
     ];
     return Card(
       margin: EdgeInsets.zero,
