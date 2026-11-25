@@ -2438,7 +2438,7 @@ void main() {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
-        expect(panelColor, const Color(0xfff2f4f6));
+        expect(panelColor.toARGB32(), 0xfff8f9fa);
         final panels = find.byType(DesktopWorkspacePanel);
         expect(panels, findsNWidgets(2));
         for (final panel in tester.widgetList<DesktopWorkspacePanel>(panels)) {
