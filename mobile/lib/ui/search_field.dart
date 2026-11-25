@@ -179,7 +179,8 @@ class MeshSearchLauncher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    return TextField(
+    final glass = MacGlass.enabled(context);
+    final field = TextField(
       readOnly: true,
       canRequestFocus: false,
       onTap: onTap,
@@ -195,8 +196,10 @@ class MeshSearchLauncher extends StatelessWidget {
           color: style.secondary,
           size: 22,
         ),
-        filled: true,
-        fillColor: Color.lerp(style.searchField, style.pill, collapse),
+        filled: !glass,
+        fillColor: glass
+            ? null
+            : Color.lerp(style.searchField, style.pill, collapse),
         isDense: true,
         contentPadding: EdgeInsets.zero,
         border: OutlineInputBorder(
@@ -205,6 +208,7 @@ class MeshSearchLauncher extends StatelessWidget {
         ),
       ),
     );
+    return glass ? GlassSurface(radius: 100, child: field) : field;
   }
 }
 
@@ -308,11 +312,9 @@ class MeshSearchEditor extends StatelessWidget {
       ),
     );
     if (onActivate == null) {
-      final clearMacGlass = MacGlass.enabled(context) && !style.dark;
       return GlassSurface(
         radius: 100,
-        color: clearMacGlass ? null : style.searchField,
-        clearMacGlass: clearMacGlass,
+        color: MacGlass.enabled(context) ? null : style.searchField,
         child: editor(),
       );
     }
