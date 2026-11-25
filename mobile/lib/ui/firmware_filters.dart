@@ -72,7 +72,10 @@ class _FirmwareFilterPanelState extends State<FirmwareFilterPanel> {
     return Material(
       borderRadius: BorderRadius.circular(16),
       color: style.surface,
-      child: Padding(
+      elevation: 6,
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        primary: false,
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,25 +93,18 @@ class _FirmwareFilterPanelState extends State<FirmwareFilterPanel> {
               ],
             ),
             const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 146),
-              child: SingleChildScrollView(
-                key: ValueKey(_facet),
-                primary: false,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final value in widget.options[_facet]!)
-                      FilterChip(
-                        label: Text(value),
-                        selected:
-                            widget.selection[_facet]?.contains(value) ?? false,
-                        onSelected: (_) => widget.onToggle(_facet, value),
-                      ),
-                  ],
-                ),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final value in widget.options[_facet]!)
+                  FilterChip(
+                    label: Text(value),
+                    selected:
+                        widget.selection[_facet]?.contains(value) ?? false,
+                    onSelected: (_) => widget.onToggle(_facet, value),
+                  ),
+              ],
             ),
           ],
         ),
@@ -242,25 +238,22 @@ class _MacFirmwareFilterPanelState extends State<MacFirmwareFilterPanel> {
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 224,
-    child: AppKitView(
-      key: ValueKey(MacGlass.enabled(context)),
-      viewType: 'meshgrame/firmware_filters',
-      creationParamsCodec: const StandardMessageCodec(),
-      creationParams: {
-        'glass': MacGlass.enabled(context),
-        'facets': [
-          for (final facet in FirmwareFacet.values)
-            {
-              'id': facet.name,
-              'title': facet.label(context),
-              'options': widget.options[facet],
-            },
-        ],
-        ..._state,
-      },
-      onPlatformViewCreated: _connect,
-    ),
+  Widget build(BuildContext context) => AppKitView(
+    key: ValueKey(MacGlass.enabled(context)),
+    viewType: 'meshgrame/firmware_filters',
+    creationParamsCodec: const StandardMessageCodec(),
+    creationParams: {
+      'glass': MacGlass.enabled(context),
+      'facets': [
+        for (final facet in FirmwareFacet.values)
+          {
+            'id': facet.name,
+            'title': facet.label(context),
+            'options': widget.options[facet],
+          },
+      ],
+      ..._state,
+    },
+    onPlatformViewCreated: _connect,
   );
 }

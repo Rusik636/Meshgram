@@ -249,14 +249,25 @@ void main() {
       expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
       await tester.enterText(search, 'Heltec V3 MeshCore ESP32-S3');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Filters'));
+      final filterButton = find.text('Filters');
+      final board = find.descendant(
+        of: find.byType(Card),
+        matching: find.text('Heltec V3'),
+      );
+      final boardPosition = tester.getTopLeft(board);
+      await tester.tap(filterButton);
       await tester.pumpAndSettle();
+      expect(tester.getTopLeft(board), boardPosition);
       Finder option(String value) => find.descendant(
         of: find.byType(FirmwareFilterPanel),
         matching: find.text(value),
       );
       await tester.tap(option('Heltec'));
       await tester.pumpAndSettle();
+      expect(
+        tester.getCenter(find.byType(FirmwareFilterTag)).dy,
+        closeTo(tester.getCenter(filterButton).dy, 1),
+      );
       await tester.tap(option('Chip'));
       await tester.pumpAndSettle();
       await tester.tap(option('nRF52840'));
@@ -290,12 +301,10 @@ void main() {
             .selected,
         isFalse,
       );
-      await tester.tap(find.text('Filters'));
+      final filteredBoardPosition = tester.getTopLeft(board);
+      await tester.tap(filterButton);
       await tester.pumpAndSettle();
-      final board = find.descendant(
-        of: find.byType(Card),
-        matching: find.text('Heltec V3'),
-      );
+      expect(tester.getTopLeft(board), filteredBoardPosition);
       expect(board, findsOneWidget);
       expect(find.text('ESP32-S3 · MeshCore'), findsOneWidget);
       await tester.tap(board);

@@ -35,7 +35,6 @@ class _FirmwarePageState extends State<FirmwarePage> {
   );
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
-  final _resultsScroll = ScrollController();
   FirmwareSelection _selection = {};
   bool _filtersOpen = false;
   String _query = '';
@@ -71,7 +70,6 @@ class _FirmwarePageState extends State<FirmwarePage> {
     HardwareKeyboard.instance.removeHandler(_findShortcut);
     _search.dispose();
     _searchFocus.dispose();
-    _resultsScroll.dispose();
     super.dispose();
   }
 
@@ -258,12 +256,9 @@ class _FirmwarePageState extends State<FirmwarePage> {
         .toList();
     final label = tr(context, 'Фильтры', 'Filters');
     final native = MacGlass.firmwareFiltersAvailable;
-    void togglePanel() {
-      if (!_filtersOpen && _resultsScroll.hasClients) {
-        _resultsScroll.jumpTo(0);
-      }
-      setState(() => _filtersOpen = !_filtersOpen);
-    }
+    const buttonHeight = 36.0;
+    const toolbarTop = 10.0;
+    void togglePanel() => setState(() => _filtersOpen = !_filtersOpen);
 
     final icon = _filtersOpen ? Icons.expand_less_rounded : Icons.tune_rounded;
     final button = native
@@ -271,7 +266,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
             label: label,
             icon: icon,
             fitContent: true,
-            height: 36,
+            height: buttonHeight,
             primary: false,
             onTap: togglePanel,
           )
@@ -286,147 +281,153 @@ class _FirmwarePageState extends State<FirmwarePage> {
                 (math.max(macGlass ? 224 : 194, scaledText * 10) + 12))
             .floor()
             .clamp(1, 5);
+    final tags = [
+      for (final facet in FirmwareFacet.values)
+        for (final value in options[facet]!)
+          if (_selection[facet]?.contains(value) ?? false)
+            FirmwareFilterTag(
+              key: ValueKey((facet, value)),
+              value: value,
+              onRemove: () => _toggleFilter(facet, value),
+            ),
+    ];
+    final catalogue = CustomScrollView(
+      slivers: [
+        if (boards.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(inset),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.search_off_rounded,
+                      size: 32,
+                      color: style.secondary,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(tr(context, 'Платы не найдены', 'No boards found')),
+                    TextButton(
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {
+                          _query = '';
+                          _selection = {};
+                        });
+                      },
+                      child: Text(
+                        tr(
+                          context,
+                          'Сбросить поиск и фильтры',
+                          'Reset search and filters',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            key: const ValueKey('firmware-board-grid'),
+            padding: EdgeInsets.fromLTRB(inset, 0, inset, inset),
+            sliver: SliverGrid.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisExtent: 146 + scaledText * 4.5,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+              ),
+              itemCount: boards.length,
+              itemBuilder: (context, index) {
+                final board = boards[index];
+                return _BoardCard(board, onTap: () => _openBoard(board));
+              },
+            ),
+          ),
+      ],
+    );
+    final catalogWithOverlay = LayoutBuilder(
+      builder: (context, bounds) {
+        final panelHeight = (bounds.maxHeight - 8).clamp(0.0, 224.0);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            catalogue,
+            PositionedDirectional(
+              start: inset,
+              top: 0,
+              width: math.min(420, width - 2 * inset),
+              child: AnimatedSize(
+                alignment: AlignmentDirectional.topStart,
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                curve: Curves.easeInOutCubic,
+                child: !_filtersOpen || panelHeight == 0
+                    ? const SizedBox.shrink()
+                    : native
+                    ? SizedBox(
+                        height: panelHeight,
+                        child: MacFirmwareFilterPanel(
+                          options: options,
+                          selection: _selection,
+                          dark: style.dark,
+                          onToggle: _toggleFilter,
+                        ),
+                      )
+                    : ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: panelHeight),
+                        child: FirmwareFilterPanel(
+                          options: options,
+                          selection: _selection,
+                          onToggle: _toggleFilter,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(inset, 10, inset, 12),
+          padding: EdgeInsets.fromLTRB(inset, toolbarTop, inset, 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(child: button),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(height: buttonHeight, child: button),
+                    ...tags,
+                  ],
+                ),
+              ),
               const SizedBox(width: 12),
-              Text(
-                tr(
-                  context,
-                  'Плат: ${boards.length}',
-                  'Boards: ${boards.length}',
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  tr(
+                    context,
+                    'Плат: ${boards.length}',
+                    'Boards: ${boards.length}',
+                  ),
+                  style: TextStyle(color: style.secondary, fontSize: 13),
                 ),
-                style: TextStyle(color: style.secondary, fontSize: 13),
               ),
             ],
           ),
         ),
-        Expanded(
-          child: CustomScrollView(
-            controller: _resultsScroll,
-            slivers: [
-              SliverToBoxAdapter(
-                key: const ValueKey('firmware-filter-panel'),
-                child: AnimatedSize(
-                  alignment: Alignment.topCenter,
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 220),
-                  curve: Curves.easeInOutCubic,
-                  child: _filtersOpen
-                      ? Padding(
-                          padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
-                          child: native
-                              ? Align(
-                                  alignment: AlignmentDirectional.centerStart,
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 420,
-                                    ),
-                                    child: MacFirmwareFilterPanel(
-                                      options: options,
-                                      selection: _selection,
-                                      dark: style.dark,
-                                      onToggle: _toggleFilter,
-                                    ),
-                                  ),
-                                )
-                              : FirmwareFilterPanel(
-                                  options: options,
-                                  selection: _selection,
-                                  onToggle: _toggleFilter,
-                                ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-              if (_selection.isNotEmpty)
-                SliverPadding(
-                  key: const ValueKey('firmware-filter-tags'),
-                  padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
-                  sliver: SliverToBoxAdapter(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final facet in FirmwareFacet.values)
-                          for (final value in options[facet]!)
-                            if (_selection[facet]?.contains(value) ?? false)
-                              FirmwareFilterTag(
-                                key: ValueKey((facet, value)),
-                                value: value,
-                                onRemove: () => _toggleFilter(facet, value),
-                              ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (boards.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(inset),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.search_off_rounded,
-                            size: 32,
-                            color: style.secondary,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            tr(context, 'Платы не найдены', 'No boards found'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              _search.clear();
-                              setState(() {
-                                _query = '';
-                                _selection = {};
-                              });
-                            },
-                            child: Text(
-                              tr(
-                                context,
-                                'Сбросить поиск и фильтры',
-                                'Reset search and filters',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  key: const ValueKey('firmware-board-grid'),
-                  padding: EdgeInsets.fromLTRB(inset, 0, inset, inset),
-                  sliver: SliverGrid.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisExtent: 146 + scaledText * 4.5,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                    ),
-                    itemCount: boards.length,
-                    itemBuilder: (context, index) {
-                      final board = boards[index];
-                      return _BoardCard(board, onTap: () => _openBoard(board));
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
+        Expanded(child: catalogWithOverlay),
       ],
     );
   }
