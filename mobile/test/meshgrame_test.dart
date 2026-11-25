@@ -2963,7 +2963,9 @@ void main() {
           (widget) => widget is IosControl && widget.kind == 'modalGlass',
         ),
       );
-      expect(tester.widget<IosControl>(background).properties['clear'], isTrue);
+      final material = tester.widget<IosControl>(background).properties;
+      expect(material, containsPair('clear', false));
+      expect(material, containsPair('showsRim', true));
       expect(tester.getSize(background).height, 40);
       final control = find.descendant(
         of: picker,

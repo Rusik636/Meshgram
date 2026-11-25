@@ -422,7 +422,8 @@ class _ChatFolderTabsState extends State<ChatFolderTabs>
                       key: ValueKey(('folderGlass', style.dark)),
                       kind: 'modalGlass',
                       properties: {
-                        'clear': true,
+                        'clear': style.dark,
+                        'showsRim': true,
                         'radius': barHeight / 2,
                         'dark': style.dark,
                       },

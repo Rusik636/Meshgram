@@ -243,6 +243,7 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     let clear = input["clear"] as? Bool == true
+    let showsRim = input["showsRim"] as? Bool == true
     let effect: UIVisualEffect
     if #available(iOS 26.0, *) {
       let glass = UIGlassEffect(style: clear ? .clear : .regular)
@@ -253,7 +254,7 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
     } else {
       effect = UIBlurEffect(style: clear ? .systemUltraThinMaterial : .systemMaterial)
     }
-    surface = MeshModalGlassView(frame: frame, effect: effect, showsRim: clear)
+    surface = MeshModalGlassView(frame: frame, effect: effect, showsRim: showsRim)
     self.channel = channel
     super.init()
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
