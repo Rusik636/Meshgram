@@ -3912,6 +3912,126 @@
           "result": "Проверены локальная подпись, целостность архива и архитектуры arm64 и x86_64."
         }
       ]
+    },
+    {
+      "id": "81",
+      "parent_id": null,
+      "title": "Прокручивать быстрые ответы колесом и выровнять редактор",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Колесо мыши прокручивает полосу горизонтально. Редактор и нижние кнопки выровнены по краю левой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Вертикальная прокрутка над полосой открывает крайние фразы. Нижний край редактора и боковой панели выровнены."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверяют прокрутку колеса в обе стороны, упор в конец и совпадение нижнего края редактора с панелью на Windows."
+        }
+      ]
+    },
+    {
+      "id": "82",
+      "parent_id": null,
+      "title": "Общий индикатор боковой панели и анимация папок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Один индикатор перемещается между папками и настройками. Папки могут пружинить.",
+        "Все однотипные строки разделов, включая настройки и список чатов, сохраняют размер при наведении и нажатии."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "У Настроек отображается общая синяя полоса без подложки. При наведении строка «Оформление» сохраняет размер."
+        },
+        {
+          "kind": "check",
+          "result": "Тест проверяет анимированное перемещение индикатора к Настройкам, пружину на папках и отсутствие пружины у всех строк настроек."
+        }
+      ]
+    },
+    {
+      "id": "83",
+      "parent_id": null,
+      "title": "Новый каталог прошивок и карточка платы",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Каталог поддерживает поиск по модели и характеристикам и фильтр производителя. Карточка платы группирует версию, образ и USB. На macOS панель поиска использует Liquid Glass."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://baymard.com/research-articles/how-to-design-applied-filters",
+          "result": "Видимый фильтр производителя, быстрый сброс и обновление числа результатов."
+        },
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/videos/play/wwdc2026/289/",
+          "result": "Компактная панель нативного стекла поверх содержимого на macOS."
+        },
+        {
+          "kind": "source",
+          "url": "https://flash.meshtastic.org/",
+          "result": "Модель платы, версия и режим установки как отдельные этапы выбора образа."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Открыт каталог из 68 плат. Проверены ⌘F, поиск, фильтр Heltec и карточка Heltec V3. Тесты Mac и Windows проверяют поиск по чипу и протоколу и выбор прошивки MeshCore."
+        }
+      ]
+    },
+    {
+      "id": "84",
+      "parent_id": null,
+      "title": "Сохранить контур Liquid Glass на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Граница нативного стекла видна по всему периметру на светлом фоне."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Границы круглых кнопок и длинного поля ввода проверены в светлом чате. Тест Flutter проверяет запас для нативного контура при масштабировании."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-123-macOS.zip",
+          "result": "Проверены локальная подпись, архив и архитектуры arm64 и x86_64."
+        }
+      ]
     }
   ]
 }
