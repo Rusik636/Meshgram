@@ -4032,6 +4032,126 @@
           "result": "Проверены локальная подпись, архив и архитектуры arm64 и x86_64."
         }
       ]
+    },
+    {
+      "id": "85",
+      "parent_id": null,
+      "title": "Значок быстрых фраз и лист значков Meshgram",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка и раскрывающаяся полоса используют один SVG. Остальные варианты показаны на листе с подписями."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/design/human-interface-guidelines/sf-symbols",
+          "result": "Согласованная геометрия и толщина штриха у самостоятельных рисунков."
+        },
+        {
+          "kind": "image",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-icons.png",
+          "result": "Девять значков с подписями. Вариант «Профиль рации» перерисован."
+        },
+        {
+          "kind": "check",
+          "device": "macOS и iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "SVG быстрых фраз виден в чате, в том числе на нативной кнопке iOS. Тесты Flutter проверяют раскрытие полосы."
+        }
+      ]
+    },
+    {
+      "id": "86",
+      "parent_id": null,
+      "title": "Мультивыбор фильтров каталога прошивок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Фильтры по производителю, чипу и протоколу доступны из одной панели. Выбор виден в переносимых тегах и корректируется из панели и по крестику. На Mac панель нативная. Название Meshtastic скрыто в карточках каталога."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/appkit/nssegmentedcontrol",
+          "result": "Системное переключение категорий в нативной панели AppKit."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены Liquid Glass, сочетание Heltec, ESP32-S3 и MeshCore, удаление тега и синхронизация флажка. Meshtastic доступен в фильтре и на странице прошивки."
+        },
+        {
+          "kind": "check",
+          "device": "Flutter, macOS и Windows",
+          "result": "Тесты проверяют сочетание критериев, сброс тега, позицию карточки и доступность выбора протокола на странице платы."
+        }
+      ]
+    },
+    {
+      "id": "87",
+      "parent_id": null,
+      "title": "Снять серую тонировку активной строки поиска на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме активное поле поиска использует нативное стекло без дополнительного оттенка."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "В светлой теме проверены прозрачное стекло, ввод запроса и совпадение в результатах."
+        }
+      ]
+    },
+    {
+      "id": "88",
+      "parent_id": "86",
+      "title": "Раскрывать фильтры поверх каталога и ставить теги в ряд с кнопкой",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [
+        "86"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Панель раскрывается поверх карточек. Открытие и закрытие сохраняет положение каталога. Кнопка и теги находятся в одном ряду с переносом по ширине."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Видны стеклянная панель поверх карточек, теги Heltec и ESP32-S3 справа от кнопки. Нативные флажки и удаление тега работают при открытой панели."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-124-macOS.zip",
+          "result": "Локальная сборка 124 для arm64 и x86_64."
+        }
+      ]
     }
   ]
 }
