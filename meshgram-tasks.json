@@ -1,0 +1,4304 @@
+{
+  "base_commit": "56ad46d5d84fe224d76b39a92a3185fde0c35862",
+  "integration_branch": "dev",
+  "design_skill": {
+    "name": "UI UX Pro Max",
+    "commit": "f2f7266b07805025421611656045e9b44b41e2eb",
+    "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/f2f7266b07805025421611656045e9b44b41e2eb"
+  },
+  "telegram": {
+    "ios": {
+      "commit": "24638bc69bd083981b178dd1e7f921eebbf7fc46"
+    },
+    "android": {
+      "commit": "21f7d109da6ab3506c9e9577f98c6a38771ab335"
+    }
+  },
+  "tasks": [
+    {
+      "id": "01",
+      "parent_id": null,
+      "title": "Поле ввода при ответе",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "implementation",
+          "result": "Для Android использован общий Flutter-контейнер, для iOS один нативный Liquid Glass с UITextView. Логика и оформление адаптированы в Meshgram по исходникам; код Telegram не копировался."
+        },
+        {
+          "kind": "merge_check",
+          "commit": "9604645",
+          "result": "После слияния прошли 213 тестов Flutter. Для мобильных устройств задана сборка 84."
+        },
+        {
+          "kind": "comparison",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/reply-and-link.png",
+          "result": "Состояния встроенной панели в iOS Simulator и Android Emulator; версия Telegram проверена по исходникам."
+        }
+      ]
+    },
+    {
+      "id": "01.ios",
+      "parent_id": "01",
+      "title": "Редактор ответа на iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
+        "Превью ссылки при загрузке и после неё использует тот же слот над текстом. При закрытии возвращается предыдущая панель.",
+        "Вход через свайп и меню, появление, смена и закрытие цитаты с плавной перестройкой редактора и клавиатуры.",
+        "Нативное поле, Liquid Glass и шторки работают при удержании и переходах. Черновик, курсор, выделение и видимая позиция истории сохраняются.",
+        "Многострочный текст и превью ссылки помещаются и отправляются с нужной цитатой."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L4696-L4717",
+          "behavior": "Свайп и меню передают цель в общее состояние ответа. Редактор получает фокус, закрытие убирает только контекст ответа."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerNode.swift#L2046-L2092",
+          "behavior": "Панель ответа измеряется отдельно от редактора. Для закрытия используется пружинный переход 400 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ReplyAccessoryPanelNode/Sources/ReplyAccessoryPanelNode.swift#L395-L445",
+          "behavior": "Панель измеряется на 45 pt, её значок появляется и уходит за 200 мс."
+        },
+        {
+          "kind": "check",
+          "result": "213 тестов Flutter прошли. flutter analyze без замечаний."
+        },
+        {
+          "kind": "check",
+          "result": "На iPhone 18 Pro Simulator прошли 4 теста XCTest. Тест проверяет общую поверхность для цитаты и UITextView, выделение, открытие и закрытие цитаты."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "В деморежиме свайп открывает ответ внутри нативного поля. Проверены геометрия Liquid Glass и видимая клавиатура."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ChatTextInputPanelNode/Sources/ChatTextInputAccessoryPanelStack.swift#L20-L43",
+          "behavior": "Цитата и превью занимают один слот. Новая панель перекрывает предыдущую, закрытие возвращает предыдущую."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "Встроенные загрузка и готовое превью проверены с клавиатурой и многострочным черновиком."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "Закрытие встроенного превью вернуло цитату, черновик и клавиатура сохранились. Ответ с двумя строками отправлен в деморежиме."
+        },
+        {
+          "kind": "installation",
+          "device": "iPhone 18 Pro",
+          "version": "0.3.62",
+          "build": 84,
+          "result": "Установлено поверх 83. Устройство подтвердило номер 84, приложение запущено."
+        },
+        {
+          "kind": "radio_check",
+          "device": "iPhone 18 Pro",
+          "build": 84,
+          "result": "После отключения Redmi iPhone подключился к Heltec V4 по Meshtastic. Ответ в канале test появился в истории и получил отметку подтверждения узлом сети.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-meshtastic-reply.png"
+        }
+      ]
+    },
+    {
+      "id": "01.android",
+      "parent_id": "01",
+      "title": "Редактор ответа на Android",
+      "platform": [
+        "android"
+      ],
+      "branch": "task/01-reply-composer",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Ответ встроен в поверхность редактора и находится непосредственно над текстом.",
+        "Превью ссылки при загрузке и после неё использует тот же слот над текстом. При закрытии возвращается предыдущая панель.",
+        "Вход через свайп и меню, появление, смена и закрытие цитаты с поведением Android.",
+        "Многострочный текст и превью ссылки не теряют черновик, курсор, выделение или видимую позицию истории при работе с клавиатурой.",
+        "Отправка использует выбранную цитату."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java#L6424-L6495",
+          "behavior": "Верхняя панель открывается в начале показа клавиатуры, резервный запуск через 200 мс. Закрытие отдельно от клавиатуры."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L7989-L8000",
+          "behavior": "При изменении количества строк анимируются границы существующего редактора."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L15604-L15631",
+          "behavior": "Цель ответа и выбранная цитата обновляются отдельно от текста."
+        },
+        {
+          "kind": "check",
+          "result": "213 тестов Flutter прошли. flutter analyze без замечаний."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "В деморежиме проверены свайп, меню, сохранение клавиатуры после закрытия ответа, многострочный черновик с превью ссылки и отправка."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L15988-L16032",
+          "behavior": "Превью занимает верхнюю панель редактора и в состоянии загрузки показывает адрес. Состояние ответа хранится отдельно."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Проверены встроенная загрузка и готовое превью ссылки. Закрытие возвращает цитату, клавиатура и черновик остаются. Отправка проверена в деморежиме."
+        },
+        {
+          "kind": "installation",
+          "device": "Redmi Note 7",
+          "version": "0.3.62",
+          "build": 84,
+          "result": "Установлено поверх 83. Устройство подтвердило номер 84, приложение запущено."
+        },
+        {
+          "kind": "radio_check",
+          "device": "Redmi Note 7",
+          "build": 84,
+          "result": "В канале test отправлены обычное сообщение и ответ на него через Meshtastic по Bluetooth с выключенными Wi-Fi и мобильными данными. Сетевые настройки восстановлены. Рация вручную отключена от Redmi перед проверкой iPhone.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-offline-radio-reply.png"
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "parent_id": null,
+      "title": "Общий переход к конкретному сообщению",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/02-message-jump",
+      "depends_on": [
+        "01"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "5c3e552",
+          "result": "После слияния повторно прошли сценарии проверки iOS и Android."
+        }
+      ]
+    },
+    {
+      "id": "02.history",
+      "parent_id": "02",
+      "title": "Прокрутка и подсветка",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/02-message-jump",
+      "depends_on": [
+        "01"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Навигация из цитаты переиспользует общий переход к точному ID с краткой подсветкой.",
+        "При вытеснении исходника показано понятное сообщение."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatHistoryListNode.swift#L3895-L3897",
+          "behavior": "Переход использует точный индекс сообщения, центрирование и подсветку через общий вход истории."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L17540-L17589",
+          "behavior": "Общий метод принимает ID сообщения, выбирает направление и ищет его в локальных элементах списка."
+        },
+        {
+          "kind": "check",
+          "result": "На вариантах Flutter iOS и Android проверены переход к сообщению вне экрана, подсветка, точка входа по ID и сообщение при вытеснении оригинала."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Тап по цитате в отправленном ответе закрыл клавиатуру и подсветил точный оригинал."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Тап по цитате в отправленном ответе открыл оригинал."
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "parent_id": null,
+      "title": "Локальное «Избранное»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "2a13074",
+          "result": "После слияния прошли четыре теста Избранного и навигации. До слияния прошли 215 тестов Flutter."
+        }
+      ]
+    },
+    {
+      "id": "03.copy",
+      "parent_id": "03",
+      "title": "Самостоятельная копия",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сохраняются текст, ссылки и координаты с метками, автором, датой и источником.",
+        "Копия открывается после очистки обычной истории и перезапуска без интернета и рации."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/messenger/SavedMessagesController.java#L350-L376",
+          "behavior": "Сохранённые сообщения учитывают диалог-источник."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L7841-L7854",
+          "behavior": "Избранное открывается как отдельная история с собственными метками."
+        },
+        {
+          "kind": "check",
+          "result": "Тест подтвердил независимое сохранение текста, ссылки и координат после очистки чата и повторной загрузки. Ни одного подключения транспорта."
+        }
+      ]
+    },
+    {
+      "id": "03.browse",
+      "parent_id": "03",
+      "title": "Экран «Избранное»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/03-local-saved",
+      "depends_on": [
+        "02"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Есть просмотр и переход к доступному оригиналу.",
+        "При работе с «Избранным» транспорт получает ноль пакетов."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Сохранение из меню и переход к точному исходному сообщению из Избранного."
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Сохранение из меню, редактирование меток и переход к источнику."
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "parent_id": null,
+      "title": "Поиск по отдельным сообщениям",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "322c370",
+          "result": "После слияния прошли тесты поиска и сценарии чата. Полный прогон в ветке задачи: 216 тестов."
+        },
+        {
+          "kind": "merge_check",
+          "commit": "b4e34b1",
+          "result": "После слияния улучшений поиска повторно прошли 10 тестов поиска, профиля и редактора. Для устройств задана общая сборка 85."
+        }
+      ]
+    },
+    {
+      "id": "04.matches",
+      "parent_id": "04",
+      "title": "Результаты на уровне сообщений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Глобальный поиск показывает фрагмент, автора и дату. Внутри переписки совпадения отображаются теми же пузырями, что и в истории. Тап открывает точное место сообщения.",
+        "Удержание имени и кнопка «Поиск» в профиле открывают один режим поиска. На iOS поле поиска заменяет заголовок и использует нативный Liquid Glass."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatSearchResultsContollerNode.swift#L231-L243",
+          "behavior": "Результат поиска выбирается как отдельное сообщение по точному индексу."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L6162-L6172",
+          "behavior": "Удержание заголовка вызывает beginMessageSearch в текущем чате."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ChatTitleView/Sources/ChatTitleView.swift#L1147-L1154",
+          "behavior": "Долгое нажатие обрабатывается при переходе распознавателя в состояние began."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ChatSearchNavigationContentNode/Sources/ChatSearchNavigationContentNode.swift#L155-L166",
+          "behavior": "Поле в панели навигации использует стеклянную подложку и отдельную кнопку закрытия."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L8702-L8719",
+          "behavior": "Совпадения выделяются в тех же компонентах сообщений, которые отображают историю."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L38072-L38082",
+          "behavior": "Для отфильтрованных сообщений используется обычная ячейка ChatMessageCell."
+        },
+        {
+          "kind": "check",
+          "result": "В тесте фильтр ссылок оставил одно совпадение; тап открыл исходное сообщение по ID."
+        },
+        {
+          "kind": "check",
+          "result": "В ветке задачи прошли 216 тестов Flutter и 4 теста UIKit. Удержание открывает поиск, кнопка профиля открывает тот же режим."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Удержание имени открывает нативное поле Liquid Glass. Запрос «гребне» оставил исходный пузырь, тап вернул к нему в историю. Вход из профиля подтверждён в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-in-chat-search-glass.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Удержание имени и кнопка профиля открыли поле в шапке. Проверены пустой результат и переход из пузыря в историю. Глобальный поиск сохраняет отображение автора и даты.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-in-chat-search.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "build": 85,
+          "result": "Обновление поверх 84. В канале test проверены удержание заголовка, запрос и переход по найденному пузырю при отключённой рации.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-85.png"
+        }
+      ]
+    },
+    {
+      "id": "04.filters",
+      "parent_id": "04",
+      "title": "Фильтры и переход к дате",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/04-message-search",
+      "depends_on": [
+        "02",
+        "03"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Фильтры по автору, периоду, ссылкам, координатам и контактам комбинируются. Переход к дате работает при наличии истории."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L11095-L11117",
+          "behavior": "Календарь доступен в поиске по чату. Выбранная дата используется для перехода в историю."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены сочетание автора, границ периода и типов, координаты, контакты и переход к выбранному дню."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Открыт календарь из поиска в чате, подтверждён переход к выбранной дате."
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "parent_id": null,
+      "title": "Предпросмотр чата по удержанию",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/05-chat-preview",
+      "depends_on": [
+        "04"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "12dd9c0",
+          "result": "217 тестов Flutter в ветке задачи. После слияния повторно прошёл сценарий предпросмотра, непрочитанных и свайпа."
+        }
+      ]
+    },
+    {
+      "id": "05.gesture",
+      "parent_id": "05",
+      "title": "Жест и содержимое карточки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/05-chat-preview",
+      "depends_on": [
+        "04"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Удержание показывает последние локальные сообщения и не ломает свайпы строки.",
+        "Открытие и закрытие сохраняют счётчик непрочитанного."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListController.swift#L2038-L2048",
+          "behavior": "Удержание строки открывает контекстный предпросмотр с привязкой к строке и выключенным чтением истории."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L8762-L8777",
+          "behavior": "Карточка предпросмотра открывается поверх списка и может перейти в полный чат."
+        },
+        {
+          "kind": "check",
+          "result": "В тесте последнее сообщение показано обычным пузырём. После закрытия непрочитанные сохранены, а свайп открывает прежние действия; транспорт не подключался."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Карточка открылась по удержанию в светлой и тёмной теме. После закрытия индикатор чата сохранился.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Проверены последние сообщения, сохранение состояния строки при закрытии и прежнее действие горизонтального свайпа.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-chat-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "parent_id": null,
+      "title": "Папки и локальные закрепления",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "903e040",
+          "result": "218 тестов Flutter прошли в ветке задачи. После слияния прошёл сценарий создания папки, закрепления, перехода и восстановления локального кэша."
+        }
+      ]
+    },
+    {
+      "id": "06.folders",
+      "parent_id": "06",
+      "title": "Пользовательские папки и «Непрочитанные»",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Папки переиспользуют категории и «Скрытые чаты». Названия и состав сохраняются на устройстве."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListFilterPresetController.swift#L554-L609",
+          "behavior": "Редактор хранит имя, состав включённых чатов и фильтр прочитанного."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/FilterCreateActivity.java#L208-L223",
+          "behavior": "Список закреплений принадлежит конкретной папке."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Созданы папки из двух чатов. Фильтр «Непрочитанные» показал только непрочитанные. Перезагрузка формата локального кэша сохранила состав, имя и порядок.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-folders.png"
+        }
+      ]
+    },
+    {
+      "id": "06.pins",
+      "parent_id": "06",
+      "title": "Закрепление чатов и сообщений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/06-folders-pins",
+      "depends_on": [
+        "02",
+        "05"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Чат закрепляется вверху своей папки. Закреплённое сообщение видно внутри чата и использует общий переход.",
+        "Закрепления сохраняются после перезапуска, работают без рации."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatPinnedMessageTitlePanelNode.swift#L991-L1005",
+          "behavior": "Тап по панели закреплённого сообщения вызывает переход к ID сообщения."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L11935-L11960",
+          "behavior": "Закреплённое сообщение показано в верхней панели. Тап прокручивает историю к этому сообщению."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Свайп закрепил чат над более свежим. Закреплённое сообщение появилось в шапке и подсветилось в истории после тапа. Тест подтвердил работу без открытия транспорта.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-pinned-message.png"
+        }
+      ]
+    },
+    {
+      "id": "07",
+      "parent_id": null,
+      "title": "Быстрые фразы",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-quick-phrases",
+      "depends_on": [
+        "06"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "59cdef0",
+          "result": "219 тестов Flutter в ветке задачи. После слияния прошёл сценарий редактирования шаблона и дополнения черновика без отправки."
+        }
+      ]
+    },
+    {
+      "id": "07.templates",
+      "parent_id": "07",
+      "title": "Редактируемые шаблоны",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-quick-phrases",
+      "depends_on": [
+        "06"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Предустановлены «На месте», «Задержусь» и «Пришли координаты». Можно добавлять, изменять и удалять фразы.",
+        "Шаблон подставляется в редактируемый черновик. Отправка происходит после явного действия."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Settings/AutomaticBusinessMessageSetupScreen/Sources/QuickReplySetupScreen.swift#L605-L648",
+          "behavior": "Быстрые ответы управляются через отдельный список с редактором шаблона."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Business/QuickRepliesActivity.java#L201-L231",
+          "behavior": "Из списка быстрых ответов можно создать шаблон и открыть существующий для редактирования."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "«Задержусь» появился в нативном редакторе. Проверено окно редактирования. Число сообщений сохранилось.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-draft.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Добавлена тестовая фраза. После перезапуска она дополнила текущий черновик; кнопка добавления экспортируется отдельным элементом доступности.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-draft.png"
+        }
+      ]
+    },
+    {
+      "id": "07.alignment",
+      "parent_id": "07",
+      "title": "Выравнивание кнопок быстрых фраз и вложений",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/07-align-quick-phrase",
+      "depends_on": [
+        "07.templates"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Центры обеих кнопок лежат на одной вертикали. Цитата сохраняет выравнивание."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Кнопки Liquid Glass выровнены в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-aligned.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator API 24",
+          "result": "Центр каждой кнопки находится на x=68 px с цитатой и без неё.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-aligned.png"
+        },
+        {
+          "kind": "check",
+          "result": "Автотест проверяет совпадение координат с цитатой и без неё и вставку фразы в черновик."
+        },
+        {
+          "kind": "merge",
+          "commit": "ca20cff",
+          "result": "Проверка совпадения центров повторно прошла после слияния в dev."
+        }
+      ]
+    },
+    {
+      "id": "08",
+      "parent_id": null,
+      "title": "Пересылка текста и цитирование фрагмента",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "0f64ae4",
+          "result": "221 тест Flutter в ветке задачи. После слияния повторно прошли сценарии Meshtastic и MeshCore."
+        }
+      ]
+    },
+    {
+      "id": "08.forward",
+      "parent_id": "08",
+      "title": "Пересылка обычного текста",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Выбор чата подготавливает обычный текст с подписью автора. Штатный адаптер проверяет полный бюджет UTF‑8."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerForwardMessages.swift#L48-L60",
+          "behavior": "Пересылка начинается с выбора чата назначения."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L35540-L35578",
+          "behavior": "При открытии чата Telegram готовит пересылку в панели редактора. Meshgram готовит обычный текст с именем автора."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Пересылка сообщения от Миры открыла черновик в канале «Тропа» с именем автора и исходным текстом. Счётчик учитывает обе строки.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-forward-text.png"
+        }
+      ]
+    },
+    {
+      "id": "08.quote",
+      "parent_id": "08",
+      "title": "Ответ на выделение",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/08-forward-quote",
+      "depends_on": [
+        "07"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Поддерживаемый протокол сохраняет штатную ссылку на оригинал, выбранный фрагмент подсвечивается локально.",
+        "Для остальных случаев доступна короткая текстовая цитата. Бюджет UTF‑8 учитывает её целиком."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramCore/Sources/ApiUtils/ReplyQuoteApi.swift#L16-L43",
+          "behavior": "Ответ на отрывок хранит сам текст и смещение внутри оригинала."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java#L3507-L3547",
+          "behavior": "Выбранные границы формируют цитату и открывают её в панели ответа."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Слово «гребне» выделялось жестом, подсвечивалось в оригинале и отображалось в панели ответа.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quote-excerpt.png"
+        },
+        {
+          "kind": "check",
+          "result": "Meshtastic сохранил штатную ссылку и локальное смещение цитаты. MeshCore подготовил текстовую цитату в пределах лимита. Пересылка заполняет черновик."
+        }
+      ]
+    },
+    {
+      "id": "09",
+      "parent_id": null,
+      "title": "Отправить при подключении рации",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge_check",
+          "commit": "7fb7b05",
+          "result": "В ветке задачи прошли полный прогон Flutter и 4 теста UIKit. После слияния прошли анализ и три сценария очереди."
+        }
+      ]
+    },
+    {
+      "id": "09.queue",
+      "parent_id": "09",
+      "title": "Локальная очередь по рации и чату",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Удержание стрелки сохраняет черновик для выбранного профиля и чата. Есть просмотр, редактирование и отмена.",
+        "Очередь сохраняется после перезапуска и разделена по профилям."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/Chat/ChatMessageDisplaySendMessageOptions.swift#L247-L285",
+          "behavior": "Действие вызывается из контекстного меню стрелки и открывает список ожидающих сообщений."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatSendMessageActionUI/Sources/ChatSendMessageContextScreen.swift#L1167-L1219",
+          "behavior": "Меню iOS показывает предпросмотр сообщения над действиями. Позиция вычисляется относительно стрелки отправки и клавиатуры."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java#L4944-L4964",
+          "behavior": "Меню Android привязано к стрелке и открывается рядом с редактором."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatController.swift#L10903-L10921",
+          "behavior": "Ожидающие сообщения открываются как отдельный режим чата. В Meshgram используются обычные пузыри и меню по удержанию."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Нативное удержание неактивной стрелки открыло контекстное меню с предпросмотром. Выбор сохранил очередь при выключенном демонстрационном профиле.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-radio-send-menu.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "Android Emulator API 24",
+          "result": "Меню стрелки, сохранение в очередь без рации, пузырь с часами, меню редактирования по удержанию. Повторное подключение профиля в демонстрационном режиме отправило одно сообщение.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-radio-outbox.png"
+        }
+      ]
+    },
+    {
+      "id": "09.send",
+      "parent_id": "09",
+      "title": "Обработка очереди и статусы",
+      "platform": [
+        "shared"
+      ],
+      "branch": "task/09-radio-outbox",
+      "depends_on": [
+        "08"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Очередь обрабатывается при подключении правильного профиля в открытом приложении.",
+        "Потеря связи и смена профиля не вызывают повтора сообщения, которое могло уйти в эфир. Повтор решает пользователь.",
+        "Подключение и подтверждение передачи отображаются по отдельным фактическим событиям."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Подменный транспорт проверил фон, смену профиля, восстановление незавершённой попытки после перезапуска, потерю связи после передачи и повтор только после явного действия. Телеметрия соединения и статус сообщения обновляются отдельно."
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "parent_id": null,
+      "title": "Анимация текста из редактора в пузырь",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/10-composer-to-bubble",
+      "depends_on": [
+        "01",
+        "09"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge",
+          "commit": "a722c85",
+          "result": "После слияния в dev повторно прошла проверка перехода до подтверждения и уменьшения движения."
+        }
+      ]
+    },
+    {
+      "id": "10.motion",
+      "parent_id": "10",
+      "title": "Переход при появлении в истории",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/10-composer-to-bubble",
+      "depends_on": [
+        "01",
+        "09"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Текст переходит из редактора в исходящий пузырь при его появлении. Передача обновляется по событию транспорта.",
+        "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerNode.swift#L5541-L5569",
+          "behavior": "Отправляемый элемент связывается со снимком редактора. Редактор обновляется отдельно от перехода в историю."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatMessageTransitionNode.swift#L330-L357",
+          "behavior": "Переход iOS по умолчанию использует 300 мс и отдельные кривые горизонтали и вертикали."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/recyclerview/ChatListItemAnimator.java#L43-L49",
+          "behavior": "Анимация Android длится 250 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/TextMessageEnterTransition.java#L471-L492",
+          "behavior": "Android рассчитывает горизонтальный и вертикальный сдвиги по отдельным кривым."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Записаны кадры до, во время и после перемещения текста. iOS использует границы нативного редактора. На обеих платформах текст и пузырь появляются без второй копии текста.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/send-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "В тесте сообщение уже показывалось в истории до получения подтверждения. Подтверждение изменило отметку без повторного запуска анимации. Уменьшение движения выключило перелёт."
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "parent_id": null,
+      "title": "Анимация реакции к счётчику",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/11-reaction-to-counter",
+      "depends_on": [
+        "10"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge",
+          "commit": "6772ab2",
+          "result": "После слияния в dev повторно прошли проверки перелёта на iOS и Android, раскрытия списка эмодзи и сохранения реакции."
+        }
+      ]
+    },
+    {
+      "id": "11.motion",
+      "parent_id": "11",
+      "title": "Перелёт эмодзи после события реакции",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/11-reaction-to-counter",
+      "depends_on": [
+        "10"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Реакция летит к счётчику по существующему событию. Полный список эмодзи раскрывается. Выбранное сообщение на iPhone остаётся чётким.",
+        "Траектория, время и порядок сверены по платформам. Сокращение движения учитывается."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L2797-L2803",
+          "behavior": "Переход iOS занимает 200 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L2947-L2965",
+          "behavior": "Реакция движется по дуге, значок в счётчике раскрывается при приземлении."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ReactionSelectionNode/Sources/ReactionContextNode.swift#L4221-L4249",
+          "behavior": "В середине дуги значок находится на 30 pt выше точки выбора."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/Reactions/ReactionsEffectOverlay.java#L386-L424",
+          "behavior": "На Android разные кривые для горизонтали и вертикали, поверх общей кривой."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Components/Reactions/ReactionsEffectOverlay.java#L463-L471",
+          "behavior": "Вариант только с перемещением занимает 350 мс."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "На iOS выбрана реакция из полного каталога в тёмной теме, на Android из быстрой полосы в светлой. На кадрах видны дуга и приземление в счётчик.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/reaction-transition-frames.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полный список эмодзи и чёткий текст выбранного сообщения видны одновременно в обеих темах.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-reaction-picker-dark.png"
+        },
+        {
+          "kind": "check",
+          "result": "227 тестов Flutter. Проверки на обеих платформах подтвердили старт из выбранной кнопки, скрытие значка в счётчике до приземления и отсутствие полёта при уменьшении движения."
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "parent_id": null,
+      "title": "Анимация строки чата и предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/12-chat-preview-motion",
+      "depends_on": [
+        "02",
+        "05",
+        "11"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Задача проверена в своей ветке, закоммичена и повторно проверена после слияния в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge",
+          "commit": "db8f38b",
+          "result": "После слияния в dev повторно прошли пять проверок предпросмотра, свайпов, быстрых фраз и локальных закреплений."
+        }
+      ]
+    },
+    {
+      "id": "12.motion",
+      "parent_id": "12",
+      "title": "Раскрытие и возврат карточки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/12-chat-preview-motion",
+      "depends_on": [
+        "02",
+        "05",
+        "11"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Карточка раскрывается из удерживаемой строки и возвращается в неё. Траектория, время и порядок сверены по платформам.",
+        "Сокращение движения учитывается. Поиск, «Избранное» и закрепления используют общий переход."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1573-L1585",
+          "behavior": "Пружина открытия iOS длится 420 мс с демпфированием 104."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1736-L1767",
+          "behavior": "Карточка движется от центра строки, наполнение проявляется за 150 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ContextControllerImpl/Sources/ContextControllerExtractedPresentationNode.swift#L1873-L1892",
+          "behavior": "Закрытие предпросмотра iOS длится 200 мс."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarLayout.java#L1924-L2017",
+          "behavior": "Android открывает предпросмотр за 190 мс с небольшим превышением размера и закрывает за 150 мс с кривой EaseOutQuint."
+        },
+        {
+          "kind": "comparison",
+          "device": "iPhone 18 Pro Simulator и Android Emulator API 24",
+          "result": "Покадровая запись раскрытия и возврата из фактической строки. На обоих виртуальных устройствах счётчик непрочитанного сохранился. На Android после закрытия проверен горизонтальный свайп.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/chat-preview-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "229 тестов Flutter. Два теста движения измеряют границы строки, промежуточный размер и возврат. Существующие сценарии проверяют мгновенный переход при уменьшении движения и общий переход из локального поиска, Избранного и закреплений."
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "parent_id": null,
+      "title": "Приёмка и сборки dev",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "status": "blocked",
+      "acceptance_criteria": [
+        "Критерии всех подзадач проверены.",
+        "Сборки и результаты приёмки зафиксированы, изменения оставлены в dev."
+      ],
+      "evidence": [
+        {
+          "kind": "merge",
+          "result": "Устройства обновлены до единого номера 87. Приёмка отдельно от Meshgram на штатных клиентах остаётся открытой. Разработка оставлена в dev.",
+          "commit": "7481b4c"
+        }
+      ]
+    },
+    {
+      "id": "13.simulator",
+      "parent_id": "13",
+      "title": "iOS Simulator и Android Emulator",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Каждая задача проверена на затронутых платформах, в светлой и тёмной темах, с уменьшением движения и прозрачности где применимо.",
+        "Проверены состояния Liquid Glass и перекрытие кнопок шторками. Есть записи и покадровые сравнения где возможно."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "В dev прошли 233 теста Flutter, анализ без замечаний и 4 UIKit-теста. Отдельно UIKit проверен с включённым понижением прозрачности.",
+          "commit": "7481b4c"
+        },
+        {
+          "kind": "comparison",
+          "result": "Симулятор iOS и эмулятор Android проверены, включая тёмные экраны и тесты уменьшенного движения. Траектории сверены по исходникам Telegram.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/chat-preview-transition-frames.png"
+        },
+        {
+          "kind": "check",
+          "result": "Покадровые записи показывают Meshgram. Живое сравнение с Telegram Android ограничилось запуском публичного канала: клиент оставался на экране подключения. Эталон поведения зафиксирован ссылками на исходники."
+        }
+      ]
+    },
+    {
+      "id": "13.devices",
+      "parent_id": "13",
+      "title": "Установка и проверка на устройствах",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/13-device-acceptance",
+      "depends_on": [
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "status": "blocked",
+      "acceptance_criteria": [
+        "Обе сборки dev используют единый увеличенный номер и ставятся поверх текущих.",
+        "Проверены iPhone и Android, тестовый чат без интернета, обычные клиенты Meshtastic и MeshCore, события транспорта и отсутствие радиопакетов для локальных функций."
+      ],
+      "evidence": [
+        {
+          "kind": "install",
+          "result": "Сборка 0.3.62 (87) установлена поверх 86 и запущена. Номер проверен на устройстве; подпись проверена до установки.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-87-iPhone.zip",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "install",
+          "result": "Сборка 0.3.62 (87) установлена поверх 86. Номер проверен в установленном пакете.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-87-arm64.apk",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "check",
+          "result": "В канале test проверены безрамочный предпросмотр, закрепление, открытие чата, Liquid Glass поиск по удержанию заголовка и переход к результату.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-search-87.png",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "radio_test",
+          "result": "На iPhone сборки 87 в канале test отправлен ответ 8701. Две зелёные отметки появились по событию Meshtastic. Рация Redmi была отключена перед проверкой iPhone.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-meshtastic-reply-87.png",
+          "device": "iPhone 18 Pro"
+        },
+        {
+          "kind": "check",
+          "result": "На Redmi без рации проверены закрепление и открепление, открытие чата из предпросмотра, совпадение центров кнопок, поиск по истории и заметка в Избранном.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-87.png",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "radio_test",
+          "result": "На сборке 84 на Redmi выключались Wi-Fi и мобильные данные при активной BLE-связи. В канале test подтверждены отправка сообщения и ответа. Настройки сети восстановлены.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-offline-radio-reply.png",
+          "device": "Redmi Note 7"
+        },
+        {
+          "kind": "blocker",
+          "result": "Приём отдельным узлом со штатным клиентом Meshtastic или MeshCore не подтверждён. Для независимой приёмки нужен второй узел соответствующей сети. Есть проверки адаптеров обоих протоколов и реальная квитанция Meshtastic."
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "parent_id": null,
+      "title": "Подъём новых чатов, закрепления и меню предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/14-chat-list-pins",
+      "depends_on": [
+        "06",
+        "12"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Новые сообщения поднимают чаты ниже закреплённых. Закрепление и открепление доступны из списка и предпросмотра.",
+        "Карточка без рамки с центрированным названием. Действия находятся под карточкой. Нажатие на предпросмотр открывает чат."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatContextMenus.swift#L370-L416",
+          "behavior": "В контекстном меню отдельные действия для прочтения, закрепления и уведомлений."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L8648-L8706",
+          "behavior": "Закрепление доступно из меню предпросмотра Android."
+        },
+        {
+          "kind": "check",
+          "result": "В ветке прошли пять проверок предпросмотра, повторного нажатия, свайпа, сохранения закрепления и подъёма по входящему событию с отстающими часами."
+        },
+        {
+          "kind": "comparison",
+          "result": "В последней версии предпросмотра название находится по центру, все пять действий видны отдельным блоком. Нажатие на карту открывает чат.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-preview-frameless.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "screenshot",
+          "result": "Предпросмотр и отдельный блок действий в тёмной теме.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-preview-frameless.png",
+          "device": "Android Emulator"
+        },
+        {
+          "kind": "check",
+          "result": "Сборка 87 на iPhone и Redmi. Закрепление и открепление проверены в тестовом чате. На Redmi подтверждены открытие чата по нажатию и поиск по удержанию заголовка. Свайп проверен на эмуляторе.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-search-87.png",
+          "commit": "322b78f"
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "parent_id": null,
+      "title": "Избранное как чат с собой",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/15-saved-self-chat",
+      "depends_on": [
+        "03",
+        "14"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка Избранного, собственный профиль и попытка открыть собственный узел ведут в один локальный чат.",
+        "Обычные пузырьки и редактор доступны без рации. Прежние копии, метки и источник сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListController.swift#L7084-L7103",
+          "behavior": "Собственный peerId определяет Избранное."
+        },
+        {
+          "kind": "check",
+          "result": "Два теста проверили локальные копии после очистки исходной истории, профиль своего узла, запись заметки и ноль подключений транспорта."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Избранное использует фон, редактор и пузырьки чата. Сохранённая копия показывает автора и переход к оригиналу.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-saved-self-chat.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "check",
+          "result": "На Redmi с отключённой рацией сохранилась локальная заметка. После проверки удалена только эта тестовая заметка.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-saved-self-87.png",
+          "device": "Redmi Note 7",
+          "commit": "4202b13"
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "parent_id": null,
+      "title": "Полоска над поверхностью шторки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/16-sheet-grip",
+      "depends_on": [
+        "01",
+        "07"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Полоска в шторке вложений и стандартных панелях расположена над цветной поверхностью. Сохраняются свайп, прокрутка и расширенный захват iOS."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "27 тестов вложений и шторок проверили раздельные границы, захват шторки, жесты карты и контактов, переходы и перекрытие нативных кнопок."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Полоска видна над поверхностью шторки вложений.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-attachment-grip.png",
+          "device": "iPhone 18 Pro Simulator"
+        },
+        {
+          "kind": "screenshot",
+          "result": "Полоска находится над картой и заголовком.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-attachment-grip.png",
+          "device": "Android Emulator",
+          "commit": "893347c"
+        }
+      ]
+    },
+    {
+      "id": "17",
+      "parent_id": null,
+      "title": "Карточки ссылок на контакты и каналы",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/17-shared-link-cards",
+      "depends_on": [
+        "01",
+        "15",
+        "16"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Ссылки на контакты и приглашения Meshtastic и MeshCore рисуются как карточки. Сопроводительный текст виден отдельно.",
+        "Просмотр строится локально. Кнопки открывают штатное действие и переход. Текст в исходном пакете сохраняется."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Два теста на подменном транспорте проверили обе сети, локальное оформление, подпись, отсутствие импорта до кнопки, передачу исходной ссылки штатному импорту и открытие канала."
+        },
+        {
+          "kind": "screenshot",
+          "result": "Синтетические ссылки Meshtastic и контакта отображаются карточками. Подпись сообщения остаётся отдельным текстом.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-shared-link-cards.png",
+          "device": "Android Emulator"
+        },
+        {
+          "kind": "check",
+          "result": "После слияния прошёл общий запуск 233 тестов Flutter. Два целевых теста проверили CTA и передачу неизменённого приглашения для Meshtastic и MeshCore.",
+          "commit": "31440c7"
+        }
+      ]
+    },
+    {
+      "id": "18",
+      "parent_id": null,
+      "title": "Разворачиваемая полоска быстрых фраз",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/18-quick-phrase-strip",
+      "depends_on": [
+        "07.alignment",
+        "16"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка рядом с редактором открывает горизонтальную полоску фраз.",
+        "Стрелка справа и активное протягивание за конец показывают один полный список с добавлением.",
+        "Фраза вставляется в черновик. Сохраняются редактирование, выравнивание кнопок и режим уменьшения движения.",
+        "На iOS полоска и её кнопки используют нативный Liquid Glass. Оформление полного списка уточнено в задаче 19."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "В ветке прошли 234 теста Flutter, включая обычную прокрутку, протягивание за конец, добавление, редактирование и вставку без отправки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полный список появился после протягивания за край полоски.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-list-88.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "result": "Проверены открытие стрелкой, протягивание за край и кнопка добавления.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-list-88.png"
+        }
+      ]
+    },
+    {
+      "id": "19",
+      "parent_id": null,
+      "title": "Затемнение предпросмотра и непрозрачные шторки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/19-preview-and-sheet-surfaces",
+      "depends_on": [
+        "14",
+        "16",
+        "18"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сообщения в предпросмотре идут под заголовок без жёсткой верхней границы. Фон затемняется как при открытии меню сообщения.",
+        "Шторки используют непрозрачные поверхности, кнопки iOS сохраняют Liquid Glass.",
+        "Фразы разделены линиями, удержание строки редактирует её, плюс добавляет новую."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли 234 теста Flutter и статический анализ. После слияния повторно прошли пять целевых тестов. Android Emulator подтвердил затемнение, разделители, кнопку добавления и редактирование удержанием."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Проверены верхняя область предпросмотра и затемнение списка чатов. Предпросмотр открывается при включённом уменьшении движения.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-89.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Непрозрачная шторка с разделителями и нативной кнопкой добавления. Кнопка открывает форму. Снимок сделан при включённом понижении прозрачности.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-list-89.png"
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "result": "Разделители и кнопка добавления на непрозрачной шторке.",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-quick-phrase-list-89.png"
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Установлена и запущена сборка 0.3.62 (89). В тёмной теме проверены затемнение, повторное нажатие для входа в чат, стрелка полоски, нативная кнопка добавления и редактирование удержанием."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "result": "Установлена сборка 0.3.62 (89). Проверены раскрытие и сворачивание полоски, кнопка добавления, действия предпросмотра и повторное нажатие для входа в чат."
+        }
+      ]
+    },
+    {
+      "id": "20",
+      "parent_id": null,
+      "title": "Полоска быстрых фраз и статус подключения в редакторе",
+      "platform": ["ios", "android"],
+      "branch": "task/20-composer-quick-phrase-status",
+      "depends_on": ["18", "19"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Подсказка смещается над открытой полоской. Карандаш открывает полный список из самой полоски.",
+        "Нажатие на фон чата или выбор фразы сворачивает полоску. Протягивание за край открывает полный список.",
+        "При отключении видна красная надпись. Подключение показывает зелёное подтверждение, затем возвращается счётчик символов."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли пять целевых тестов Flutter, включая положение счётчика, раскрытие и сворачивание полоски, переходы статуса и доступ к очереди при отключении."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-strip-91.png",
+          "result": "Счётчик над полоской, карандаш внутри полоски. Выбор фразы в симуляторе вставил её в черновик и закрыл полоску."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "На сборке 91 проверены карандаш и сворачивание нажатием на фон. На Redmi при отключённой рации видна красная надпись без счётчика. Переход через зелёное подтверждение проверен в тесте с имитацией подключения."
+        }
+      ]
+    },
+    {
+      "id": "21",
+      "parent_id": null,
+      "title": "Размытие фона и история в предпросмотре чата",
+      "platform": ["ios", "android"],
+      "branch": "task/21-preview-rendering",
+      "depends_on": ["14", "19"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Фон размывается по всему экрану без прямоугольных границ вокруг нативных элементов.",
+        "Пузырьки прокручиваются за заголовком и полностью уходят за границу карточки перед исчезновением.",
+        "Имя контакта в предпросмотре на iOS использует Liquid Glass."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Полный запуск 235 тестов и статический анализ прошли. На iOS Simulator проверено единое размытие нативных и Flutter-элементов, резкий текст заголовка и видимое меню действий."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-91.png",
+          "result": "Размытие без прямоугольных участков и заголовок в Liquid Glass."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-preview-scroll-90.png",
+          "result": "В альбомной ориентации виден пузырёк, частично ушедший за нижнюю скруглённую границу. Верхние сообщения проходят под заголовком."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "На обоих телефонах предпросмотр открывается удержанием и переходит в чат повторным нажатием. На iPhone проверены равномерное размытие, читаемый заголовок и меню."
+        }
+      ]
+    },
+    {
+      "id": "22",
+      "parent_id": null,
+      "title": "Убрать светящийся ободок Liquid Glass",
+      "platform": ["ios"],
+      "branch": "task/22-glass-halo",
+      "depends_on": ["20", "21"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "У имени контакта и полоски фраз сохраняется нативное стекло без светящегося ободка."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "На iPhone 18 Pro Simulator проверены светлая и тёмная темы. Прошли 5 XCTest, включая сохранение нативного материала внутри видимой области при изменении высоты. После слияния прошли 235 тестов Flutter и статический анализ."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi",
+          "result": "Установлена сборка 0.3.62 (91). На iPhone проверены стеклянные имя и полоска без светящегося ободка. На Redmi повторно проверены предпросмотр, полоска и красный статус при отключённой рации."
+        }
+      ]
+    },
+    {
+      "id": "23",
+      "parent_id": null,
+      "title": "Выбор получателей для пересылки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/23-forward-picker",
+      "depends_on": [
+        "08"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Поиск, чаты и контакты, папки и выбор нескольких получателей.",
+        "Один или несколько черновиков, копия в Избранном."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Sources/ChatControllerForwardMessages.swift#L35-L60",
+          "behavior": "Фильтр доступных получателей, папки и множественный выбор."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L1338-L1390",
+          "behavior": "Отдельный режим выбора получателей Android."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены поиск и выбор нескольких адресатов. Для Meshtastic и MeshCore создаются черновики и локальная копия в Избранном, история транспорта сохраняется."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-forward-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Полноэкранная шторка, каталоги внизу."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-forward-92.png",
+          "device": "Android Emulator",
+          "result": "Переключатель каталогов находится над списком."
+        }
+      ]
+    },
+    {
+      "id": "24",
+      "parent_id": null,
+      "title": "Архив по жесту вниз",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/24-chat-archive",
+      "depends_on": [
+        "14"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Архив скрыт до жеста, открывается нажатием и сохраняет скрытые чаты."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/Node/ChatListNode.swift#L3155-L3173",
+          "behavior": "Временное раскрытие архива у верхнего края."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L2244-L2280",
+          "behavior": "Порог раскрытия скрытого архива при завершении жеста."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены короткий жест, раскрытие при протягивании, вход и возврат. Исходные чаты и история сохраняются."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Жест раскрыл строку архива."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-92.png",
+          "device": "Android Emulator",
+          "result": "Жест раскрыл строку архива. Проверен вход и возврат чата."
+        }
+      ]
+    },
+    {
+      "id": "25",
+      "parent_id": null,
+      "title": "Управление папками и полоска категорий",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/25-folder-tabs",
+      "depends_on": [
+        "06",
+        "24"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Управление папками из Изм., прокручиваемые вкладки и Liquid Glass на iOS."
+      ],
+      "evidence": [
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListController.swift#L3657-L3715",
+          "behavior": "Редактирование списка и переходы."
+        },
+        {
+          "kind": "telegram_source",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L9875-L9895",
+          "behavior": "Действия над папками в режиме выбора."
+        },
+        {
+          "kind": "check",
+          "result": "Проверены создание из Изм., горизонтальная прокрутка, выбор папки, сохранение состава и закреплений."
+        },
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folders-92.png",
+          "device": "Android Emulator",
+          "result": "Новая папка отображается в полоске категорий."
+        }
+      ]
+    },
+    {
+      "id": "26",
+      "parent_id": null,
+      "title": "Избранное в настройках",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/26-saved-settings",
+      "depends_on": [
+        "15"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Отдельная строка в настройках, имя открывает профиль активной рации."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Избранное находится в отдельной группе настроек. Тест подтвердил переход по имени в профиль активной рации и локальное хранение заметок."
+        }
+      ]
+    },
+    {
+      "id": "27",
+      "parent_id": null,
+      "title": "Liquid Glass меню предпросмотра",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/27-preview-glass",
+      "depends_on": [
+        "21",
+        "22"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Действия предпросмотра на iOS рисуются тем же материалом, что меню сообщения."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-preview-menu-92.png",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Проверено Liquid Glass на действиях и видимые пузырьки над размытым фоном."
+        }
+      ]
+    },
+    {
+      "id": "28",
+      "parent_id": null,
+      "title": "Раскрытие полоски фраз из кнопки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/28-quick-phrase-morph",
+      "depends_on": [
+        "20",
+        "22"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка исчезает по мере расширения подложки, тексты появляются после начала расширения и скрываются перед сворачиванием."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "После слияния прошли 236 тестов Flutter и статический анализ. Тест анимации подтвердил расширение до появления фраз и скрытие фраз до возврата к кнопке."
+        },
+        {
+          "kind": "video",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-phrase-animation-92.mov",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Открытие и сворачивание полоски."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (92) установлена и запущена. Ручная проверка в приложении ограничена заблокированным видеоповтором. Интерфейс проверен на iPhone Simulator."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "result": "Установлена сборка 0.3.62 (92). В тестовом чате проверены предпросмотр, полоска, открытие пересылки, переключение каталогов и режим выбора. Из настроек открыто Избранное, по имени открыт профиль выбранной рации. Сообщения в эфир не передавались."
+        }
+      ]
+    },
+    {
+      "id": "29",
+      "parent_id": null,
+      "title": "Чёткий контур полоски быстрых фраз на iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/29-native-composer-glass",
+      "depends_on": [
+        "22",
+        "28"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Полоска использует ту же системную конфигурацию Liquid Glass, что соседние кнопки iOS, включая штатную подсветку края.",
+        "Нативная подложка пропускает нажатия к фразам и кнопке списка и меняет ширину вместе с полоской."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "На iPhone 18 Pro Simulator проверены светлая и тёмная темы, открытие списка и вставка фразы. Полоска использует UIKit UIButton.Configuration.glass(). Прошли 237 тестов Flutter, статический анализ и 6 XCTest."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-quick-phrase-glass-93.png",
+          "result": "На сборке 0.3.62 (93) проверены чёткая системная граница подложки и открытие списка карандашом. Снимок показывает полоску рядом с полем ввода и кнопками."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi",
+          "result": "Установлена сборка 0.3.62 (93). Проверены раскрытие списка карандашом и сворачивание полоски."
+        }
+      ]
+    },
+    {
+      "id": "30",
+      "parent_id": null,
+      "title": "Отдельное сообщение с координатами",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/30-standalone-location-message",
+      "depends_on": [
+        "08"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Координаты без подписи показываются картой 2:1 без блока Геопозиция. Время и статус поверх карты.",
+        "Подписанные сообщения и ссылки сохраняют текст. Тап открывает карту, кеш остаётся локальным."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли 13 проверок парсинга, истории, карты и Избранного. Вид карты, расположение времени внутри и переход проверены тестом."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/Chat/ChatMessageMapBubbleContentNode/Sources/ChatMessageMapBubbleContentNode.swift#L337-L354",
+          "result": "Для точки без подписи дата и статус лежат в нижнем правом углу изображения."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java#L8868-L8886",
+          "result": "Для обычной геоточки ячейка задаёт размеры изображения карты отдельно от содержимого с названием места."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-location-phrases-94.png",
+          "result": "Координаты без подписи на тестовой карте, метка и время поверх изображения."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-location-phrases-94.png",
+          "result": "Карта без рамки, метка и время поверх изображения в тёмной теме."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сборке 0.3.62 (94) просмотрено существующее geo-сообщение без подписи и с отметкой доставки. Материал содержит реальные координаты и в отчёт не добавлен."
+        }
+      ]
+    },
+    {
+      "id": "31",
+      "parent_id": null,
+      "title": "Центрирование подсказки и разделитель непрочитанных",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/31-chat-layout",
+      "depends_on": [
+        "20"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Подсказка центрируется над редактором в обоих состояниях полоски.",
+        "Надпись непрочитанных расположена между двумя равными линиями."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Flutter-проверки сравнивают центры счётчика и чата до и после раскрытия полоски, а также центр надписи и ширину двух линий непрочитанных."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-unread-divider-94.png",
+          "result": "Разделитель непрочитанных и подсказка над редактором в светлой теме."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-unread-divider-94.png",
+          "result": "Разделитель непрочитанных и подсказка над редактором в тёмной теме."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-offline-phrases-94.png",
+          "result": "Красная подсказка по центру при выключенной рации. В полоске системное стекло и разделитель между фразами."
+        }
+      ]
+    },
+    {
+      "id": "32",
+      "parent_id": null,
+      "title": "Раскрытие быстрых фраз после отпускания",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/32-quick-phrases-pull",
+      "depends_on": [
+        "28",
+        "29",
+        "31"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Карандаш сменяется стрелкой и увеличивается при перетягивании за конец. При пороге есть тактильный сигнал.",
+        "Отпускание после порога открывает список. Обратный жест до отпускания отменяет раскрытие.",
+        "Между фразами в открытой полоске видны вертикальные разделители."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Прошли 238 проверок Flutter и статический анализ. Виджет-тест подтверждает изменение масштаба стрелки, возврат к карандашу, одну команду вибрации при пересечении порога и открытие списка после отпускания."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-quick-phrase-pull-94.mov",
+          "result": "Стрелка при натяжении и возврат к карандашу без открытия при обратном движении."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-phrase-list-94.png",
+          "result": "Список открывается после отпускания жеста."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-location-phrases-dark-94.png",
+          "result": "Системное стекло и вертикальные разделители в тёмной теме."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Установлена сборка 0.3.62 (94). Жест открыл список после отпускания. Проверены открытие карандашом, закрытие по «Назад» и тап по пустой области. Рация в приложении отключена перед тестированием iPhone."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Установлена и запущена сборка 0.3.62 (94). Через «Видеоповтор iPhone» проверены нативная полоска, разделитель и открытие списка карандашом. Полный жест и возврат подтверждены на симуляторе, тактильный сигнал проверен на уровне вызова платформы."
+        }
+      ]
+    },
+    {
+      "id": "33",
+      "parent_id": null,
+      "title": "Папки в режиме выбора чатов",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/33-inline-chat-folders",
+      "depends_on": [
+        "24",
+        "31"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Категория «Непрочитанные» удалена. Кнопка «Изм.» сразу открывает выбор чатов.",
+        "Кнопка добавления открывает ввод названия и создаёт папку с выбранными чатами. Пользовательские папки удаляются и меняют порядок в полоске.",
+        "Горизонтальная прокрутка сохраняется, а индикатор выбранной категории на iOS использует системное стекло."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/ChatList/ChatListFilterTabContainerNode/Sources/ChatListFilterTabContainerNode.swift#L249-L272",
+          "result": "В режиме порядка рядом с пользовательскими вкладками появляются кнопки удаления. Системные категории Meshgram остаются на постоянных местах."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-edit-95.png",
+          "result": "Две папки с крестиками после перестановки удержанием."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-name-95.png",
+          "result": "Окно имени новой папки поверх режима выбора чатов."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folders-edit-95.png",
+          "result": "Папки со списком выбранных чатов, крестиками и кнопкой добавления."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "На сборке 96 «Изм.» сразу открывает выбор чатов с кнопкой добавления. Цикл создания и удаления временной папки проверен после установки сборки 95."
+        }
+      ]
+    },
+    {
+      "id": "34",
+      "parent_id": null,
+      "title": "Редактор сообщения при отключении рации",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/34-offline-composer",
+      "depends_on": [
+        "31"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Поле ввода заблокировано до подключения рации, открытая клавиатура закрывается. Черновик восстанавливается при подключении."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тест Flutter проверяет закрытие клавиатуры при отключении рации и сохранение черновика. XCTest подтверждает блокировку UITextView и восстановление редактирования."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro и Redmi Note 7",
+          "result": "На сборке 0.3.62 (96) проверено, что тап по редактору с отключённой рацией оставляет клавиатуру закрытой."
+        }
+      ]
+    },
+    {
+      "id": "35",
+      "parent_id": null,
+      "title": "Текст атрибуции на карте сообщения",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/35-map-attribution-text",
+      "depends_on": [
+        "30"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В сообщении карта показывает подпись OpenStreetMap без подложки. На полной карте ссылка атрибуции доступна."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-map-attribution-96.png",
+          "result": "В углу карты отдельного сообщения виден текст OpenStreetMap поверх карты."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сохранённом тестовом чате сборки 96 атрибуция карты показывается текстом поверх тайлов. Для демонстрации приложен снимок с тестовой геопозицией на эмуляторе."
+        }
+      ]
+    },
+    {
+      "id": "36",
+      "parent_id": null,
+      "title": "Индикатор категорий из навбара iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/36-native-tabbar-taps",
+      "depends_on": [
+        "33"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Категории iOS используют UIKit UITabBarController из основного навбара, включая его собственную анимацию при тапе.",
+        "Полоса ограничена по ширине. Свайп прокручивает папки внутри полосы без переключения вкладки и без запуска пузыря."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://developer.apple.com/documentation/uikit/uitabbar",
+          "result": "Категории используют существующий системный контроллер вкладок Meshgram в режиме текстовых вкладок."
+        },
+        {
+          "kind": "check",
+          "result": "Прошли 240 тестов Flutter, 7 XCTest и статический анализ. Проверены фиксированная ширина области, прокрутка более пяти папок и смена категории по событию тапа."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-indicator-96.mov",
+          "result": "Долгое удержание без переключения, затем системная анимация пузыря по тапу."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-indicator-tap-96.png",
+          "result": "Кадр штатного преломления текста во время анимации UIKit."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-category-scroll-96.png",
+          "result": "Свайп сдвинул видимые вкладки в фиксированной полосе, сохранив открытой выбранную папку."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-category-96.png",
+          "result": "Сборка 96 установлена. Тап по категории «Каналы» переключил список."
+        }
+      ]
+    },
+    {
+      "id": "37",
+      "parent_id": null,
+      "title": "Показ и скрытие папки Архив",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/37-archive-reveal",
+      "depends_on": [
+        "24",
+        "36"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Закрепление и скрытие Архива сохраняются для профиля рации.",
+        "Скрытая папка реагирует на протягивание от верхнего края. iOS раскрывает её при пороге, Android после отпускания.",
+        "Временное раскрытие сбрасывается после ухода строки за заголовок. История чатов сохраняется."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListControllerNode.swift#L2300-L2333",
+          "result": "Момент раскрытия скрытой строки во время протягивания."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L3289-L3316",
+          "result": "Повторное скрытие после прокрутки за строку Архива."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L4190-L4247",
+          "result": "Открытие после отпускания с проверкой порога и длительности."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. Покрыты выбор режима, отмена жеста Android, возврат из Архива и повторное скрытие."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-reveal-97.mov",
+          "result": "Скрытая строка раскрывается при протягивании и уходит после прокрутки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-reveal-97.png",
+          "result": "Архив после отпускания. Проверены вход, возврат и повторное скрытие без скачка списка."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "В сборке 97 тестовый чат помещён в Архив. После ручного раскрытия строки открыт Архив и восстановлен только тестовый чат."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "В сборке 97 пройден сценарий скрытия тестового чата, открытия Архива и возврата чата в общий список."
+        }
+      ]
+    },
+    {
+      "id": "38",
+      "parent_id": null,
+      "title": "Крестик папки и ширина индикатора",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/38-folder-label-controls",
+      "depends_on": [
+        "36"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Крестик без подложки расположен справа от названия и поворачивается вместе с ним.",
+        "Ширина индикатора зависит от ширины подписи. На iOS линза поднимается при тапе."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L671-L697",
+          "result": "Выбор папки после завершения тапа."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L941-L978",
+          "result": "Область выделения вычисляется из ширины элемента списка."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://developer.apple.com/documentation/uikit/uisegmentedcontrol",
+          "result": "В Meshgram свой контент и нативная стеклянная линза UIKit с разной шириной сегментов."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-tap-hold.mov",
+          "result": "Удержание без переключения и стеклянная линза с преломлением текста при тапе."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folder-edit-98.png",
+          "result": "Крестик справа от названия без подложки. Проверено удаление временной папки с сохранением чата."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folder-edit-100.png",
+          "result": "Крестик справа от пользовательской папки в режиме редактирования."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверяют ширину разных заголовков, порядок и кнопку удаления, прокрутку без переключения и выбор за пределами первых пяти вкладок."
+        }
+      ]
+    },
+    {
+      "id": "39",
+      "parent_id": null,
+      "title": "Внутренняя область прокрутки папок",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/39-folder-viewport-inset",
+      "depends_on": [
+        "38"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Прокручиваемые подписи обрезаются внутри полосы, внешний контур сохраняет положение."
+      ],
+      "evidence": [
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-viewport-99.mov",
+          "result": "Внутренняя область ограничивает прокрутку, стеклянный контур остаётся на месте. Размеры iOS уточнены в задаче 40."
+        },
+        {
+          "kind": "check",
+          "result": "Пройдены 243 теста Flutter, подтверждены ограничения области прокрутки."
+        }
+      ]
+    },
+    {
+      "id": "40",
+      "parent_id": null,
+      "title": "Размеры верхней полосы папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/40-ios-folder-bar-geometry",
+      "depends_on": [
+        "39"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Стандартная высота полосы 40 pt. Один внутренний отступ 3 pt со всех сторон для прокрутки и линзы."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HeaderPanelContainerComponent/Sources/HeaderPanelContainerComponent.swift#L129-L152",
+          "result": "Внешние размеры верхней полосы при обычном размере шрифта."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L147-L151",
+          "result": "Единый внутренний отступ 3 pt."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/TelegramUI/Components/HorizontalTabsComponent/Sources/HorizontalTabsComponent.swift#L1089-L1126",
+          "result": "Общая внутренняя область прокрутки, скругление и доведение выбранной папки в видимую область."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-viewport-100.png",
+          "result": "Граница обрезки внутри внешней стеклянной капсулы."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folder-bar-100.png",
+          "result": "В активном сегменте сохраняется отступ и системное стекло."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. На стандартной ширине 390 pt внутренняя область 352×34 pt расположена по центру."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (100) установлена поверх предыдущей. Проверены отступ, вид активного сегмента и тап по категории."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Установка сборки 0.3.62 (100) подтверждена через ADB. Ручная проверка ожидает разблокировки экрана. Сценарий редактирования прошёл на Android Emulator."
+        }
+      ]
+    },
+    {
+      "id": "41",
+      "parent_id": null,
+      "title": "Прозрачная подложка папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/41-ios-folder-transparent-track",
+      "depends_on": [
+        "40"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На iOS 26 и новее фон между сегментами прозрачен, граница полосы и внутренний отступ видны.",
+        "Интерактивная линза UIKit срабатывает при тапе на папку."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-101.png",
+          "result": "Прозрачная полоса на светлом фоне, активный сегмент выделен."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-tap-101.mov",
+          "result": "Граница статична, стеклянная линза движется и преломляет буквы при тапе."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (101) установлена. На iPhone проверены прозрачная основа и переключение категории по тапу."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iphone-folders-clear-101.png",
+          "result": "Фактический вид после тапа на категорию в сборке 101."
+        }
+      ]
+    },
+    {
+      "id": "42",
+      "parent_id": null,
+      "title": "Выравнивание Архива при отпускании",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/42-archive-release-spacing",
+      "depends_on": [
+        "37",
+        "40"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "При отпускании Архив завершает раскрытие и выравнивается между полосой папок и первым чатом.",
+        "На iOS сохраняется раскрытие при достижении порога, на Android после отпускания."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-spacing-101.png",
+          "result": "По 30 pt от иконки Архива до полосы и до аватара первого чата."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-release-101.mov",
+          "result": "После отпускания иконка и подпись плавно занимают окончательное положение."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-spacing-101.png",
+          "result": "Архив показан после отпускания и располагается над первым чатом."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ. Тест сравнивает зазоры после отпускания и положение иконки до отпускания."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Сборка 0.3.62 (101) установлена. Экран остаётся заблокирован; сценарий пройден на эмуляторе."
+        }
+      ]
+    },
+    {
+      "id": "43",
+      "parent_id": null,
+      "title": "Прозрачное стекло под полосой папок iOS",
+      "platform": [
+        "ios"
+      ],
+      "branch": "task/43-ios-clear-folder-glass",
+      "depends_on": [
+        "41",
+        "42"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На iOS 26+ полоса папок использует выбранный вариант Clear Glass с системным контуром и внутренним отступом.",
+        "Линза переключения срабатывает по тапу. Папки прокручиваются внутри фиксированной полосы."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-glass-102.png",
+          "result": "Подложка и контур на тёмной теме, видна выбранная категория."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folders-clear-glass-tap-102.mov",
+          "result": "Линза UIKit преломляет подписи при переключении категории."
+        },
+        {
+          "kind": "check",
+          "result": "243 теста Flutter и статический анализ прошли. Проверки на ветке dev подтвердили размер стеклянной области и прокрутку."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (102) установлена и запущена. Внешний вид проверен на симуляторе."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "result": "Сборка 0.3.62 (102) установлена. Проверено переключение категорий и возврат в «Все»."
+        }
+      ]
+    },
+    {
+      "id": "44",
+      "parent_id": null,
+      "title": "Локальный кэш картинок предпросмотра",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/44-link-preview-cache",
+      "depends_on": [
+        "43"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Загруженные картинки и данные карточки сохраняются в кэше приложения, доступном после повторного запуска.",
+        "Текстовая карточка без картинки не записывается в кэш на диске."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://github.com/Rusik636/Meshgram/releases/tag/v0.3.62%2B83",
+          "result": "Страница из примера. При повторной проверке сервер изображения вернул PNG размером 1200×600."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-sent-preview-103.png",
+          "result": "Ссылка на релиз отправлена в демонстрационном чате. В карточке видна картинка."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-sent-preview-offline-103.png",
+          "result": "После перезапуска Flutter и при отсутствии активной сети картинка показана из локального кэша."
+        },
+        {
+          "kind": "check",
+          "result": "Тест кэша использует новый экземпляр хранилища и подтверждает получение картинки без сетевого запроса."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (103) установлена и запущена. Сценарий кэша проверен на Android Emulator."
+        }
+      ]
+    },
+    {
+      "id": "45",
+      "parent_id": null,
+      "title": "Распределение и индикатор папок Android",
+      "platform": [
+        "android"
+      ],
+      "branch": "task/45-android-folder-strip",
+      "depends_on": [
+        "43"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Тап в панели папок не подсвечивает кнопку. Индикатор плавно переходит между вкладками.",
+        "Вкладки равномерно занимают доступную ширину, с учётом длинных названий. Полоса прокручивается при переполнении."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-folder-strip-103.png",
+          "result": "Стандартные категории занимают всю ширину. Выбор обозначен отдельным индикатором."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/redmi-folder-strip-103.png",
+          "result": "Сборка 103. Проверено переключение на «Каналы» и возврат в «Все»."
+        },
+        {
+          "kind": "check",
+          "result": "Тест измеряет ширину вкладок, промежуточное положение индикатора и горизонтальную прокрутку при переполнении. Весь набор из 245 тестов Flutter и анализ прошли."
+        }
+      ]
+    },
+    {
+      "id": "46",
+      "parent_id": null,
+      "title": "Плавное появление, затухание и доводка Архива",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/46-archive-snap-fade",
+      "depends_on": [
+        "37",
+        "42"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Прозрачность Архива плавно меняется при протягивании и уходе под заголовок.",
+        "После отпускания или отмены жеста строка доходит до полностью открытого или скрытого положения.",
+        "После полного скрытия позиции видимых чатов сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L2679-L2683",
+          "result": "Анимация смены состояния временно показанного Архива."
+        },
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/ChatListUI/Sources/ChatListNode.swift#L2784-L2790",
+          "result": "Сброс временного раскрытия после ухода строки из видимой области."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java#L2244-L2288",
+          "result": "Плавная доводка строки до конечного положения при отпускании и отмене жеста."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-appear-104.mov",
+          "result": "Временный Архив появляется при протягивании списка вниз."
+        },
+        {
+          "kind": "video",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-archive-snap-104.mov",
+          "result": "При прокрутке вверх строка теряет непрозрачность и полностью исчезает после отпускания."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-archive-snap-104.png",
+          "result": "После короткой прокрутки вверх Архив возвращается целиком. Более длинная прокрутка его скрывает."
+        },
+        {
+          "kind": "check",
+          "result": "247 тестов Flutter и статический анализ прошли. На Android Emulator и iPhone Simulator проверены оба конечных положения с обычными настройками анимации и с уменьшением движения."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (104) установлена и запущена. На iPhone через Видеоповтор проверен экран чатов, жест проверен на симуляторе."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-104-arm64.apk",
+          "result": "APK 0.3.62 (104) собран. Redmi отсутствовал в списке ADB."
+        }
+      ]
+    },
+    {
+      "id": "47",
+      "parent_id": null,
+      "title": "Адаптивный экран чатов для планшетов и ПК",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/47-adaptive-workspace",
+      "depends_on": [
+        "42",
+        "43",
+        "46"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На широком экране одновременно видны список и текущая переписка.",
+        "При изменении ширины сохраняется открытый чат.",
+        "На iPad элементы навигации и редактор используют штатное жидкое стекло.",
+        "На ПК доступны отдельная панель папок, регулировка ширины списка и клавиатурный поиск."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "platform": "ios",
+          "url": "https://github.com/TelegramMessenger/Telegram-iOS/blob/24638bc69bd083981b178dd1e7f921eebbf7fc46/submodules/Display/Source/Navigation/NavigationSplitContainer.swift#L106-L131",
+          "result": "Самостоятельные области списка и переписки, разделитель и безопасные отступы каждой области."
+        },
+        {
+          "kind": "source",
+          "platform": "android",
+          "url": "https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java#L1357-L1407",
+          "result": "Переход между разделённой и компактной компоновками с сохранением открытого чата."
+        },
+        {
+          "kind": "source",
+          "platform": "desktop",
+          "url": "https://github.com/telegramdesktop/tdesktop/blob/0e79d7a47c3e1876576e62d760d53e1f3f14c2dc/Telegram/SourceFiles/window/window_session_controller.cpp#L2832-L2893",
+          "result": "Число колонок по ширине окна, отдельное место для фильтров и ограничение ширины списка."
+        },
+        {
+          "kind": "screenshot",
+          "device": "iPad Pro 13-inch Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ipad-adaptive.png",
+          "result": "Слева список и системные стеклянные вкладки, справа открытая переписка со стеклянным заголовком и редактором."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-tablet-adaptive.png",
+          "result": "Планшетная компоновка с открытым каналом. В дереве доступности одновременно найдены строки списка и действия переписки."
+        },
+        {
+          "kind": "screenshot",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/mac-adaptive.png",
+          "result": "Панель папок, выбранная строка и переписка. В узком окне сохранился тот же чат, после расширения обе панели вернулись."
+        },
+        {
+          "kind": "check",
+          "result": "250 тестов Flutter и статический анализ прошли. Проверены смена чата, размеры окна, меню мышью, клавиатурный поиск и доступность обеих панелей."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (105) установлена и запущена."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPad (A16)",
+          "result": "Apple отклонила установку из-за профиля подписи. По выбору пользователя проверка осталась на симуляторе."
+        },
+        {
+          "kind": "build",
+          "device": "Android",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-105-arm64.apk",
+          "result": "Номер APK 105 подтверждён. Redmi отсутствовал в ADB."
+        }
+      ]
+    },
+    {
+      "id": "48",
+      "parent_id": "47",
+      "title": "Точки запуска настольного Meshgram",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/48-desktop-runners",
+      "depends_on": [
+        "47"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Flutter запускает существующий интерфейс Meshgram в отдельном окне на настольной платформе."
+      ],
+      "evidence": [
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-105-macOS.zip",
+          "result": "Собрана версия 0.3.62 (105) для arm64 и x86_64. Локальная подпись и архив проверены."
+        },
+        {
+          "kind": "check",
+          "device": "macOS",
+          "result": "Настольное приложение открывается. Широкий и узкий режимы вручную проверены на демонстрационных чатах."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows и Linux",
+          "result": "Добавлены проекты Flutter. Компиляция и нативная проверка требуют соответствующих хостов. На Linux прямое подключение по TCP предусмотрено с ручным вводом адреса."
+        }
+      ]
+    },
+    {
+      "id": "49",
+      "parent_id": null,
+      "title": "Положение списка после возврата из настроек",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/49-chat-header-restore",
+      "depends_on": [
+        "46",
+        "47"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Положение списка и панели папок согласовано после переключения между чатами и настройками.",
+        "Первый чат остаётся под панелью папок после возврата при свёрнутом поиске."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-chat-after-settings-106.png",
+          "result": "При свёрнутом поиске повторный вход возвращает список и папки на прежние позиции."
+        },
+        {
+          "kind": "screenshot",
+          "device": "Android Emulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/android-chat-after-settings-106.png",
+          "result": "Проверены координаты первого чата и панели до и после перехода."
+        },
+        {
+          "kind": "check",
+          "result": "Регрессионный тест воспроизводил смещение панели на 57 логических пикселей на iOS и Android. После исправления тест проходит на обеих платформах. Всего 254 теста Flutter и статический анализ прошли."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "result": "Сборка 0.3.62 (106) установлена и запущена."
+        },
+        {
+          "kind": "build",
+          "device": "Android",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-106-arm64.apk",
+          "result": "Номер APK 106 подтверждён. Redmi отсутствовал в ADB."
+        }
+      ]
+    },
+    {
+      "id": "50",
+      "parent_id": null,
+      "title": "Зона нажатия предупреждения повторной отправки",
+      "platform": [
+        "ios",
+        "android"
+      ],
+      "branch": "task/50-retry-touch-area",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Вокруг значка повторной отправки есть невидимая область нажатия 48 × 48.",
+        "Действие доступно для экранного диктора и срабатывает для текста, одиночного эмодзи и координат."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тесты нажимают на 18 логических пикселей выше центра 15-пиксельного значка. Для текста, эмодзи и координат отправка повторяется через тестовый транспорт, черновик сохраняется, после подтверждения действие исчезает."
+        },
+        {
+          "kind": "check",
+          "result": "254 теста Flutter и статический анализ прошли."
+        }
+      ]
+    },
+    {
+      "id": "51",
+      "parent_id": null,
+      "title": "Правая панель и индикатор папок на широком экране",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/51-desktop-panel",
+      "depends_on": [
+        "47",
+        "48"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Настройки и вложенные экраны открываются справа, список и боковая навигация доступны слева.",
+        "Индикатор активной папки плавно переходит к выбранной строке, у подписанных кнопок нет дублирующих подсказок."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/telegramdesktop/tdesktop/blob/0e79d7a47c3e1876576e62d760d53e1f3f14c2dc/Telegram/SourceFiles/mainwidget.cpp",
+          "result": "Размещение экранов сверено с логикой секций Telegram Desktop."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверили настройки в правой панели и возврат в открытый чат в вариантах iOS, Android и Windows, промежуточную позицию индикатора и отсутствие Tooltip у кнопок боковой панели."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS и iPad Pro 13-inch Simulator",
+          "result": "На обеих платформах настройки открылись справа, список чатов остался слева."
+        }
+      ]
+    },
+    {
+      "id": "52",
+      "parent_id": null,
+      "title": "Системное жидкое стекло на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/52-macos-glass",
+      "depends_on": [
+        "48",
+        "51"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Боковая панель, кнопки и строка ввода используют NSGlassEffectView на macOS 26 и новее.",
+        "Для старых версий предусмотрено оформление Flutter."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://developer.apple.com/documentation/appkit/nsglasseffectview",
+          "result": "Использован нативный компонент AppKit."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS 27.2",
+          "result": "Проверено отображение боковой панели и открытой переписки с системным стеклом."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-107-macOS.zip",
+          "result": "Сборка 107 для arm64 и x86_64. Проверены локальная подпись приложения и целостность архива."
+        }
+      ]
+    },
+    {
+      "id": "53",
+      "parent_id": null,
+      "title": "Подключение рации через USB на компьютере",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/53-desktop-usb",
+      "depends_on": [
+        "48"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Из настроек можно выбрать протокол и USB-порт для Meshtastic или MeshCore Companion USB.",
+        "Подключение использует существующие сессии раций и освобождает порт при отключении."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshtastic/meshtastic-sdk/blob/main/docs/protocol.md",
+          "result": "Фрейминг последовательного транспорта Meshtastic."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверили разбор фрагментированных USB-кадров обоих протоколов и работу общего декодера TCP."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS 27.2",
+          "result": "Проверено нативное перечисление портов без подключённой рации. Библиотека в сборке 107 содержит arm64 и x86_64."
+        },
+        {
+          "kind": "build",
+          "device": "Android и iPad Simulator",
+          "result": "После замены сборочной интеграции USB-библиотеки успешно собраны Android APK и iOS Simulator."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows, Linux и USB-рации",
+          "result": "Сборки Windows и Linux и обмен с физическими USB-рациями ещё требуют проверки."
+        }
+      ]
+    },
+    {
+      "id": "54",
+      "parent_id": null,
+      "title": "Настольный флешер Meshtastic и MeshCore",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/54-firmware-flasher",
+      "depends_on": [
+        "51",
+        "53"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Каталог плат с иллюстрациями, поиском и вариантами прошивки обоих проектов.",
+        "Можно загрузить совместимый официальный релиз или открыть локальный образ. Запись UF2 и ESP32 запускается после выбора назначения и подтверждения.",
+        "Платы и проекты со штатными форматами добавляются через каталог, способы записи расширяются отдельно."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshtastic/web-flasher",
+          "result": "Использованы иллюстрации плат Meshtastic Web Flasher."
+        },
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshcore-dev/flasher.meshcore.io/blob/45a5257bf792b11a83f4c51c18d4f312addfb677/config.json",
+          "result": "Платы и варианты MeshCore сверены с конфигурацией официального флешера."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS",
+          "result": "В приложении загружен официальный MeshCore Companion USB 1.18.0 для RAK WisBlock 4631. В отдельной интеграционной проверке загружены и проверены образ MeshCore и архив Meshtastic 2.7.26 для LILYGO T-Beam."
+        },
+        {
+          "kind": "check",
+          "result": "Пройдены тесты каталога, выбора файла из релиза, валидации образа и записи UF2 в тестовый каталог. Для ESP32 требуется esptool 5 или новее. Запись на физических рациях ещё требует проверки."
+        }
+      ]
+    },
+    {
+      "id": "55",
+      "parent_id": null,
+      "title": "Настройки, наведение, чат и экран подключения",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/55-interface-polish",
+      "depends_on": [
+        "51",
+        "52",
+        "53"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Избранное выше узлов, профиль использует оформление Material без жёлтых подчёркиваний.",
+        "У подписанных элементов нет всплывающих при наведении названий, а наведение на папки не меняет фон.",
+        "В чате и вложениях добавлены отступы. Заголовок iOS использует штатное стекло и открывает поиск при удержании.",
+        "Ручные подключения по Wi-Fi и USB сгруппированы на экране добавления рации."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "В сборке 108 визуально проверены стекло заголовка, отступы редактора и вложений, отсутствие жёлтых подчёркиваний и порядок пунктов. Удержание заголовка открыло поиск."
+        },
+        {
+          "kind": "check",
+          "result": "Полный прогон Flutter прошёл. Тесты обращаются к доступным именам элементов, поддержаны экранный диктор и клавиатурный фокус."
+        }
+      ]
+    },
+    {
+      "id": "56",
+      "parent_id": null,
+      "title": "Производители, версии и комплектный настольный флешер",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/56-firmware-install",
+      "depends_on": [
+        "53",
+        "54"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Платы сортируются по производителю, протокол и версия выбираются после открытия платы.",
+        "Обновление ESP32 сохраняет разметку и записывает совместимые разделы, полная установка очищает память после подтверждения.",
+        "Образы очистки UF2 и автономный esptool входят в пакет. Полная установка UF2 продолжается после повторного выбора загрузчика той же платы."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshtastic/web-flasher/blob/main/stores/firmwareStore.ts",
+          "result": "Различия записи обновления и полной установки ESP сверены с Meshtastic Web Flasher."
+        },
+        {
+          "kind": "reference",
+          "url": "https://github.com/meshcore-dev/flasher.meshcore.io/blob/main/js/flash.js",
+          "result": "Файлы приложения и объединённые образы сверены с MeshCore Web Flasher."
+        },
+        {
+          "kind": "check",
+          "result": "Получены списки версий. В обоих режимах подготовлены официальные образы для LILYGO T-Beam (Meshtastic 2.7.26) и Heltec V3 (MeshCore Companion USB 1.18.0). Отдельный тест проверяет две стадии UF2 на временных каталогах."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-108-macOS.zip",
+          "result": "Архив сборки 108 и локальная подпись проверены. Внутри esptool 5.7.0 для arm64 и x86_64, запуск arm64 подтверждён."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Физические платы, Windows и Linux",
+          "result": "Запись на физические платы и нативные сборки Windows и Linux ещё требуют проверки."
+        }
+      ]
+    },
+    {
+      "id": "57",
+      "parent_id": null,
+      "title": "Плавное переключение экранов и настройки в левой панели",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/57-workspace-transitions",
+      "depends_on": [
+        "52"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "При обычном переходе новый экран постепенно появляется поверх старого. Жест возврата на iOS продолжает работать.",
+        "На широком экране настройки открываются слева, выбранный чат остаётся справа."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тесты проверяют промежуточный кадр смены экрана, удержание чата при переключении настроек и жест возврата на iOS."
+        },
+        {
+          "kind": "check",
+          "device": "iPad Pro 13-inch (M5), симулятор iOS 27.2",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/iPad-настройки-109.png",
+          "result": "На сборке 109 открыты настройки слева и переписка справа. Заголовок и поле ввода используют стекло UIKit."
+        }
+      ]
+    },
+    {
+      "id": "58",
+      "parent_id": null,
+      "title": "Редактирование папок в боковой панели компьютера",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/58-desktop-folders",
+      "depends_on": [
+        "57"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Папки используют вертикальную панель. В режиме редактирования рядом с пользовательскими папками появляются крестики.",
+        "Папки переставляются зажатием, а список чатов на компьютере имеет скруглённые края."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://github.com/overtake/TelegramSwift",
+          "result": "Исходник Telegram для macOS использован как референс разделения рабочего пространства."
+        },
+        {
+          "kind": "check",
+          "result": "На macOS 27.2 проверены боковая панель и крестики. Вариант Flutter для Windows проверяет перестановку и удаление папок."
+        }
+      ]
+    },
+    {
+      "id": "59",
+      "parent_id": null,
+      "title": "Системное стекло и окно без верхней рамки на macOS",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/59-macos-glass",
+      "depends_on": [
+        "58"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "На macOS 26 и новее элементы используют стекло AppKit при доступности эффекта.",
+        "Контент доходит до верхнего края окна, а системные кнопки окна сохранены."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://developer.apple.com/documentation/appkit/nswindow/titlebarappearstransparent",
+          "result": "Прозрачная область заголовка и полноразмерный контент реализованы средствами AppKit."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-109-macOS.zip",
+          "result": "Проверены локальная подпись и целостность универсального архива arm64 и x86_64. На macOS 27.2 проверены оконная раскладка, заголовок и поле ввода чата с системным стеклом."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows, Linux и физический iPad",
+          "result": "Нативные прогоны Windows и Linux не выполнялись. iPad проверен на симуляторе."
+        }
+      ]
+    },
+    {
+      "id": "60",
+      "parent_id": null,
+      "title": "Парящие настольные панели и центровка папок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/60-floating-desktop",
+      "depends_on": [
+        "58"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Список и панель папок лежат на общем фоне, граница с перепиской и профилем визуально смягчена.",
+        "Иконки папок и подписи остаются по центру в режиме редактирования."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "В сборке 111 на macOS проверены общий фон, отсутствие видимого разделителя и устойчивое положение папок с крестиками. Flutter проверяет положение иконки и подписи в режиме редактирования."
+        }
+      ]
+    },
+    {
+      "id": "61",
+      "parent_id": null,
+      "title": "Системная типографика и стеклянные кнопки macOS",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/61-system-macos-controls",
+      "depends_on": [
+        "59",
+        "60"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Базовые размеры текста получены из AppKit. Подписи центрируются внутри стеклянного фона и получают достаточную ширину.",
+        "Системное стекло используется в действиях профиля, заголовках карты и вложений и кнопке поиска геопозиции."
+      ],
+      "evidence": [
+        {
+          "kind": "reference",
+          "url": "https://developer.apple.com/documentation/appkit/nsfont/systemfontsize",
+          "result": "Выбор размеров текста опирается на стандартные размеры AppKit."
+        },
+        {
+          "kind": "check",
+          "result": "В запущенной сборке проверены надписи «Готово», «Добавить», «Прочитать все» и «Очистить». Отдельный тест проверяет центровку стеклянной кнопки и масштабирование."
+        }
+      ]
+    },
+    {
+      "id": "62",
+      "parent_id": null,
+      "title": "Скругление, внутреннее затухание и выравнивание верхних кнопок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/62-desktop-panel-edges",
+      "depends_on": [
+        "60",
+        "61"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Верхние углы списка скруглены, фон обычных строк совпадает с фоном панели.",
+        "Нижнее затухание рисуется внутри панели её цветом, верхние кнопки обеих сторон выровнены."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены чат, профиль и редактирование папок в сборке 111. 266 тестов Flutter прошли. После слияния повторно прошли 5 целевых тестов."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-111-macOS.zip",
+          "result": "Подпись и целостность архива для arm64 и x86_64 проверены."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows и Linux",
+          "result": "Проверка ограничена Flutter. Нативный запуск выполнен на macOS."
+        }
+      ]
+    },
+    {
+      "id": "63",
+      "parent_id": null,
+      "title": "Выбор папок на компьютере без заливки",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/63-folder-press-light-canvas",
+      "depends_on": [
+        "60"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Нажатие на папку не меняет фон строки. Активную папку отмечает тонкая подвижная линия."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Проверено в сборке 112 на macOS. Тест Flutter для Windows проверяет отсутствие эффекта нажатия, положение и анимацию индикатора."
+        }
+      ]
+    },
+    {
+      "id": "64",
+      "parent_id": null,
+      "title": "Сероватый фон светлой темы на всех платформах",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/64-light-gray-background",
+      "depends_on": [
+        "63"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Общий фон светлой темы и фон переписки используют более нейтральные светло-серые оттенки."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Светлый фон проверен на macOS и в тестовых вариантах Flutter для iOS, Android и Windows. Все 266 тестов прошли. Контраст вторичного текста на изменённых фонах от 4,99:1."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-112-macOS.zip",
+          "result": "Проверены подпись и целостность универсального архива arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "65",
+      "parent_id": null,
+      "title": "Системные кнопки окна в панели папок macOS",
+      "platform": ["macos"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["60"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Штатные кнопки закрытия, сворачивания и разворачивания расположены сверху внутри панели папок."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/appkit/nswindow/standardwindowbutton%28_%3A%29",
+          "result": "AppKit предоставляет штатные кнопки через NSWindow.standardWindowButton."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены положение кнопок в широкой раскладке, нативные роли окна и дерево доступности чатов. При сужении окна проверен переход в однопанельную раскладку."
+        }
+      ]
+    },
+    {
+      "id": "66",
+      "parent_id": null,
+      "title": "Палитра и общий фон панелей ПК",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["64"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Список чатов светлее правой панели в обеих темах.",
+        "Подложка окна и затухание у правого края списка совпадают с базовым цветом правой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены светлая и тёмная темы, переход у профиля и фон переписки в сборке 114. Тест Flutter сверяет цвет подложки с базовым цветом правой панели."
+        },
+        {
+          "kind": "platform_limit",
+          "device": "Windows и Linux",
+          "result": "На Windows использован вариант платформы в тестах Flutter. Нативный запуск выполнен на macOS."
+        }
+      ]
+    },
+    {
+      "id": "67",
+      "parent_id": null,
+      "title": "Тонкие рамки левых панелей ПК",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/65-macos-window-controls",
+      "depends_on": ["66"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "У панели папок и списка чатов есть тонкая рамка по скруглённому контуру в обеих темах."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Обе рамки проверены в светлой и тёмной темах. Тест Flutter проверяет рамки в один пункт и радиус скругления. После слияния в dev прошли все 266 тестов."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-114-macOS.zip",
+          "result": "Универсальная сборка 114 для arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "68",
+      "parent_id": null,
+      "title": "Установить сборку 115 на iPhone и Redmi",
+      "platform": ["ios", "android"],
+      "branch": "task/68-install-mobile-115",
+      "depends_on": ["67"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сборка 0.3.62 (115) установлена поверх текущих версий и запущена на физических iPhone и Redmi."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-115-iOS.zip",
+          "result": "Обновлена сборка 106. CoreDevice подтвердил версию 115, запуск и работающий процесс. Подпись приложения и целостность архива проверены."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-115-arm64.apk",
+          "result": "Сборка 103 обновлена до 115 через ADB с сохранением даты первой установки. Холодный запуск MainActivity завершился успешно. Подпись APK проверена."
+        }
+      ]
+    },
+    {
+      "id": "69",
+      "parent_id": null,
+      "title": "Вернуть прежнюю палитру левой панели ПК",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/69-restore-desktop-sidebar-colors",
+      "depends_on": ["66", "67"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Цвет левой панели совпадает с палитрой сборки 112. Рамки, общий фон окна, переход к правой панели и работа интерфейса сохранены."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Формула цвета сверена со сборкой 112. Целевой тест проверил оттенок #F8F9FA и сохранение рамок, фона и поведения рабочей области. Прошли четыре целевых теста Flutter и статический анализ."
+        }
+      ]
+    },
+    {
+      "id": "70",
+      "parent_id": null,
+      "title": "Обновить телефоны и запустить сборку 116 на Mac",
+      "platform": ["ios", "android", "macos"],
+      "branch": "task/70-deploy-build-116",
+      "depends_on": ["69"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Сборка 0.3.62 (116) устанавливается поверх прежней версии на iPhone и Android.",
+        "На Mac запущена сборка 116 с восстановленной палитрой левой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-iOS.zip",
+          "result": "CoreDevice подтвердил обновление с 115 до 116 и работающий процесс приложения. Подпись и целостность архива проверены."
+        },
+        {
+          "kind": "device_check",
+          "device": "Redmi Note 7",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-arm64.apk",
+          "result": "ADB подтвердил обновление с 115 до 116 без изменения даты первой установки и успешный запуск. Подпись APK проверена."
+        },
+        {
+          "kind": "device_check",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-116-macOS.zip",
+          "result": "Запущено окно чатов из сборки 116. Проверены версия приложения, подпись, архитектуры arm64 и x86_64 и целостность архива."
+        }
+      ]
+    },
+    {
+      "id": "71",
+      "parent_id": null,
+      "title": "Убрать наложение стеклянных кнопок при переходе между чатами и настройками",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["70"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Нативные элементы уходящего экрана скрываются до появления содержимого следующего экрана. Плавный переход и положение списка чатов сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/UIKit/UIVisualEffectView",
+          "result": "UIKit рекомендует не менять альфу стекла и его родительских представлений во время отрисовки."
+        },
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Покадрово проверены переходы в обоих направлениях. Исходные кнопки исчезают до отрисовки следующего экрана. Тест проверяет видимость UIKit-контролов, растворение и сохранение рабочей области. Прошли все 266 тестов Flutter."
+        }
+      ]
+    },
+    {
+      "id": "72",
+      "parent_id": null,
+      "title": "Согласовать стекло полосы папок и нижнего навбара в светлой теме",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["71"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме полоса папок использует тот же тип нативного стекла, что и нижняя навигация. Горизонтальная прокрутка и индикатор сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-glass-117.png",
+          "result": "На снимке в светлой теме стекло полосы и навбара отличается не более чем на два уровня RGB в контрольных участках. Тест проверяет стандартный материал, сохранение рамки и выбор вкладки штатным тапом."
+        }
+      ]
+    },
+    {
+      "id": "73",
+      "parent_id": null,
+      "title": "Согласовать оттенок выбранной папки с нижним навбаром iOS",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["72"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме индикатор выбранной папки имеет нейтральный серый оттенок выбранной вкладки нижнего навбара и сохраняет штатную анимацию UIKit."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-glass-118.png",
+          "result": "В светлой теме на неподвижных участках обоих индикаторов измерен одинаковый оттенок #E3E4E7. Выбор и анимация остаются в UISegmentedControl."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-118-iOS.zip",
+          "result": "Сборка 0.3.62 (118) установлена поверх 117 и запущена на физическом iPhone. Подпись и целостность архива проверены."
+        }
+      ]
+    },
+    {
+      "id": "74",
+      "parent_id": null,
+      "title": "Убрать свечение вдоль краёв полосы папок iOS",
+      "platform": ["ios"],
+      "branch": "task/74-ios-folder-glass-outline",
+      "depends_on": ["72", "73"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме полоска папок имеет нативный контур стеклянных кнопок без ярких полос сверху и снизу. Серый индикатор и прокрутка сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "screenshot",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-outline-comparison-119.png",
+          "result": "На сравнении сверху сборка 118, снизу 119. В 119 контур стеклянной кнопки непрерывен по краю полосы. Оттенки основы и индикатора в контрольных участках сохранены."
+        },
+        {
+          "kind": "check",
+          "result": "Восемь целевых тестов Flutter и статический анализ прошли. Проверены геометрия полосы, нативная подложка, сохранение позиции списка и видимость контролов при смене экрана."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-119-iOS.zip",
+          "result": "Сборка 0.3.62 (119) установлена поверх 118 и запущена. Подпись и целостность архива проверены."
+        }
+      ]
+    },
+    {
+      "id": "75",
+      "parent_id": null,
+      "title": "Контекстное меню сообщений на компьютере",
+      "platform": ["macos", "windows", "linux"],
+      "branch": "task/75-desktop-message-menu",
+      "depends_on": ["67"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Правый клик по сообщению открывает компактное меню у курсора в пределах переписки. Сообщение и остальной интерфейс остаются видимыми.",
+        "Действия и реакции доступны. Мобильное меню сохраняет прежний вид и жесты."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Правый клик по входящему и исходящему сообщению открывает меню и реакции у курсора. Чаты и кнопки остаются видимыми. Проверены сведения о сообщении и закрытие через Escape."
+        },
+        {
+          "kind": "check",
+          "result": "Тест для платформы Windows проверяет открытие правой кнопкой, позицию в панели и закрытие кликом снаружи. Проверены мобильные жесты. Прошли 267 тестов Flutter и статический анализ."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-120-macOS.zip",
+          "result": "Подпись и целостность универсальной сборки 120 для arm64 и x86_64 проверены."
+        }
+      ]
+    },
+    {
+      "id": "76",
+      "parent_id": null,
+      "title": "Высота редактора и отправка с клавиатуры на компьютере",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/76-desktop-composer-polish",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Поле ввода в одну строку и соседние кнопки совпадают по высоте.",
+        "Enter отправляет сообщение, Shift+Enter добавляет перенос. Действующие условия отправки и ввод через IME сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS",
+          "result": "Проверены одинаковая высота поля и кнопок в чате, перенос по Shift+Enter и сохранение двухстрочной заметки по Enter в локальном Избранном."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты Flutter для macOS и Windows проверяют сохранение курсора, расширение многострочного поля, ввод через IME и защиту от повторной отправки при удержании Enter."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-121-macOS.zip",
+          "result": "Проверены локальная подпись, целостность архива и архитектуры arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "77",
+      "parent_id": null,
+      "title": "Пружинная анимация элементов управления на компьютере",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/76-desktop-composer-polish",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Наведение плавно увеличивает элемент, уход курсора возвращает размер, нажатие даёт дополнительный импульс.",
+        "Наведение не затемняет элемент. Уменьшение движения отключает масштабирование."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "result": "Тест движения указателя проверяет увеличение с перелётом, размер при наведении, импульс нажатия, возврат при уходе курсора, прозрачный слой наведения и Уменьшение движения."
+        }
+      ]
+    },
+    {
+      "id": "78",
+      "parent_id": null,
+      "title": "Мягкие края прокрутки эмодзи без светлого ореола",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/76-desktop-composer-polish",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Края сетки эмодзи в светлой теме плавно растворяются на фоне панели."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS",
+          "result": "Проверена прокрутка светлой панели реакций. Эмодзи растворяются у краёв, стекло остаётся равномерным."
+        },
+        {
+          "kind": "check",
+          "result": "Тест Flutter проверяет маску, прокрутку, поиск и выбор оттенков кожи."
+        }
+      ]
+    },
+    {
+      "id": "79",
+      "parent_id": null,
+      "title": "Согласовать отклик стеклянных кнопок на компьютере",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/79-macos-glass-hover-and-composer",
+      "depends_on": [
+        "77"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопки разделов сохраняют размер при наведении и нажатии.",
+        "Стекло, значок и подпись кнопки масштабируются одновременно. Наведение не добавляет затемнение."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "На кнопке «Чат» в профиле канала воспроизведена тень при наведении. В сборке после отключения тени подложка сохраняет светлый оттенок, кнопка увеличивается целиком."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверяют одинаковые размеры стекла и содержимого в ходе пружины, сброс масштаба, отсутствие тени и затемнения при наведении, а также сохранение неподвижных кнопок разделов и движения индикатора."
+        }
+      ]
+    },
+    {
+      "id": "80",
+      "parent_id": null,
+      "title": "Выровнять текст редактора по вертикали",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/79-macos-glass-hover-and-composer",
+      "depends_on": [
+        "76"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Подсказка и введённый текст располагаются по вертикальному центру однострочного поля. Многострочное поле расширяется."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "В локальном Избранном визуально проверена центровка текста. Тесты macOS и Windows проверяют центр подсказки и текста, высоту поля и многострочный ввод."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-122-macOS.zip",
+          "result": "Проверены локальная подпись, целостность архива и архитектуры arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "81",
+      "parent_id": null,
+      "title": "Прокручивать быстрые ответы колесом и выровнять редактор",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Колесо мыши прокручивает полосу горизонтально. Редактор и нижние кнопки выровнены по краю левой панели."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Вертикальная прокрутка над полосой открывает крайние фразы. Нижний край редактора и боковой панели выровнены."
+        },
+        {
+          "kind": "check",
+          "result": "Тесты проверяют прокрутку колеса в обе стороны, упор в конец и совпадение нижнего края редактора с панелью на Windows."
+        }
+      ]
+    },
+    {
+      "id": "82",
+      "parent_id": null,
+      "title": "Общий индикатор боковой панели и анимация папок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Один индикатор перемещается между папками и настройками. Папки могут пружинить.",
+        "Все однотипные строки разделов, включая настройки и список чатов, сохраняют размер при наведении и нажатии."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "У Настроек отображается общая синяя полоса без подложки. При наведении строка «Оформление» сохраняет размер."
+        },
+        {
+          "kind": "check",
+          "result": "Тест проверяет анимированное перемещение индикатора к Настройкам, пружину на папках и отсутствие пружины у всех строк настроек."
+        }
+      ]
+    },
+    {
+      "id": "83",
+      "parent_id": null,
+      "title": "Новый каталог прошивок и карточка платы",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Каталог поддерживает поиск по модели и характеристикам и фильтр производителя. Карточка платы группирует версию, образ и USB. На macOS панель поиска использует Liquid Glass."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://baymard.com/research-articles/how-to-design-applied-filters",
+          "result": "Видимый фильтр производителя, быстрый сброс и обновление числа результатов."
+        },
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/videos/play/wwdc2026/289/",
+          "result": "Компактная панель нативного стекла поверх содержимого на macOS."
+        },
+        {
+          "kind": "source",
+          "url": "https://flash.meshtastic.org/",
+          "result": "Модель платы, версия и режим установки как отдельные этапы выбора образа."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Открыт каталог из 68 плат. Проверены ⌘F, поиск, фильтр Heltec и карточка Heltec V3. Тесты Mac и Windows проверяют поиск по чипу и протоколу и выбор прошивки MeshCore."
+        }
+      ]
+    },
+    {
+      "id": "84",
+      "parent_id": null,
+      "title": "Сохранить контур Liquid Glass на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/81-desktop-firmware-and-controls",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Граница нативного стекла видна по всему периметру на светлом фоне."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Границы круглых кнопок и длинного поля ввода проверены в светлом чате. Тест Flutter проверяет запас для нативного контура при масштабировании."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-123-macOS.zip",
+          "result": "Проверены локальная подпись, архив и архитектуры arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "85",
+      "parent_id": null,
+      "title": "Значок быстрых фраз и лист значков Meshgram",
+      "platform": [
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Кнопка и раскрывающаяся полоса используют один SVG. Остальные варианты показаны на листе с подписями."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/design/human-interface-guidelines/sf-symbols",
+          "result": "Согласованная геометрия и толщина штриха у самостоятельных рисунков."
+        },
+        {
+          "kind": "image",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-icons.png",
+          "result": "Девять значков с подписями. Вариант «Профиль рации» перерисован."
+        },
+        {
+          "kind": "check",
+          "device": "macOS и iPhone 18 Pro Simulator, iOS 27.2",
+          "result": "SVG быстрых фраз виден в чате, в том числе на нативной кнопке iOS. Тесты Flutter проверяют раскрытие полосы."
+        }
+      ]
+    },
+    {
+      "id": "86",
+      "parent_id": null,
+      "title": "Мультивыбор фильтров каталога прошивок",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Фильтры по производителю, чипу и протоколу доступны из одной панели. Выбор виден в переносимых тегах и корректируется из панели и по крестику. На Mac панель нативная. Название Meshtastic скрыто в карточках каталога."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/appkit/nssegmentedcontrol",
+          "result": "Системное переключение категорий в нативной панели AppKit."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Проверены Liquid Glass, сочетание Heltec, ESP32-S3 и MeshCore, удаление тега и синхронизация флажка. Meshtastic доступен в фильтре и на странице прошивки."
+        },
+        {
+          "kind": "check",
+          "device": "Flutter, macOS и Windows",
+          "result": "Тесты проверяют сочетание критериев, сброс тега, позицию карточки и доступность выбора протокола на странице платы."
+        }
+      ]
+    },
+    {
+      "id": "87",
+      "parent_id": null,
+      "title": "Снять серую тонировку активной строки поиска на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме активное поле поиска использует нативное стекло без дополнительного оттенка."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "В светлой теме проверены прозрачное стекло, ввод запроса и совпадение в результатах."
+        }
+      ]
+    },
+    {
+      "id": "88",
+      "parent_id": "86",
+      "title": "Раскрывать фильтры поверх каталога и ставить теги в ряд с кнопкой",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/85-quick-phrase-icon-and-firmware-filters",
+      "depends_on": [
+        "86"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Панель раскрывается поверх карточек. Открытие и закрытие сохраняет положение каталога. Кнопка и теги находятся в одном ряду с переносом по ширине."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Видны стеклянная панель поверх карточек, теги Heltec и ESP32-S3 справа от кнопки. Нативные флажки и удаление тега работают при открытой панели."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-124-macOS.zip",
+          "result": "Локальная сборка 124 для arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "89",
+      "parent_id": null,
+      "title": "Трансформация кнопки фильтров в панель",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/89-firmware-filter-morph",
+      "depends_on": [
+        "88"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Одна поверхность плавно изменяет размер. Подпись и параметры затухают в обе стороны. Щелчок снаружи сворачивает панель, крестики на выбранных тегах видны постоянно."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "Flutter, macOS и Windows",
+          "result": "Проверены промежуточный размер, исчезновение надписи, обратное движение по внешнему нажатию, сохранение положения карточки и видимость крестика у тега."
+        },
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Нативные флажки обновляют каталог. Щелчок по счётчику и крестик панели сворачивают её. Крестик тега Heltec виден без наведения и снимает выбор."
+        }
+      ]
+    },
+    {
+      "id": "90",
+      "parent_id": null,
+      "title": "Единый материал строки поиска на Mac",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/89-firmware-filter-morph",
+      "depends_on": [
+        "87"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Оба состояния строки поиска используют системное стекло того же стиля, что и другие элементы."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Активное поле в светлой теме использует тот же нативный материал, что и соседняя кнопка закрытия. Обычное поле использует его до активации."
+        }
+      ]
+    },
+    {
+      "id": "91",
+      "parent_id": "89",
+      "title": "Расширять кнопку фильтров от её угла и скруглить стеклянную подложку",
+      "platform": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "branch": "task/89-firmware-filter-morph",
+      "depends_on": [
+        "89"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Верхний угол кнопки остаётся на месте на всём переходе. Нативная стеклянная подложка ограничена скруглённым контуром."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "Flutter и macOS 27.2",
+          "result": "Проверены координаты блока на открытии и закрытии, внешний вид всех углов, нативный флажок и сворачивание по внешнему нажатию."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-125-macOS.zip",
+          "result": "Сборка 125 для arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "92",
+      "parent_id": "91",
+      "title": "Сравнять контур и наведение кнопки фильтров с Liquid Glass",
+      "platform": [
+        "macos"
+      ],
+      "branch": "task/92-match-filter-glass",
+      "depends_on": [
+        "91"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Контур свернутой кнопки имеет запас для нативного блика, а при наведении кнопка использует штатную пружину. У раскрытой панели подложка ограничена скруглёнными углами."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "macOS 27.2",
+          "result": "Контуры свернутой кнопки и тега Heltec сверены рядом. У раскрытого блока контур непрерывный, слой в углах обрезан. Выбор и сворачивание снаружи проверены."
+        },
+        {
+          "kind": "check",
+          "device": "Flutter",
+          "result": "Проверены нативный запас вокруг обеих форм, увеличение при наведении, обратная пружина и сохранение того же AppKit-представления при раскрытии."
+        },
+        {
+          "kind": "build",
+          "device": "macOS",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-126-macOS.zip",
+          "result": "Сборка 126 для arm64 и x86_64."
+        }
+      ]
+    },
+    {
+      "id": "93",
+      "parent_id": null,
+      "title": "Установить обновление на iPhone и iPad по Wi‑Fi",
+      "platform": [
+        "ios",
+        "ipados"
+      ],
+      "branch": "task/93-install-ios-over-wifi",
+      "depends_on": [
+        "92"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Meshgram 0.3.62 (127) установлен поверх сборки 119 на обоих физических устройствах через localNetwork."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro, iOS 27.0.1",
+          "result": "CoreDevice установил подписанную сборку по Wi‑Fi. Проверка списка приложений показала dev.meshgrame.client, версия 0.3.62, сборка 127."
+        },
+        {
+          "kind": "check",
+          "device": "iPad (A16), iPadOS 27.0.1",
+          "result": "CoreDevice установил подписанную сборку по Wi‑Fi. Проверка списка приложений показала dev.meshgrame.client, версия 0.3.62, сборка 127."
+        }
+      ]
+    }
+  ]
+}

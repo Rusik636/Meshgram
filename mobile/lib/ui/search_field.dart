@@ -6,14 +6,16 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'navigation.dart';
 import 'style.dart';
 
 const meshSearchButtonSize = 48.0;
 
-/// Lets momentum finish normally, then settles a partially collapsed search bar.
+/// Lets momentum finish normally, then settles a partially collapsed header.
 class MeshSearchScrollController extends ScrollController {
   double collapseRange = 0;
+  double trailingSnapExtent = 0;
   bool reduceMotion = false;
 
   @override
@@ -61,14 +63,18 @@ class _MeshSearchSnapPhysics extends ScrollPhysics {
       return null;
     }
 
-    final start = position.minScrollExtent;
-    final end = start + controller.collapseRange;
     final current = position.pixels;
+    final searchEnd = position.minScrollExtent + controller.collapseRange;
+    final afterSearch = current > searchEnd;
+    final start = afterSearch ? searchEnd : position.minScrollExtent;
+    final end = afterSearch
+        ? searchEnd + controller.trailingSnapExtent
+        : searchEnd;
     if (end > position.maxScrollExtent || current <= start || current >= end) {
       return null;
     }
 
-    final target = current - start < controller.collapseRange / 2 ? start : end;
+    final target = current < (start + end) / 2 ? start : end;
     if (controller.reduceMotion) return _MeshSearchInstantSnap(target);
     return ScrollSpringSimulation(
       spring,
@@ -173,7 +179,8 @@ class MeshSearchLauncher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    return TextField(
+    final glass = MacGlass.enabled(context);
+    final field = TextField(
       readOnly: true,
       canRequestFocus: false,
       onTap: onTap,
@@ -189,8 +196,10 @@ class MeshSearchLauncher extends StatelessWidget {
           color: style.secondary,
           size: 22,
         ),
-        filled: true,
-        fillColor: Color.lerp(style.searchField, style.pill, collapse),
+        filled: !glass,
+        fillColor: glass
+            ? null
+            : Color.lerp(style.searchField, style.pill, collapse),
         isDense: true,
         contentPadding: EdgeInsets.zero,
         border: OutlineInputBorder(
@@ -199,6 +208,7 @@ class MeshSearchLauncher extends StatelessWidget {
         ),
       ),
     );
+    return glass ? GlassSurface(radius: 100, child: field) : field;
   }
 }
 
@@ -291,8 +301,8 @@ class MeshSearchEditor extends StatelessWidget {
         border: InputBorder.none,
         suffixIcon: controller.text.trim().isEmpty
             ? const SizedBox.shrink()
-            : IconButton(
-                tooltip: tr(context, 'Очистить запрос', 'Clear query'),
+            : MeshIconButton(
+                label: tr(context, 'Очистить запрос', 'Clear query'),
                 onPressed: () {
                   controller.clear();
                   onChanged('');
@@ -304,20 +314,22 @@ class MeshSearchEditor extends StatelessWidget {
     if (onActivate == null) {
       return GlassSurface(
         radius: 100,
-        color: style.searchField,
+        color: MacGlass.enabled(context) ? null : style.searchField,
         child: editor(),
       );
     }
     return GlassSurface(
       radius: 100,
-      color: Color.lerp(style.pill, style.searchField, progress),
+      color: MacGlass.enabled(context)
+          ? null
+          : Color.lerp(style.pill, style.searchField, progress),
       child: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth >= 120) {
             return IgnorePointer(ignoring: !active, child: editor());
           }
-          return Tooltip(
-            message: placeholder,
+          return Semantics(
+            label: placeholder,
             child: IconButton(
               onPressed: active ? null : onActivate,
               icon: Icon(Icons.search_rounded, color: style.text, size: 20),

@@ -14,12 +14,16 @@ class MeshScrollViewport extends StatefulWidget {
     this.tint,
     this.edgeExtent = 18,
     this.fadeTop = true,
+    this.blur = true,
+    this.fadeContent = false,
   }) : assert(edgeExtent > 0);
 
   final Widget child;
   final Color? tint;
   final double edgeExtent;
   final bool fadeTop;
+  final bool blur;
+  final bool fadeContent;
 
   @override
   State<MeshScrollViewport> createState() => _MeshScrollViewportState();
@@ -42,55 +46,80 @@ class _MeshScrollViewportState extends State<MeshScrollViewport> {
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.passthrough,
-    clipBehavior: Clip.none,
-    children: [
-      NotificationListener<ScrollMetricsNotification>(
+  Widget build(BuildContext context) {
+    final viewport = NotificationListener<ScrollMetricsNotification>(
+      onNotification: (notice) {
+        _update(notice.metrics, notice.depth);
+        return false;
+      },
+      child: NotificationListener<ScrollNotification>(
         onNotification: (notice) {
           _update(notice.metrics, notice.depth);
           return false;
         },
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (notice) {
-            _update(notice.metrics, notice.depth);
-            return false;
-          },
-          child: widget.child,
-        ),
+        child: widget.child,
       ),
-      if (widget.fadeTop && _top > 0)
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: widget.edgeExtent,
-          child: Opacity(
-            opacity: _top,
-            child: MeshScrollEdge(
-              top: true,
-              tint: widget.tint,
-              opaqueEdge: true,
+    );
+    if (widget.fadeContent) {
+      return ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) {
+          final edge = (widget.edgeExtent / bounds.height).clamp(0.0, .5);
+          return LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: widget.fadeTop ? 1 - _top : 1),
+              Colors.white,
+              Colors.white,
+              Colors.white.withValues(alpha: 1 - _bottom),
+            ],
+            stops: [0, edge, 1 - edge, 1],
+          ).createShader(bounds);
+        },
+        child: viewport,
+      );
+    }
+    return Stack(
+      fit: StackFit.passthrough,
+      clipBehavior: Clip.none,
+      children: [
+        viewport,
+        if (widget.fadeTop && _top > 0)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: widget.edgeExtent,
+            child: Opacity(
+              opacity: _top,
+              child: MeshScrollEdge(
+                top: true,
+                tint: widget.tint,
+                opaqueEdge: true,
+                blur: widget.blur,
+              ),
             ),
           ),
-        ),
-      if (_bottom > 0)
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: widget.edgeExtent,
-          child: Opacity(
-            opacity: _bottom,
-            child: MeshScrollEdge(
-              top: false,
-              tint: widget.tint,
-              opaqueEdge: true,
+        if (_bottom > 0)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: widget.edgeExtent,
+            child: Opacity(
+              opacity: _bottom,
+              child: MeshScrollEdge(
+                top: false,
+                tint: widget.tint,
+                opaqueEdge: true,
+                blur: widget.blur,
+              ),
             ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class MeshScrollEdge extends StatefulWidget {
@@ -99,11 +128,13 @@ class MeshScrollEdge extends StatefulWidget {
     required this.top,
     this.tint,
     this.opaqueEdge = false,
+    this.blur = true,
   });
 
   final bool top;
   final Color? tint;
   final bool opaqueEdge;
+  final bool blur;
 
   @override
   State<MeshScrollEdge> createState() => _MeshScrollEdgeState();
@@ -154,7 +185,8 @@ class _MeshScrollEdgeState extends State<MeshScrollEdge> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (!MediaQuery.highContrastOf(context) &&
+          if (widget.blur &&
+              !MediaQuery.highContrastOf(context) &&
               (shader != null || tint == null))
             ClipRect(
               child: BackdropFilter(

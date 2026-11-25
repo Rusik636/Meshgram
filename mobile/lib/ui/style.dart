@@ -6,8 +6,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
+import 'desktop_interaction.dart';
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'mesh_icon.dart';
 import 'mesh_sheet_route.dart';
 import 'sheet_control_clip.dart';
@@ -24,15 +28,37 @@ EdgeInsets meshScrollPadding(
 ]) => MediaQuery.paddingOf(context) + spacing;
 
 class MeshStyle {
-  const MeshStyle(this.dark);
+  const MeshStyle(this.dark) : _canvas = null;
+  const MeshStyle._withCanvas(this.dark, this._canvas);
   final bool dark;
-  static MeshStyle of(BuildContext context) =>
-      MeshStyle(Theme.of(context).brightness == Brightness.dark);
+  final Color? _canvas;
+  static MeshStyle of(BuildContext context) {
+    final theme = Theme.of(context);
+    return MeshStyle._withCanvas(
+      theme.brightness == Brightness.dark,
+      theme.extension<_ConversationCanvas>()?.color,
+    );
+  }
 
-  Color get canvas =>
+  Color get canvas => _canvas ?? _baseCanvas;
+  Color get _baseCanvas =>
       dark ? const Color(0xff080a0f) : const Color(MeshGrameV2Light.background);
   Color get surface =>
       dark ? const Color(0xff1a1e26) : const Color(MeshGrameV2Light.surface);
+  Color get desktopPanel => Color.lerp(_baseCanvas, surface, .56)!;
+  Color get desktopConversationCanvas =>
+      dark ? const Color(0xff0b0d12) : const Color(0xffe1e4e7);
+  List<Color> get desktopChatWallpaper => dark
+      ? const [Color(0xff0d1017), Color(0xff090c12), Color(0xff10131a)]
+      : const [Color(0xffe3e5e7), Color(0xffe1e4e7), Color(0xffdce0e3)];
+
+  ThemeData desktopConversationTheme(ThemeData base) => base.copyWith(
+    scaffoldBackgroundColor: desktopConversationCanvas,
+    extensions: [
+      ...base.extensions.values,
+      _ConversationCanvas(desktopConversationCanvas),
+    ],
+  );
   Color get field => dark ? const Color(0xff1c2029) : const Color(0xffeaf0f8);
   Color get searchField => dark
       ? const Color(MeshGrameV2Dark.searchField)
@@ -63,6 +89,9 @@ class MeshStyle {
   Color get warning => dark
       ? const Color(MeshGrameV2Dark.warning)
       : const Color(MeshGrameV2Light.warning);
+  Color get error => dark
+      ? const Color(MeshGrameV2Dark.error)
+      : const Color(MeshGrameV2Light.error);
   Color get success => const Color(MeshGrameV2Light.success);
   Color get onlineDot => const Color(MeshGrameV2Light.online);
   Color get deliveryWarning => const Color(MeshGrameV2Light.deliveryWarning);
@@ -78,7 +107,7 @@ class MeshStyle {
           surface: surface,
           onSurfaceVariant: secondary,
         );
-    return ThemeData(
+    final theme = ThemeData(
       colorScheme: scheme,
       scaffoldBackgroundColor: canvas,
       useMaterial3: true,
@@ -93,7 +122,35 @@ class MeshStyle {
         ),
       ),
     );
+    if (!meshDesktopPlatform(theme.platform)) return theme;
+    final feedback = desktopButtonFeedback(theme.focusColor);
+    return theme.copyWith(
+      hoverColor: Colors.transparent,
+      iconButtonTheme: IconButtonThemeData(style: feedback),
+      textButtonTheme: TextButtonThemeData(style: feedback),
+      filledButtonTheme: FilledButtonThemeData(
+        style: feedback.copyWith(elevation: const WidgetStatePropertyAll(0)),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(style: feedback),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: feedback),
+    );
   }
+}
+
+class _ConversationCanvas extends ThemeExtension<_ConversationCanvas> {
+  const _ConversationCanvas(this.color);
+
+  final Color color;
+
+  @override
+  _ConversationCanvas copyWith({Color? color}) =>
+      _ConversationCanvas(color ?? this.color);
+
+  @override
+  _ConversationCanvas lerp(_ConversationCanvas? other, double t) =>
+      other == null
+      ? this
+      : _ConversationCanvas(Color.lerp(color, other.color, t)!);
 }
 
 class MessageMenuBackdrop extends InheritedWidget {
@@ -105,22 +162,42 @@ class MessageMenuBackdrop extends InheritedWidget {
       image != oldWidget.image;
 }
 
+Future<Uint8List?> captureMessageMenuBackdrop(GlobalKey source) async {
+  await WidgetsBinding.instance.endOfFrame;
+  final boundary = source.currentContext?.findRenderObject();
+  if (boundary is! RenderRepaintBoundary || boundary.size.isEmpty) return null;
+  final image = await boundary.toImage(pixelRatio: 0.125);
+  try {
+    final data = await image.toByteData(format: ImageByteFormat.png);
+    return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  } finally {
+    image.dispose();
+  }
+}
+
 class MessageMenuSurface extends StatelessWidget {
   const MessageMenuSurface({
     super.key,
     required this.radius,
     required this.child,
+    this.backdrop,
   });
   final double radius;
   final Widget child;
+  final Uint8List? backdrop;
 
   @override
   Widget build(BuildContext context) {
+    if (MacGlass.enabled(context)) {
+      return GlassSurface(radius: radius, child: child);
+    }
     final style = MeshStyle.of(context);
     final border = BorderRadius.circular(radius);
-    final backdrop = context
-        .dependOnInheritedWidgetOfExactType<MessageMenuBackdrop>()
-        ?.image;
+    final backdrop =
+        this.backdrop ??
+        context
+            .dependOnInheritedWidgetOfExactType<MessageMenuBackdrop>()
+            ?.image;
     if (useIosControls &&
         backdrop != null &&
         !MediaQuery.highContrastOf(context)) {
@@ -175,17 +252,85 @@ class GlassSurface extends StatelessWidget {
     this.radius = 28,
     this.modal = false,
     this.color,
+    this.nativeButtonMaterial = false,
+    this.springEnabled,
   });
   final Widget child;
   final double radius;
   final bool modal;
   final Color? color;
+  final bool nativeButtonMaterial;
+  final bool? springEnabled;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final opaque = MediaQuery.highContrastOf(context);
     final border = BorderRadius.circular(radius);
+    if (MacGlass.enabled(context)) {
+      final background = MacGlassBackground(
+        radius: radius,
+        dark: style.dark,
+        tint: color,
+        edgeOutset: MacGlass.controlEdgeOutset,
+      );
+      final content = Material(type: MaterialType.transparency, child: child);
+      if (springEnabled case final enabled?) {
+        return DesktopSpring(
+          enabled: enabled,
+          buildScaled: (context, scale, content) => Stack(
+            fit: StackFit.passthrough,
+            clipBehavior: Clip.none,
+            children: [
+              // AppKit renders the glass at its actual size for each frame.
+              Positioned.fill(
+                child: FractionallySizedBox(
+                  widthFactor: scale,
+                  heightFactor: scale,
+                  child: background,
+                ),
+              ),
+              Transform.scale(
+                scale: scale,
+                transformHitTests: false,
+                child: ClipRRect(borderRadius: border, child: content),
+              ),
+            ],
+          ),
+          child: content,
+        );
+      }
+      return Stack(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: background),
+          ClipRRect(borderRadius: border, child: content),
+        ],
+      );
+    }
+    if (nativeButtonMaterial && useIosControls) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: _NativeGlassButton(
+                label: '',
+                onTap: null,
+                primary: false,
+                decorative: true,
+              ),
+            ),
+          ),
+          // Keep UIKit's glass edge outside the content clip.
+          ClipRRect(
+            borderRadius: border,
+            child: Material(type: MaterialType.transparency, child: child),
+          ),
+        ],
+      );
+    }
     if (modal && useIosControls && !opaque) {
       return ClipRRect(
         borderRadius: border,
@@ -205,7 +350,7 @@ class GlassSurface extends StatelessWidget {
         ),
       );
     }
-    return ClipRRect(
+    final surface = ClipRRect(
       borderRadius: border,
       child: BackdropFilter(
         enabled: !opaque,
@@ -220,53 +365,136 @@ class GlassSurface extends StatelessWidget {
         ),
       ),
     );
+    if (springEnabled case final enabled?) {
+      return DesktopSpring(enabled: enabled, child: surface);
+    }
+    return surface;
   }
 }
+
+class MeshIconButton extends StatelessWidget {
+  const MeshIconButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.alignment,
+    this.color,
+    this.constraints,
+    this.isSelected,
+    this.onLongPress,
+    this.padding,
+    this.style,
+    this.visualDensity,
+    this.spring = true,
+  });
+
+  final String label;
+  final Widget icon;
+  final VoidCallback? onPressed, onLongPress;
+  final AlignmentGeometry? alignment;
+  final Color? color;
+  final BoxConstraints? constraints;
+  final bool? isSelected;
+  final EdgeInsetsGeometry? padding;
+  final ButtonStyle? style;
+  final VisualDensity? visualDensity;
+  final bool spring;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: label,
+    child: DesktopSpring(
+      enabled: spring && onPressed != null,
+      child: IconButton(
+        icon: icon,
+        onPressed: onPressed,
+        alignment: alignment,
+        color: color,
+        constraints: constraints,
+        isSelected: isSelected,
+        onLongPress: onLongPress,
+        padding: padding,
+        style: meshDesktopButtonStyle(context, style),
+        visualDensity: visualDensity,
+      ),
+    ),
+  );
+}
+
+const meshGlassButtonExtent = 48.0;
 
 class GlassButton extends StatelessWidget {
   const GlassButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.glyph,
     required this.label,
     required this.onTap,
+    this.onLongPress,
+    this.longPressLabel,
     this.primary = false,
     this.coveredByModal = false,
-  });
-  final IconData icon;
+  }) : assert((icon == null) != (glyph == null));
+  final IconData? icon;
+  final MeshSvgGlyph? glyph;
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback? onTap, onLongPress;
+  final String? longPressLabel;
   final bool primary, coveredByModal;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final symbol = useIosControls ? meshGlassButtonSymbol(icon) : null;
+    final svg = glyph;
+    final symbol = useIosControls
+        ? svg?.iosImage ?? meshGlassButtonSymbol(icon!)
+        : null;
     if (symbol != null) {
       return SizedBox.square(
-        dimension: 48,
+        dimension: meshGlassButtonExtent,
         child: _NativeGlassButton(
           symbol: symbol,
           label: label,
           onTap: onTap,
+          onLongPress: onLongPress,
+          longPressLabel: longPressLabel,
           primary: primary,
           coveredByModal: coveredByModal,
         ),
       );
     }
-    return Tooltip(
-      message: label,
+    final button = Semantics(
+      label: label,
       child: GlassSurface(
+        springEnabled: onTap != null || onLongPress != null,
         color: primary ? style.accent : null,
         child: IconButton(
-          constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+          constraints: const BoxConstraints.tightFor(
+            width: meshGlassButtonExtent,
+            height: meshGlassButtonExtent,
+          ),
           padding: EdgeInsets.zero,
-          icon: Icon(icon, size: 20),
+          icon: svg == null ? Icon(icon, size: 20) : MeshSvgIcon(svg),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,
           disabledColor: style.secondary,
+          style: meshDesktopButtonStyle(context),
           onPressed: onTap,
         ),
+      ),
+    );
+    final hold = onLongPress;
+    if (hold == null) return button;
+    return Semantics(
+      customSemanticsActions: {
+        CustomSemanticsAction(label: longPressLabel ?? label): hold,
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: hold,
+        child: button,
       ),
     );
   }
@@ -279,6 +507,7 @@ class GlassActionButton extends StatelessWidget {
     required this.onTap,
     this.primary = true,
     this.symbol,
+    this.icon,
     this.width = double.infinity,
     this.height,
     this.wrapLabel = false,
@@ -288,16 +517,21 @@ class GlassActionButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool primary;
   final String? symbol;
+  final IconData? icon;
   final double width;
   final double? height;
   final bool wrapLabel;
   final bool fitContent;
 
   double _contentWidth(BuildContext context, TextScaler textScaler) {
+    final stacked = symbol != null;
+    final baseStyle = MacGlass.enabled(context)
+        ? DefaultTextStyle.of(context).style
+        : const TextStyle();
     final measure = TextPainter(
       text: TextSpan(
         text: label,
-        style: TextStyle(
+        style: baseStyle.copyWith(
           fontSize: useIosControls ? 17 : 16,
           fontWeight: FontWeight.w600,
         ),
@@ -306,8 +540,10 @@ class GlassActionButton extends StatelessWidget {
       textScaler: textScaler,
       maxLines: 1,
     )..layout();
-    final result = (measure.width.ceilToDouble() + 28).clamp(
-      48.0,
+    final minimum = stacked && width.isFinite ? width : 48.0;
+    final iconSpace = stacked || icon == null ? 0 : 24;
+    final result = (measure.width.ceilToDouble() + 28 + iconSpace).clamp(
+      minimum,
       double.infinity,
     );
     measure.dispose();
@@ -323,37 +559,81 @@ class GlassActionButton extends StatelessWidget {
         ? (textScaler.scale(17) * 2.4 + 8).clamp(48.0, double.infinity)
         : (48 + (textScaler.scale(16) - 16)).clamp(48.0, 80.0);
     if (!useIosControls) {
+      final macGlass = MacGlass.enabled(context);
+      final stacked = symbol != null;
+      final title = Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: wrapLabel ? 2 : 1,
+        overflow: TextOverflow.ellipsis,
+      );
+      final button = FilledButton(
+        style:
+            meshDesktopButtonStyle(
+              context,
+              FilledButton.styleFrom(
+                backgroundColor: macGlass
+                    ? Colors.transparent
+                    : primary
+                    ? style.accent
+                    : style.pill,
+                foregroundColor: primary
+                    ? (style.dark ? const Color(0xff10254b) : Colors.white)
+                    : style.text,
+                disabledBackgroundColor: macGlass
+                    ? Colors.transparent
+                    : primary
+                    ? Color.lerp(style.surface, style.text, .27)
+                    : style.pill,
+                disabledForegroundColor: style.secondary.withValues(alpha: .58),
+                shape: const StadiumBorder(),
+                side: primary || macGlass
+                    ? BorderSide.none
+                    : BorderSide(color: style.separator),
+                padding: EdgeInsets.symmetric(horizontal: stacked ? 6 : 12),
+                alignment: Alignment.center,
+                tapTargetSize: macGlass
+                    ? MaterialTapTargetSize.shrinkWrap
+                    : null,
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )?.copyWith(
+              elevation: macGlass ? const WidgetStatePropertyAll(0) : null,
+            ),
+        onPressed: onTap,
+        child: icon == null
+            ? title
+            : stacked
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20),
+                  const SizedBox(height: 4),
+                  Flexible(child: title),
+                ],
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 18),
+                  const SizedBox(width: 5),
+                  Flexible(child: title),
+                ],
+              ),
+      );
       return SizedBox(
         height: height ?? defaultHeight,
         width: buttonWidth,
-        child: FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: primary ? style.accent : style.pill,
-            foregroundColor: primary
-                ? (style.dark ? const Color(0xff10254b) : Colors.white)
-                : style.text,
-            disabledBackgroundColor: primary
-                ? Color.lerp(style.surface, style.text, .27)
-                : style.pill,
-            disabledForegroundColor: style.secondary.withValues(alpha: .58),
-            shape: const StadiumBorder(),
-            side: primary
-                ? BorderSide.none
-                : BorderSide(color: style.separator),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          onPressed: onTap,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: wrapLabel ? 2 : 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        child: macGlass
+            ? GlassSurface(
+                springEnabled: onTap != null,
+                color: primary && onTap != null ? style.accent : null,
+                child: button,
+              )
+            : DesktopSpring(enabled: onTap != null, child: button),
       );
     }
     return SizedBox(
@@ -363,8 +643,9 @@ class GlassActionButton extends StatelessWidget {
         label: label,
         primary: primary,
         onTap: onTap,
-        symbol: symbol,
+        symbol: symbol ?? (icon == null ? null : meshGlassButtonSymbol(icon!)),
         stacked: symbol != null,
+        inlineSymbol: icon != null && symbol == null,
       ),
     );
   }
@@ -376,25 +657,33 @@ class _NativeGlassButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     required this.primary,
+    this.onLongPress,
+    this.longPressLabel,
     this.stacked = false,
+    this.inlineSymbol = false,
     this.coveredByModal = false,
+    this.decorative = false,
   });
 
   final String? symbol;
   final String label;
-  final VoidCallback? onTap;
+  final VoidCallback? onTap, onLongPress;
+  final String? longPressLabel;
   final bool primary;
-  final bool stacked, coveredByModal;
+  final bool stacked, inlineSymbol, coveredByModal, decorative;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     return IosControl(
       kind: 'button',
-      onSelect: (_) => onTap?.call(),
+      onSelect: decorative ? null : (_) => onTap?.call(),
+      onLongPress: onLongPress,
       properties: {
         'label': label,
-        'enabled': onTap != null,
+        'enabled': decorative || onTap != null,
+        if (decorative) 'readOnly': true,
+        if (onLongPress != null) 'longPressLabel': longPressLabel ?? label,
         'primary': primary,
         'dark': style.dark,
         'accent': style.accent.toARGB32(),
@@ -404,6 +693,7 @@ class _NativeGlassButton extends StatelessWidget {
             .toARGB32(),
         'symbol': ?symbol,
         'stacked': stacked,
+        if (inlineSymbol) 'inlineSymbol': true,
         'coveredByModal':
             coveredByModal || ModalRoute.isCurrentOf(context) == false,
       },
@@ -482,8 +772,8 @@ class MeshAvatar extends StatelessWidget {
     );
     final action = onTap;
     if (action == null) return avatar;
-    return Tooltip(
-      message: tr(context, 'Профиль $name', '$name profile'),
+    return Semantics(
+      label: tr(context, 'Профиль $name', '$name profile'),
       child: InkWell(
         customBorder: const CircleBorder(),
         splashFactory: NoSplash.splashFactory,
@@ -659,9 +949,12 @@ class MeshRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final desktop = meshDesktop(context);
     return Semantics(
       selected: selected ? true : null,
       child: ListTile(
+        hoverColor: desktop ? Colors.transparent : null,
+        splashColor: desktop ? Colors.transparent : null,
         contentPadding: const EdgeInsets.symmetric(horizontal: 15),
         minTileHeight: 54,
         leading:
@@ -876,7 +1169,7 @@ class MeshDialog extends StatelessWidget {
         onTap: action.onPressed,
       );
     }).toList();
-    if (useIosControls) {
+    if (useIosControls || MacGlass.enabled(context)) {
       return Dialog(
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -946,6 +1239,7 @@ class MeshDialog extends StatelessWidget {
 Future<T?> showMeshSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  double dragArea = 44,
 }) {
   final presentingRoute = useIosControls ? ModalRoute.of(context) : null;
   return showMeshBottomSheet<T>(
@@ -957,36 +1251,52 @@ Future<T?> showMeshSheet<T>({
     builder: (context) {
       final style = MeshStyle.of(context);
       final sheet = Material(
+        key: const ValueKey('mesh-sheet-panel'),
         color: style.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         clipBehavior: Clip.antiAlias,
-        child: MeshSheetScrollContent(
-          dragArea: 44,
-          builder: (context) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 7, top: 5),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: style.secondary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const SizedBox(width: 34, height: 4),
-                ),
-              ),
-              Flexible(child: builder(context)),
-            ],
-          ),
+        child: Builder(builder: builder),
+      );
+      return MeshSheetScrollContent(
+        dragArea: dragArea,
+        builder: (context) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const MeshSheetGrip(key: ValueKey('mesh-sheet-grip')),
+            Flexible(
+              child: useIosControls
+                  ? MeshOpaqueSheetRegion(
+                      presentingRoute: presentingRoute,
+                      child: sheet,
+                    )
+                  : sheet,
+            ),
+          ],
         ),
       );
-      return useIosControls
-          ? MeshOpaqueSheetRegion(
-              presentingRoute: presentingRoute,
-              child: sheet,
-            )
-          : sheet;
     },
+  );
+}
+
+class MeshSheetGrip extends StatelessWidget {
+  const MeshSheetGrip({super.key});
+
+  static const height = 18.0;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    width: double.infinity,
+    child: Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: MeshStyle.of(context).secondary.withValues(alpha: .75),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const SizedBox(width: 34, height: 4),
+      ),
+    ),
   );
 }
 

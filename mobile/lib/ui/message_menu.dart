@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../mesh/network.dart';
+import 'desktop_interaction.dart';
 import 'emoji_picker.dart';
 import 'emoji_text.dart';
 import 'message_reactions.dart';
@@ -15,35 +16,62 @@ import 'navigation.dart';
 import 'mesh_scroll_edge.dart';
 import 'style.dart';
 
-Future<String?> showMessageMenu({
+typedef MessageMenuChoice = ({String value, Rect? reactionSource});
+
+class _MessageMenuRoute extends RawDialogRoute<MessageMenuChoice> {
+  _MessageMenuRoute({
+    required super.pageBuilder,
+    required super.barrierLabel,
+    required super.transitionDuration,
+    required super.transitionBuilder,
+  }) : super(barrierColor: Colors.transparent);
+
+  @override
+  bool didPop(MessageMenuChoice? result) {
+    if (result?.reactionSource != null) {
+      controller?.reverseDuration = Duration.zero;
+    }
+    return super.didPop(result);
+  }
+}
+
+Future<MessageMenuChoice?> showMessageMenu({
   Uint8List? backdrop,
   required BuildContext context,
   required Rect anchor,
+  Rect? desktopBounds,
   required bool canReact,
   List<String> recentReactions = const [],
   required bool canReply,
+  bool saved = false,
+  bool? pinned,
+  bool canForward = false,
+  bool canQuoteText = false,
   required bool outgoing,
   required Widget bubble,
   required List<ChatReaction> reactions,
   required ValueChanged<Peer> onOpenProfile,
   required Widget details,
 }) async {
-  final route = RawDialogRoute<String>(
-    barrierDismissible: true,
+  final route = _MessageMenuRoute(
     barrierLabel: tr(context, 'Закрыть меню', 'Close menu'),
-    barrierColor: Colors.transparent,
     transitionDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 350),
+        : Duration(milliseconds: desktopBounds == null ? 350 : 140),
     transitionBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
     pageBuilder: (_, _, _) => MessageMenuBackdrop(
       image: backdrop,
       child: _MessageMenu(
         anchor: anchor,
+        desktopBounds: desktopBounds,
         canReact: canReact,
         recentReactions: recentReactions,
         canReply: canReply,
+        saved: saved,
+        pinned: pinned,
+        canForward: canForward,
+        canQuoteText: canQuoteText,
         outgoing: outgoing,
         bubble: bubble,
         reactions: reactions,
@@ -53,16 +81,21 @@ Future<String?> showMessageMenu({
     ),
   );
   final result = await Navigator.of(context, rootNavigator: true).push(route);
-  await route.completed;
+  if (result?.reactionSource == null) await route.completed;
   return result;
 }
 
 class _MessageMenu extends StatefulWidget {
   const _MessageMenu({
     required this.anchor,
+    required this.desktopBounds,
     required this.canReact,
     required this.recentReactions,
     required this.canReply,
+    required this.saved,
+    required this.pinned,
+    required this.canForward,
+    required this.canQuoteText,
     required this.outgoing,
     required this.bubble,
     required this.reactions,
@@ -71,7 +104,10 @@ class _MessageMenu extends StatefulWidget {
   });
 
   final Rect anchor;
-  final bool canReact, canReply, outgoing;
+  final Rect? desktopBounds;
+  final bool canReact, canReply, outgoing, saved;
+  final bool? pinned;
+  final bool canForward, canQuoteText;
   final List<String> recentReactions;
   final Widget bubble, details;
   final List<ChatReaction> reactions;
@@ -86,12 +122,16 @@ enum _MenuPanel { actions, emoji, reactions, details }
 class _MessageMenuState extends State<_MessageMenu> {
   var _panel = _MenuPanel.actions;
 
-  void _select(String value) => Navigator.of(context).pop(value);
+  void _select(String value, [Rect? reactionSource]) =>
+      Navigator.of(context).pop((value: value, reactionSource: reactionSource));
   void _show(_MenuPanel panel) => setState(() => _panel = panel);
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    if (widget.desktopBounds case final bounds?) {
+      return _desktopMenu(bounds, style);
+    }
     final media = MediaQuery.of(context);
     final showPicker =
         _panel == _MenuPanel.actions || _panel == _MenuPanel.emoji;
@@ -153,6 +193,7 @@ class _MessageMenuState extends State<_MessageMenu> {
                                               .clamp(95, 275)
                                               .toDouble(),
                                           onSelect: _select,
+                                          onSelectFrom: _select,
                                           onCollapse: () =>
                                               _show(_MenuPanel.actions),
                                         )
@@ -233,6 +274,52 @@ class _MessageMenuState extends State<_MessageMenu> {
     );
   }
 
+  Widget _desktopMenu(Rect pane, MeshStyle style) => CustomSingleChildLayout(
+    key: const ValueKey('message-menu'),
+    delegate: _DesktopMenuPosition(
+      pointer: widget.anchor.bottomLeft,
+      pane: pane,
+    ),
+    child: SizedBox(
+      width: _panel == _MenuPanel.actions ? 288 : 362,
+      child: LayoutBuilder(
+        builder: (context, bounds) => SingleChildScrollView(
+          primary: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_panel == _MenuPanel.actions && widget.canReact) ...[
+                _QuickReactions(
+                  recent: widget.recentReactions,
+                  onSelect: _select,
+                  onExpand: () => _show(_MenuPanel.emoji),
+                  compact: true,
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (_panel == _MenuPanel.emoji)
+                EmojiPicker(
+                  key: const ValueKey('emoji-catalog'),
+                  gridHeight: (bounds.maxHeight * .55).clamp(95.0, 275.0),
+                  onSelect: _select,
+                  onSelectFrom: _select,
+                  onCollapse: () => _show(_MenuPanel.actions),
+                )
+              else
+                MessageMenuSurface(
+                  radius: 14,
+                  child: _panel == _MenuPanel.actions
+                      ? _actions(style)
+                      : _details(bounds, style),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
   Widget _actionSurface(Widget child) => useIosControls
       ? MessageMenuSurface(radius: 22, child: child)
       : GlassSurface(modal: true, radius: 22, child: child);
@@ -272,6 +359,35 @@ class _MessageMenuState extends State<_MessageMenu> {
           tr(context, 'Копировать', 'Copy'),
           () => _select('copy'),
         ),
+        if (widget.canQuoteText)
+          _action(
+            Icons.format_quote_rounded,
+            tr(context, 'Цитировать фрагмент', 'Quote selection'),
+            () => _select('quote-text'),
+          ),
+        if (widget.canForward)
+          _action(
+            Icons.forward_rounded,
+            tr(context, 'Переслать текст', 'Forward as text'),
+            () => _select('forward-text'),
+          ),
+        _action(
+          widget.saved
+              ? Icons.bookmark_remove_outlined
+              : Icons.bookmark_border_rounded,
+          widget.saved
+              ? tr(context, 'Убрать из Избранного', 'Remove from Saved')
+              : tr(context, 'В Избранное', 'Save message'),
+          () => _select('saved'),
+        ),
+        if (widget.pinned case final pinned?)
+          _action(
+            pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+            pinned
+                ? tr(context, 'Открепить', 'Unpin message')
+                : tr(context, 'Закрепить', 'Pin message'),
+            () => _select('pin'),
+          ),
         _action(
           Icons.info_outline_rounded,
           tr(context, 'О сообщении', 'Message info'),
@@ -285,13 +401,9 @@ class _MessageMenuState extends State<_MessageMenu> {
     mainAxisSize: MainAxisSize.min,
     children: [
       ListTile(
-        leading: IconButton(
+        leading: MeshIconButton(
           icon: Icon(Icons.arrow_back_rounded, color: style.text, size: 21),
-          tooltip: tr(
-            context,
-            'Назад к меню сообщения',
-            'Back to message menu',
-          ),
+          label: tr(context, 'Назад к меню сообщения', 'Back to message menu'),
           onPressed: () => _show(_MenuPanel.actions),
         ),
         title: Text(
@@ -318,12 +430,16 @@ class _MessageMenuState extends State<_MessageMenu> {
     String label,
     VoidCallback onTap, {
     Widget? trailing,
-  }) => ListTile(
-    dense: true,
-    leading: Icon(icon, size: 20, color: MeshStyle.of(context).text),
-    title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
-    trailing: trailing,
-    onTap: onTap,
+  }) => DesktopSpring(
+    child: ListTile(
+      dense: true,
+      hoverColor: meshDesktop(context) ? Colors.transparent : null,
+      splashColor: meshDesktop(context) ? Colors.transparent : null,
+      leading: Icon(icon, size: 20, color: MeshStyle.of(context).text),
+      title: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: trailing,
+      onTap: onTap,
+    ),
   );
 }
 
@@ -496,17 +612,55 @@ class _MenuPosition extends SingleChildLayoutDelegate {
       old.quickReactions != quickReactions;
 }
 
+class _DesktopMenuPosition extends SingleChildLayoutDelegate {
+  const _DesktopMenuPosition({required this.pointer, required this.pane});
+
+  final Offset pointer;
+  final Rect pane;
+
+  Rect _available(Size size) {
+    final window = Offset.zero & size;
+    final viewport = pane.intersect(window);
+    final visible = viewport.isEmpty ? window : viewport;
+    final inset = math.min(8.0, math.min(visible.width, visible.height) / 2);
+    return visible.deflate(inset);
+  }
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(_available(constraints.biggest).size);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final bounds = _available(size);
+    final maxX = bounds.right - childSize.width;
+    final maxY = bounds.bottom - childSize.height;
+    final left = pointer.dx <= maxX ? pointer.dx : pointer.dx - childSize.width;
+    const gap = 4.0;
+    final top = pointer.dy + gap <= maxY
+        ? pointer.dy + gap
+        : pointer.dy - gap - childSize.height;
+    return Offset(left.clamp(bounds.left, maxX), top.clamp(bounds.top, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_DesktopMenuPosition old) =>
+      old.pointer != pointer || old.pane != pane;
+}
+
 class _QuickReactions extends StatelessWidget {
   const _QuickReactions({
     required this.recent,
     required this.onSelect,
     required this.onExpand,
+    this.compact = false,
   });
 
   final List<String> recent;
 
-  final ValueChanged<String> onSelect;
+  final void Function(String emoji, Rect? source) onSelect;
   final VoidCallback onExpand;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -517,9 +671,9 @@ class _QuickReactions extends StatelessWidget {
         if (renderedKeys.add(reactionEmojiKey(emoji))) emoji,
     ];
     return MessageMenuSurface(
-      radius: 29,
+      radius: compact ? 14 : 29,
       child: SizedBox(
-        height: 53,
+        height: compact ? 44 : 53,
         child: Row(
           children: [
             Expanded(
@@ -530,12 +684,15 @@ class _QuickReactions extends StatelessWidget {
                 separatorBuilder: (_, _) => const SizedBox(width: 2),
                 itemBuilder: (context, index) {
                   final emoji = options[index];
-                  return IconButton(
-                    tooltip: '${tr(context, 'Реакция', 'React')} $emoji',
-                    onPressed: () => onSelect(emoji),
-                    icon: Text(
-                      emoji,
-                      style: emojiGlyphStyle(const TextStyle(fontSize: 25)),
+                  return Builder(
+                    builder: (context) => MeshIconButton(
+                      label: '${tr(context, 'Реакция', 'React')} $emoji',
+                      onPressed: () =>
+                          onSelect(emoji, reactionGlyphBounds(context, 25)),
+                      icon: Text(
+                        emoji,
+                        style: emojiGlyphStyle(const TextStyle(fontSize: 25)),
+                      ),
                     ),
                   );
                 },
@@ -547,8 +704,8 @@ class _QuickReactions extends StatelessWidget {
                 color: style.field,
                 shape: BoxShape.circle,
               ),
-              child: IconButton(
-                tooltip: tr(context, 'Все эмодзи', 'All emoji'),
+              child: MeshIconButton(
+                label: tr(context, 'Все эмодзи', 'All emoji'),
                 onPressed: onExpand,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),

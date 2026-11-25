@@ -2,6 +2,7 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,15 +15,19 @@ import 'local_notifications.dart';
 import 'mesh/controller.dart';
 import 'mesh/store.dart';
 import 'radio/ble_transport.dart';
+import 'radio/desktop_usb.dart';
 import 'radio/lan_transport.dart';
 import 'radio/meshcore.dart';
 import 'radio/meshtastic.dart';
+import 'ui/chat_workspace.dart';
 import 'ui/home.dart';
 import 'ui/legal_consent.dart';
+import 'ui/macos_glass.dart';
 import 'ui/style.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MacGlass.initialize();
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
@@ -37,6 +42,7 @@ Future<void> main() async {
         supportedLocales: const [Locale('ru'), Locale('en')],
         theme: const MeshStyle(false).theme(),
         darkTheme: const MeshStyle(true).theme(),
+        builder: (context, child) => _macWindowMedia(context, child!),
         themeMode: switch (MeshStore(preferences).appearance) {
           'light' => ThemeMode.light,
           'dark' => ThemeMode.dark,
@@ -64,6 +70,7 @@ Future<void> _startMessenger(SharedPreferences preferences) async {
     store: MeshStore(preferences),
     transport: BleTransport(),
     lanTransport: LanTransport(),
+    usbTransport: DesktopUsbTransport.supported ? DesktopUsbTransport() : null,
     adapters: const [MeshCoreAdapter(), MeshtasticAdapter()],
     preview: const bool.fromEnvironment('MESHGRAME_PREVIEW'),
     onIncomingMessage: notifications.received,
@@ -71,9 +78,20 @@ Future<void> _startMessenger(SharedPreferences preferences) async {
     isChatForeground: () => notifications.isForeground,
   );
   await notifications.start(controller);
+  final display =
+      WidgetsBinding.instance.platformDispatcher.implicitView?.display;
+  final mobile =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final tabletDisplay =
+      mobile &&
+      display != null &&
+      display.size.shortestSide / display.devicePixelRatio >=
+          (defaultTargetPlatform == TargetPlatform.iOS ? 700 : 600);
   runApp(
     MeshGrame(
       controller: controller,
+      tabletDisplay: tabletDisplay,
       notifications: LocalMessageNotifications.supported && !controller.preview
           ? notifications
           : null,
@@ -96,10 +114,12 @@ class MeshGrame extends StatelessWidget {
     required this.controller,
     this.locale,
     this.notifications,
+    this.tabletDisplay = false,
   });
   final MeshController controller;
   final Locale? locale;
   final LocalMessageNotifications? notifications;
+  final bool tabletDisplay;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -118,8 +138,9 @@ class MeshGrame extends StatelessWidget {
         _ => ThemeMode.system,
       },
       builder: (context, child) {
+        final app = TooltipVisibility(visible: false, child: child!);
         if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-          return child!;
+          return _macWindowMedia(context, app);
         }
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
@@ -130,10 +151,32 @@ class MeshGrame extends StatelessWidget {
                 ? Brightness.light
                 : Brightness.dark,
           ),
-          child: child!,
+          child: app,
         );
       },
-      home: MeshHome(controller: controller, notifications: notifications),
+      home: MeshHome(
+        controller: controller,
+        notifications: notifications,
+        tabletDisplay: tabletDisplay,
+      ),
     ),
+  );
+}
+
+Widget _macWindowMedia(BuildContext context, Widget child) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return child;
+  final media = MediaQuery.of(context);
+  final inset = media.size.width < meshDesktopSplitWidth
+      ? MacGlass.windowControlsInset
+      : 0.0;
+  return MediaQuery(
+    data: media.copyWith(
+      textScaler: MacGlass.textScaler(media.textScaler),
+      padding: media.padding.copyWith(top: math.max(media.padding.top, inset)),
+      viewPadding: media.viewPadding.copyWith(
+        top: math.max(media.viewPadding.top, inset),
+      ),
+    ),
+    child: child,
   );
 }

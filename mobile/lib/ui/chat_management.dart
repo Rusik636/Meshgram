@@ -56,23 +56,38 @@ class ChatSwipeRow extends StatelessWidget {
     required this.onVisibility,
     required this.onDelete,
     required this.child,
+    this.onPin,
+    this.pinned = false,
+    this.backgroundColor,
   });
 
-  final bool revealed, hidden;
+  final bool revealed, hidden, pinned;
   final ValueChanged<bool> onReveal;
   final VoidCallback onVisibility, onDelete;
+  final VoidCallback? onPin;
+  final Color? backgroundColor;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final background = backgroundColor ?? style.canvas;
     return SwipeActionsRow(
       revealed: revealed,
       onReveal: onReveal,
-      background: style.canvas,
+      background: background,
       surface: style.surface,
-      closedSurface: style.canvas,
+      closedSurface: background,
       actions: [
+        if (onPin case final pin?)
+          (
+            label: pinned
+                ? tr(context, 'Открепить чат', 'Unpin chat')
+                : tr(context, 'Закрепить чат', 'Pin chat'),
+            icon: pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+            color: const Color(0xff6051ac),
+            onTap: pin,
+          ),
         (
           label: hidden
               ? tr(context, 'Показать', 'Show')

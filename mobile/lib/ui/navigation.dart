@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import 'haptics.dart';
 import 'ios_control.dart';
+import 'macos_glass.dart';
 import 'style.dart';
 
 Color _tabSelection(MeshStyle style) =>
@@ -220,7 +221,9 @@ class _FlutterTabsState extends State<_FlutterTabs> {
   }
 
   Widget _surface(MeshStyle style, Widget child) {
-    if (widget.textOnly) return GlassSurface(radius: 24, child: child);
+    if (widget.textOnly || MacGlass.enabled(context)) {
+      return GlassSurface(radius: widget.textOnly ? 24 : 30, child: child);
+    }
     return Material(
       color: MediaQuery.highContrastOf(context)
           ? style.surface
@@ -350,10 +353,14 @@ class ChatFilters extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onSelect,
+    this.labels,
+    this.scrollController,
   });
 
   final int selected;
   final ValueChanged<int> onSelect;
+  final List<String>? labels;
+  final ScrollController? scrollController;
 
   static double contentHeight(BuildContext context) =>
       (MediaQuery.textScalerOf(context).scale(15) * 1.2 + 30).ceilToDouble();
@@ -361,6 +368,56 @@ class ChatFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
+    final custom = this.labels;
+    if (custom != null) {
+      final height = contentHeight(context);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        child: GlassSurface(
+          modal: true,
+          radius: height / 2,
+          child: SizedBox(
+            height: height - 4,
+            child: ListView.separated(
+              controller: scrollController,
+              primary: false,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(3),
+              itemCount: custom.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 3),
+              itemBuilder: (context, index) => Semantics(
+                selected: index == selected,
+                button: true,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(height / 2),
+                  onTap: () => onSelect(index),
+                  child: AnimatedContainer(
+                    duration: meshMotion(context),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: ShapeDecoration(
+                      shape: const StadiumBorder(),
+                      color: index == selected
+                          ? _tabSelection(style)
+                          : Colors.transparent,
+                    ),
+                    child: Text(
+                      custom[index],
+                      style: TextStyle(
+                        color: index == selected ? style.accent : style.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final labels = [
       tr(context, 'Все', 'All'),
       tr(context, 'Личные', 'Direct'),

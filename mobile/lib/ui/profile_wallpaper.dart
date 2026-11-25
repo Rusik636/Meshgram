@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 
+import 'chat_workspace.dart';
 import 'style.dart';
 
 class ProfilePalette {
@@ -88,6 +89,7 @@ class _ProfileWallpaperState extends State<ProfileWallpaper>
           _palette.seed,
           _palette.base(style),
           _palette.accent(style),
+          ChatWorkspacePane.desktopSplit(context) ? style.canvas : null,
         ),
       ),
     );
@@ -95,12 +97,13 @@ class _ProfileWallpaperState extends State<ProfileWallpaper>
 }
 
 class _RouteContours extends CustomPainter {
-  _RouteContours(this.motion, this.seed, this.base, this.accent)
+  _RouteContours(this.motion, this.seed, this.base, this.accent, this.edgeColor)
     : super(repaint: motion);
 
   final Animation<double> motion;
   final List<int> seed;
   final Color base, accent;
+  final Color? edgeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -152,11 +155,15 @@ class _RouteContours extends CustomPainter {
       canvas.drawPath(path, brush);
     }
     canvas.restore();
+    if (edgeColor case final color?) {
+      paintChatWorkspaceEdge(canvas, size, color);
+    }
   }
 
   @override
   bool shouldRepaint(_RouteContours oldDelegate) =>
       seed != oldDelegate.seed ||
       base != oldDelegate.base ||
-      accent != oldDelegate.accent;
+      accent != oldDelegate.accent ||
+      edgeColor != oldDelegate.edgeColor;
 }

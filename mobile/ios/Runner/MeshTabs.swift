@@ -3,6 +3,7 @@
 
 import Flutter
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 // The Flutter platform view contains a system tab controller with transparent
 // pages. Flutter owns the actual content and responds to UIKit selection.
@@ -179,6 +180,155 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
 
   func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
     channel.invokeMethod("select", arguments: viewController.tabBarItem.tag)
+  }
+}
+
+// Both the tab bar and the segmented control use UIKit's interactive glass.
+// Segments can be sized independently to fit the folder labels.
+final class MeshFolderTabs: NSObject, FlutterPlatformView {
+  // Match the resting UIKit tab bar selection on the light chat canvas.
+  private static let lightSelection = UIColor(
+    red: 227.0 / 255, green: 228.0 / 255, blue: 231.0 / 255, alpha: 1
+  )
+
+  private let root: TabControllerContainer
+  private let control = MeshFolderSegmentedControl()
+  private let boundary = TabTapBoundary(target: nil, action: nil)
+  private let channel: FlutterMethodChannel
+  private var labels: [String] = []
+  private var appearance: [String: Any] = [:]
+
+  init(_ frame: CGRect, _ channel: FlutterMethodChannel, _ input: [String: Any]) {
+    root = TabControllerContainer(frame: frame)
+    self.channel = channel
+    super.init()
+    root.addGestureRecognizer(boundary)
+    boundary.cancelsTouchesInView = true
+    root.addSubview(control)
+    control.addTarget(self, action: #selector(selectSegment), for: .valueChanged)
+    root.layoutContent = { [weak self] in
+      guard let self else { return }
+      self.control.frame = self.root.bounds
+      self.control.layoutIfNeeded()
+      self.boundary.gateGestures(in: self.control)
+    }
+    update(input)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "update", let values = call.arguments as? [String: Any] else {
+        return result(FlutterMethodNotImplemented)
+      }
+      self?.update(values)
+      result(nil)
+    }
+  }
+
+  deinit { channel.setMethodCallHandler(nil) }
+
+  func view() -> UIView { root }
+
+  private func update(_ input: [String: Any]) {
+    let newLabels = input["labels"] as? [String] ?? []
+    if labels != newLabels {
+      labels = newLabels
+      control.removeAllSegments()
+      for (index, label) in labels.enumerated() {
+        control.insertSegment(withTitle: label, at: index, animated: false)
+      }
+      root.setNeedsLayout()
+    }
+    let widths = input["widths"] as? [NSNumber] ?? []
+    for (index, width) in widths.prefix(labels.count).enumerated()
+      where control.widthForSegment(at: index) != CGFloat(width.doubleValue) {
+      control.setWidth(CGFloat(width.doubleValue), forSegmentAt: index)
+    }
+    let attributes = input.filter { ["titleSize", "dark", "rtl", "text", "accent"].contains($0.key) }
+    if !(appearance as NSDictionary).isEqual(to: attributes) {
+      appearance = attributes
+      let size = CGFloat((input["titleSize"] as? NSNumber)?.doubleValue ?? 15)
+      let dark = input["dark"] as? Bool == true
+      control.overrideUserInterfaceStyle = dark ? .dark : .light
+      control.semanticContentAttribute = input["rtl"] as? Bool == true ? .forceRightToLeft : .forceLeftToRight
+      control.selectedSegmentTintColor = dark ? UIColor(white: 0.075, alpha: 1) : Self.lightSelection
+      let font = UIFont.systemFont(ofSize: size, weight: .semibold)
+      control.setTitleTextAttributes([
+        .font: font,
+        .foregroundColor: meshColor(input["text"], .label),
+      ], for: .normal)
+      control.setTitleTextAttributes([
+        .font: font,
+        .foregroundColor: meshColor(input["accent"], .label),
+      ], for: .selected)
+    }
+    if let index = input["index"] as? Int, labels.indices.contains(index),
+       control.selectedSegmentIndex != index {
+      control.selectedSegmentIndex = index
+    }
+  }
+
+  @objc private func selectSegment() {
+    guard boundary.state != .recognized else { return }
+    channel.invokeMethod("select", arguments: control.selectedSegmentIndex)
+  }
+}
+
+private final class MeshFolderSegmentedControl: UISegmentedControl {
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if #available(iOS 26.0, *) {
+      // The direct image views are the system track. A custom background image
+      // would also replace the system's interactive selection effect.
+      for case let track as UIImageView in subviews {
+        track.isHidden = true
+      }
+    }
+  }
+}
+
+private final class TabTapBoundary: UIGestureRecognizer {
+  private var origin: CGPoint?
+  private var startedAt: TimeInterval = 0
+  private let gatedGestures = NSHashTable<UIGestureRecognizer>.weakObjects()
+
+  func gateGestures(in view: UIView) {
+    for gesture in view.gestureRecognizers ?? [] where !gatedGestures.contains(gesture) {
+      gesture.require(toFail: self)
+      gatedGestures.add(gesture)
+    }
+    for subview in view.subviews { gateGestures(in: subview) }
+  }
+
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    origin = touches.first?.location(in: view)
+    startedAt = event.timestamp
+  }
+
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+    guard let origin, let point = touches.first?.location(in: view) else { return }
+    if abs(point.x - origin.x) > 7 || abs(point.y - origin.y) > 7 {
+      state = .recognized
+    }
+  }
+
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    guard state == .possible else { return }
+    if event.timestamp - startedAt > 0.5 {
+      state = .recognized
+    } else {
+      state = .failed
+    }
+  }
+
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+    state = .cancelled
+  }
+
+  override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+    false
+  }
+
+  override func reset() {
+    super.reset()
+    origin = nil
   }
 }
 

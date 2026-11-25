@@ -139,16 +139,31 @@ class EmojiCatalog {
           false);
 }
 
+Rect? reactionGlyphBounds(BuildContext context, double size) {
+  final box = context.findRenderObject();
+  if (box is! RenderBox || !box.hasSize) return null;
+  return MatrixUtils.transformRect(
+    box.getTransformTo(null),
+    Rect.fromCenter(
+      center: box.size.center(Offset.zero),
+      width: size,
+      height: size,
+    ),
+  );
+}
+
 class EmojiPicker extends StatefulWidget {
   const EmojiPicker({
     super.key,
     required this.gridHeight,
     required this.onSelect,
     required this.onCollapse,
+    this.onSelectFrom,
   });
 
   final double gridHeight;
   final ValueChanged<String> onSelect;
+  final void Function(String emoji, Rect? source)? onSelectFrom;
   final VoidCallback onCollapse;
 
   @override
@@ -194,6 +209,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
     _Emoji emoji,
     List<_Emoji> variants,
   ) async {
+    final source = reactionGlyphBounds(anchor, 24);
     final navigator = Navigator.of(anchor);
     final overlay = navigator.overlay!.context.findRenderObject()! as RenderBox;
     final target = anchor.findRenderObject()! as RenderBox;
@@ -218,7 +234,16 @@ class _EmojiPickerState extends State<EmojiPicker> {
         _ToneMenu([emoji, ...variants]),
       ],
     );
-    if (mounted && selected != null) widget.onSelect(selected);
+    if (mounted && selected != null) _select(selected, source);
+  }
+
+  void _select(String emoji, Rect? source) {
+    final selectedFrom = widget.onSelectFrom;
+    if (selectedFrom != null) {
+      selectedFrom(emoji, source);
+    } else {
+      widget.onSelect(emoji);
+    }
   }
 
   @override
@@ -256,8 +281,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: tr(context, 'Свернуть эмодзи', 'Collapse emoji'),
+                MeshIconButton(
+                  label: tr(context, 'Свернуть эмодзи', 'Collapse emoji'),
                   onPressed: widget.onCollapse,
                   icon: const Icon(Icons.keyboard_arrow_up_rounded),
                 ),
@@ -271,8 +296,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
               child: Row(
                 children: [
                   for (final category in _categories)
-                    IconButton(
-                      tooltip: category.title(context),
+                    MeshIconButton(
+                      label: category.title(context),
                       isSelected: category == _category,
                       style: IconButton.styleFrom(
                         foregroundColor: category == _category
@@ -343,6 +368,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
                 return MeshScrollViewport(
                   tint: style.surface,
                   edgeExtent: 12,
+                  fadeContent: !style.dark,
                   child: GridView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
@@ -355,9 +381,12 @@ class _EmojiPickerState extends State<EmojiPicker> {
                       final entry = emoji[index];
                       final variants = catalog._variants[entry];
                       return Builder(
-                        builder: (context) => IconButton(
-                          tooltip: entry.label(context),
-                          onPressed: () => widget.onSelect(entry.glyph),
+                        builder: (context) => MeshIconButton(
+                          label: entry.label(context),
+                          onPressed: () => _select(
+                            entry.glyph,
+                            reactionGlyphBounds(context, 24),
+                          ),
                           onLongPress: variants == null
                               ? null
                               : () => _showTones(context, entry, variants),
@@ -401,8 +430,8 @@ class _ToneMenuState extends State<_ToneMenu> {
   Widget build(BuildContext context) => Wrap(
     children: [
       for (final emoji in widget.choices)
-        IconButton(
-          tooltip: emoji.label(context),
+        MeshIconButton(
+          label: emoji.label(context),
           constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           onPressed: () => Navigator.of(context).pop(emoji.glyph),
           icon: Text(

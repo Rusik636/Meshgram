@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/message_link_metadata.dart';
 import 'package:meshgrame/ui/message_links.dart';
 
+import 'find_control.dart';
+
 void main() {
   test('detects web links in mesh text and trims prose punctuation', () {
     expect(
@@ -171,7 +173,7 @@ void main() {
       result.complete(const MessageLinkMetadata(title: 'Радиометки'));
       await tester.pumpAndSettle();
       expect(find.text('Радиометки'), findsOneWidget);
-      expect(find.byTooltip('Load preview from site'), findsNothing);
+      expect(findControl('Load preview from site'), findsNothing);
     },
   );
 

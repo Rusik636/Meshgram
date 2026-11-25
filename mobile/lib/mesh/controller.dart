@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 
 import 'contact_attachment.dart';
 import 'network.dart';
+import 'radio_outbox.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
 import 'store.dart';
@@ -46,6 +47,7 @@ class MeshController extends ChangeNotifier {
     required this.store,
     required this.transport,
     this.lanTransport,
+    this.usbTransport,
     required Iterable<NetworkAdapter> adapters,
     this.preview = false,
     this.onIncomingMessage,
@@ -73,8 +75,12 @@ class MeshController extends ChangeNotifier {
   }
 
   final MeshStore store;
+  late List<OutboxMessage> _outbox = store.loadOutbox();
+  Future<void> _outboxWrites = Future.value();
+  bool _flushingOutbox = false;
   final RadioTransport transport;
   final RadioLanTransport? lanTransport;
+  final RadioUsbTransport? usbTransport;
   final Map<String, NetworkAdapter> adapters;
   final bool preview;
   final void Function(Radio radio, Peer peer, MeshMessage message)?
@@ -85,6 +91,11 @@ class MeshController extends ChangeNotifier {
   final _caches = <String, ChatCache>{};
   final _radioRoutes = <String, List<String>>{};
   Future<void> _radioWrites = Future.value();
+  Future<void> _savedWrites = Future.value();
+  late List<SavedMessage> _savedMessages = List.unmodifiable(
+    store.savedMessages,
+  );
+  List<SavedMessage> get savedMessages => _savedMessages;
   final _random = Random.secure();
   final _connections = <String, _RadioConnection>{};
   final _autoConnections = <String>{};
@@ -222,10 +233,15 @@ class MeshController extends ChangeNotifier {
 
   // Keep the best known address for each transport in successful connection order.
   List<String> _rankRoutes(Iterable<String> routes) {
-    final seenLan = <bool>{};
+    final seen = <String>{};
     return [
       for (final device in routes)
-        if (seenLan.add(device.startsWith('tcp://'))) device,
+        if (seen.add(switch (Uri.tryParse(device)?.scheme) {
+          'tcp' => 'tcp',
+          'usb' => 'usb',
+          _ => 'bluetooth',
+        }))
+          device,
     ];
   }
 
@@ -318,6 +334,13 @@ class MeshController extends ChangeNotifier {
       for (final entry in adapters.entries)
         if (entry.value is NetworkLanAdapter)
           entry.key: (entry.value as NetworkLanAdapter).lan,
+  };
+
+  Map<String, NetworkUsbAdapter> get usbProtocols => {
+    if (usbTransport != null)
+      for (final entry in adapters.entries)
+        if (entry.value is NetworkUsbAdapter)
+          entry.key: entry.value as NetworkUsbAdapter,
   };
 
   Iterable<Peer> get peers => cache?.peers.values ?? [];
@@ -536,6 +559,113 @@ class MeshController extends ChangeNotifier {
     _changed();
   }
 
+  bool get archiveHidden => cache?.archiveHidden ?? false;
+
+  void setArchiveHidden(bool hidden) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (current.archiveHidden == hidden) return;
+    current.archiveHidden = hidden;
+    _save(radio);
+    _changed();
+  }
+
+  List<ChatFolder> get chatFolders =>
+      cache?.folders.values.toList(growable: false) ?? const [];
+
+  String? saveChatFolder({
+    required String name,
+    required Set<String> chats,
+    String? id,
+  }) {
+    final radio = active;
+    final label = name.trim();
+    if (radio == null || label.isEmpty) return null;
+    final current = _cacheFor(radio);
+    final prior = current.folders[id];
+    if (id != null && prior == null) return null;
+    final key = id ?? 'folder:${DateTime.now().microsecondsSinceEpoch}';
+    final members = chats.where(current.peers.containsKey).toSet();
+    current.folders[key] = ChatFolder(
+      id: key,
+      name: label,
+      chats: members,
+      pinned: prior?.pinned.where(members.contains).toList() ?? const [],
+    );
+    _save(radio);
+    _changed();
+    return key;
+  }
+
+  void removeChatFolder(String id) {
+    final radio = active;
+    if (radio == null || _cacheFor(radio).folders.remove(id) == null) return;
+    _save(radio);
+    _changed();
+  }
+
+  void reorderChatFolders(Iterable<String> order) {
+    final radio = active;
+    if (radio == null) return;
+    final folders = _cacheFor(radio).folders;
+    final reordered = <String, ChatFolder>{
+      for (final id in order) id: ?folders[id],
+    };
+    for (final entry in folders.entries) {
+      reordered.putIfAbsent(entry.key, () => entry.value);
+    }
+    folders
+      ..clear()
+      ..addAll(reordered);
+    _save(radio);
+    _changed();
+  }
+
+  void toggleFolderPin(String id, String chat) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    final folder = current.folders[id];
+    if (folder == null || !folder.chats.contains(chat)) return;
+    final pinned = [...folder.pinned];
+    if (!pinned.remove(chat)) pinned.insert(0, chat);
+    current.folders[id] = folder.withChanges(pinned: pinned);
+    _save(radio);
+    _changed();
+  }
+
+  void toggleChatPin(String chat) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (!current.peers.containsKey(chat)) return;
+    final pins = current.pinnedChats;
+    if (!pins.remove(chat)) pins.insert(0, chat);
+    _save(radio);
+    _changed();
+  }
+
+  String? pinnedMessageId(String chat) => cache?.pinnedMessages[chat];
+
+  void setPinnedMessage(String chat, String? messageId) {
+    final radio = active;
+    if (radio == null) return;
+    final current = _cacheFor(radio);
+    if (messageId == null) {
+      if (current.pinnedMessages.remove(chat) == null) return;
+    } else {
+      if (!current.messages.any(
+        (item) => item.chat == chat && item.id == messageId,
+      )) {
+        return;
+      }
+      current.pinnedMessages[chat] = messageId;
+    }
+    _save(radio);
+    _changed();
+  }
+
   void reorderChats(List<String> reordered, {required bool hidden}) {
     final radio = active;
     if (radio == null) return;
@@ -545,12 +675,19 @@ class MeshController extends ChangeNotifier {
     if (!changes.every((id) => screen.any((peer) => peer.id == id))) return;
     var next = 0;
     final all = [...screen, ..._conversations(hidden: !hidden)];
-    _cacheFor(radio).chatOrder
+    final current = _cacheFor(radio);
+    current.chatOrder
       ..clear()
       ..addAll([
         for (final peer in all)
           changes.contains(peer.id) ? reordered[next++] : peer.id,
       ]);
+    final pins = current.pinnedChats;
+    final visiblePins = reordered.where(pins.contains).toList();
+    var pin = 0;
+    for (var index = 0; index < pins.length; index++) {
+      if (changes.contains(pins[index])) pins[index] = visiblePins[pin++];
+    }
     _save(radio);
     _changed();
   }
@@ -573,6 +710,7 @@ class MeshController extends ChangeNotifier {
     });
     current.reactions.removeWhere((item) => item.chat == id);
     current.replies.remove(id);
+    current.replyExcerpts.remove(id);
     current.markRead(id);
   }
 
@@ -602,6 +740,16 @@ class MeshController extends ChangeNotifier {
     current.hiddenChats.remove(peer.id);
     current.keptChats.remove(peer.id);
     current.chatOrder.remove(peer.id);
+    current.pinnedChats.remove(peer.id);
+    current.pinnedMessages.remove(peer.id);
+    current.folders.updateAll(
+      (_, folder) => folder.chats.contains(peer.id)
+          ? folder.withChanges(
+              chats: {...folder.chats}..remove(peer.id),
+              pinned: [...folder.pinned]..remove(peer.id),
+            )
+          : folder,
+    );
     current.searchHistory.remove(peer.id);
     if (identity != null && radio.network == 'meshcore') {
       try {
@@ -660,6 +808,194 @@ class MeshController extends ChangeNotifier {
       _scheduleNodeRefresh();
     }
     notifyListeners();
+    if (connected && !_flushingOutbox && _outbox.isNotEmpty) {
+      unawaited(flushOutbox());
+    }
+  }
+
+  List<OutboxMessage> outboxFor(String chat) {
+    final radio = active;
+    if (radio == null) return const [];
+    final profile = radioKey(radio);
+    return _outbox
+        .where((item) => item.profile == profile && item.chat == chat)
+        .toList();
+  }
+
+  Delivery? outboxDelivery(OutboxMessage item) {
+    final attempt = item.attemptId;
+    if (attempt == null) return null;
+    return cache?.messages
+        .where((message) => message.id == attempt)
+        .firstOrNull
+        ?.delivery;
+  }
+
+  bool isOutboxAttempt(String id) =>
+      _outbox.any((item) => item.attemptId == id);
+
+  Future<bool> _replaceOutbox({OutboxMessage? prior, OutboxMessage? next}) {
+    final result = _outboxWrites.then((_) async {
+      if (_closed) return false;
+      final messages = [..._outbox];
+      if (prior == null) {
+        messages.add(next!);
+      } else {
+        final index = messages.indexOf(prior);
+        if (index < 0) return false;
+        if (next == null) {
+          messages.removeAt(index);
+        } else {
+          messages[index] = next;
+        }
+      }
+      try {
+        if (!await store.saveOutbox(messages)) return false;
+      } on Exception {
+        return false;
+      }
+      _outbox = messages;
+      _changed();
+      return true;
+    });
+    _outboxWrites = result.then<void>((_) {});
+    return result;
+  }
+
+  bool _fitsOutbox(Peer peer, String text) =>
+      canSendTo(peer) &&
+      text.trim().isNotEmpty &&
+      utf8.encode(text).length <= (limit(peer) ?? 0);
+
+  Future<bool> enqueueRadioMessage(
+    Peer peer,
+    String text, {
+    MeshMessage? reply,
+    MessageExcerpt? excerpt,
+    bool suppressLinkPreview = false,
+  }) {
+    final radio = active;
+    final outgoing = text.trim();
+    if (radio == null ||
+        !_fitsOutbox(peer, outgoing) ||
+        (reply != null && !canDraftMessageReply(peer, reply))) {
+      return Future.value(false);
+    }
+    final now = DateTime.now();
+    final id =
+        'outbox:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+    return _replaceOutbox(
+      next: OutboxMessage(
+        id: id,
+        profile: radioKey(radio),
+        chat: peer.id,
+        text: outgoing,
+        createdAt: now,
+        replyTo: reply == null ? null : referenceFor(reply),
+        replyExcerpt: excerpt,
+        suppressLinkPreview: suppressLinkPreview,
+      ),
+    );
+  }
+
+  Future<bool> updateOutbox(
+    OutboxMessage item,
+    Peer peer, {
+    String? text,
+    bool retry = false,
+  }) {
+    final value = text?.trim() ?? item.text;
+    if (item.status == OutboxStatus.sending ||
+        !outboxFor(peer.id).contains(item) ||
+        !_fitsOutbox(peer, value) ||
+        (retry && outboxDelivery(item) == Delivery.acknowledged)) {
+      return Future.value(false);
+    }
+    return _replaceOutbox(
+      prior: item,
+      next: item.withChanges(
+        text: value,
+        status: retry ? OutboxStatus.waiting : item.status,
+      ),
+    );
+  }
+
+  Future<bool> cancelOutbox(OutboxMessage item) =>
+      item.status == OutboxStatus.sending ||
+          !outboxFor(item.chat).contains(item)
+      ? Future.value(false)
+      : _replaceOutbox(prior: item);
+
+  Future<void> flushOutbox() async {
+    if (_flushingOutbox || _closed) return;
+    _flushingOutbox = true;
+    try {
+      while (!_closed && connected && isChatForeground?.call() != false) {
+        final radio = active;
+        if (radio == null) return;
+        final profile = radioKey(radio);
+        final item = _outbox.where((item) {
+          if (item.status != OutboxStatus.waiting || item.profile != profile) {
+            return false;
+          }
+          final peer = cache?.peers[item.chat];
+          return peer != null && _fitsOutbox(peer, item.text);
+        }).firstOrNull;
+        if (item == null) return;
+        final attempt =
+            '${item.id}:${DateTime.now().microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+        final sending = item.withChanges(
+          status: OutboxStatus.sending,
+          attemptId: attempt,
+        );
+        // Save the attempt before handing anything to the transport.
+        if (!await _replaceOutbox(prior: item, next: sending)) return;
+        if (_closed) return;
+        final peer = cache?.peers[sending.chat];
+        if (active != radio ||
+            !connected ||
+            peer == null ||
+            isChatForeground?.call() == false ||
+            !_fitsOutbox(peer, item.text)) {
+          if (!await _replaceOutbox(prior: sending, next: item)) return;
+          continue;
+        }
+        final sent = await _sendMessage(
+          peer,
+          item.text,
+          outgoingId: attempt,
+          retryId: item.attemptId,
+          preserveDraft: true,
+          replyTo: item.replyTo,
+          replyExcerpt: item.replyExcerpt,
+          suppressLinkPreview: item.suppressLinkPreview,
+        );
+        final delivery = _cacheFor(radio).messages
+            .where((message) => message.id == attempt)
+            .firstOrNull
+            ?.delivery;
+        final needsReview =
+            !sent ||
+            delivery == Delivery.unconfirmed ||
+            delivery == Delivery.failed;
+        final uncertain = sending.withChanges(status: OutboxStatus.uncertain);
+        if (!await _replaceOutbox(
+          prior: sending,
+          next: needsReview ? uncertain : null,
+        )) {
+          if (!_closed) {
+            _outbox = [
+              for (final entry in _outbox)
+                identical(entry, sending) ? uncertain : entry,
+            ];
+            notifyListeners();
+          }
+          return;
+        }
+      }
+    } finally {
+      _flushingOutbox = false;
+    }
   }
 
   Future<void> restoreConnection({bool Function(Radio)? eligible}) async {
@@ -836,6 +1172,10 @@ class MeshController extends ChangeNotifier {
   Future<void> connect(Radio radio) async {
     if (_closed || !adapters.containsKey(radio.network)) return;
     final profile = _savedRadio(radioKey(radio)) ?? radio;
+    await _connect(_selectProfile(profile));
+  }
+
+  _RadioConnection _selectProfile(Radio profile) {
     final connection = _connection(profile);
     if (!identical(connection, _selected)) {
       _draftTimer?.cancel();
@@ -851,7 +1191,7 @@ class MeshController extends ChangeNotifier {
       }
       _changed();
     }
-    await _connect(connection);
+    return connection;
   }
 
   Future<void> _connect(_RadioConnection connection, {bool retry = false}) {
@@ -924,7 +1264,11 @@ class MeshController extends ChangeNotifier {
         } catch (exception) {
           if (!_isCurrent(connection, operation)) return;
           debugPrint(
-            'MeshGrame ${route.network} ${lanEndpoint(route) == null ? 'Bluetooth' : 'Wi-Fi'} connection: $exception',
+            'MeshGrame ${route.network} ${usbPortOf(route) != null
+                ? 'USB'
+                : lanEndpoint(route) == null
+                ? 'Bluetooth'
+                : 'Wi-Fi'} connection: $exception',
           );
           if (index < firstPass && exception is _StartupDisconnected) {
             routes.add(device);
@@ -965,9 +1309,16 @@ class MeshController extends ChangeNotifier {
     if (endpoint != null && protocol == null) {
       throw StateError('Local network connection unavailable');
     }
-    final link = endpoint == null
-        ? await transport.connect(route, adapter.service)
-        : await lanTransport!.connect(endpoint, protocol!);
+    final usbPort = usbPortOf(route);
+    final usbProtocol = usbProtocols[route.network]?.usb;
+    if (usbPort != null && usbProtocol == null) {
+      throw StateError('USB connection unavailable');
+    }
+    final link = await switch ((usbPort, endpoint)) {
+      (final port?, _) => usbTransport!.connect(port, usbProtocol!),
+      (_, final address?) => lanTransport!.connect(address, protocol!),
+      _ => transport.connect(route, adapter.service),
+    };
     if (!_isCurrent(connection, operation)) {
       await link.close();
       return;
@@ -1248,6 +1599,19 @@ class MeshController extends ChangeNotifier {
       return null;
     }
     return current.peers[target.id];
+  }
+
+  bool isOwnChat(String peerId, {String? publicKey}) {
+    final data = cache;
+    if (data == null) return false;
+    final number = data.radioNodeNumber;
+    if (number != null && peerId == 'node:$number') return true;
+    final ownKey = data.radioPublicKey;
+    return ownKey != null &&
+        (ownKey == (publicKey ?? data.identities[peerId]?.publicKey) ||
+            (active?.network == 'meshcore' &&
+                ownKey.length >= 12 &&
+                peerId == 'node:${ownKey.substring(0, 12)}'));
   }
 
   String? shareContactAttachment(Peer peer, int maxBytes) {
@@ -1711,6 +2075,7 @@ class MeshController extends ChangeNotifier {
         }
         if (!message.outgoing) current.addUnread(message);
         current.messages.add(message);
+        current.promoteChat(message.chat);
         if (!buffered &&
             !message.outgoing &&
             !current.muted.contains(message.chat)) {
@@ -1878,6 +2243,10 @@ class MeshController extends ChangeNotifier {
       connected &&
       _canTargetMessage(peer, message);
 
+  bool canDraftMessageReply(Peer peer, MeshMessage message) =>
+      (_session is NetworkMessageActions || active?.network == 'meshtastic') &&
+      _canTargetMessage(peer, message);
+
   bool canReact(Peer peer, MeshMessage message) =>
       (_session is NetworkReactions || preview) &&
       connected &&
@@ -1898,15 +2267,25 @@ class MeshController extends ChangeNotifier {
   MeshMessage? replyDraft(String chat) =>
       referencedMessage(chat, cache?.replies[chat]);
 
-  void setReplyDraft(String chat, MeshMessage? message) {
+  MessageExcerpt? replyDraftExcerpt(String chat) => cache?.replyExcerpts[chat];
+
+  void setReplyDraft(
+    String chat,
+    MeshMessage? message, {
+    MessageExcerpt? excerpt,
+  }) {
     final radio = active;
     if (radio == null) return;
     final data = _cacheFor(radio);
     final ref = message == null ? null : referenceFor(message);
+    data.replyExcerpts.remove(chat);
     if (ref == null) {
       data.replies.remove(chat);
     } else {
       data.replies[chat] = ref;
+      if (excerpt != null && excerpt.matches(message!.text)) {
+        data.replyExcerpts[chat] = excerpt;
+      }
     }
     _save(radio);
     _changed();
@@ -1960,6 +2339,116 @@ class MeshController extends ChangeNotifier {
     return sender == null
         ? _uniqueNodeNamed(message.author)
         : cache?.peers[sender];
+  }
+
+  bool isMessageSaved(MeshMessage message) {
+    final radio = active;
+    if (radio == null) return false;
+    final key = (_profileKey(radio), message.chat, message.id);
+    return _savedMessages.any((item) => item.key == key);
+  }
+
+  Future<bool> toggleSavedMessage(
+    Peer peer,
+    MeshMessage message, {
+    bool keepSaved = false,
+  }) {
+    final radio = active;
+    if (radio == null || peer.id != message.chat) return Future.value(false);
+    final item = SavedMessage(
+      message: message,
+      profile: _profileKey(radio),
+      radioName: radio.name,
+      chatName: peer.name,
+      author: message.outgoing
+          ? profileName
+          : messageAuthor(message)?.name ?? message.author,
+      savedAt: DateTime.now(),
+    );
+    return _editSavedMessages((items) {
+      final index = items.indexWhere((other) => other.key == item.key);
+      if (index == -1) {
+        items.insert(0, item);
+      } else if (!keepSaved) {
+        items.removeAt(index);
+      }
+    });
+  }
+
+  Future<bool> setSavedLabels(SavedMessage item, Iterable<String> labels) {
+    final cleaned = labels
+        .map((label) => label.trim())
+        .where((label) => label.isNotEmpty)
+        .toSet();
+    return _editSavedMessages((items) {
+      final index = items.indexWhere((other) => other.key == item.key);
+      if (index != -1) items[index] = items[index].withLabels(cleaned);
+    });
+  }
+
+  Future<bool> saveOwnNote(String text) {
+    final note = text.trim();
+    if (note.isEmpty) return Future.value(false);
+    final now = DateTime.now();
+    return _editSavedMessages((items) {
+      items.insert(
+        0,
+        SavedMessage(
+          message: MeshMessage(
+            id: 'note:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}',
+            chat: 'self:saved',
+            author: '',
+            text: note,
+            time: now,
+            delivery: Delivery.acknowledged,
+          ),
+          profile: '',
+          radioName: '',
+          chatName: '',
+          author: profileName,
+          savedAt: now,
+          isNote: true,
+        ),
+      );
+    });
+  }
+
+  Future<bool> removeSavedMessage(SavedMessage item) => _editSavedMessages(
+    (items) => items.removeWhere((other) => other.key == item.key),
+  );
+
+  bool selectSavedMessageSource(SavedMessage item) {
+    if (item.isNote) return false;
+    final radio = _savedRadio(item.profile);
+    if (radio == null) return false;
+    final cache = _cacheFor(radio);
+    if (!cache.peers.containsKey(item.message.chat) ||
+        !cache
+            .history(item.message.chat)
+            .any((message) => message.id == item.message.id)) {
+      return false;
+    }
+    _selectProfile(radio);
+    return true;
+  }
+
+  Future<bool> _editSavedMessages(void Function(List<SavedMessage>) edit) {
+    final write = _savedWrites.then((_) async {
+      if (_closed) return false;
+      final next = _savedMessages.toList();
+      edit(next);
+      try {
+        if (!await store.setSavedMessages(next)) return false;
+      } on Exception catch (error) {
+        debugPrint('Meshgram saved messages: $error');
+        return false;
+      }
+      _savedMessages = List.unmodifiable(next);
+      if (!_closed) _changed();
+      return true;
+    });
+    _savedWrites = write.then<void>((_) {});
+    return write;
   }
 
   Peer? _uniqueNodeNamed(String name) {
@@ -2087,14 +2576,20 @@ class MeshController extends ChangeNotifier {
     Peer peer,
     String text, {
     MeshMessage? reply,
+    MessageExcerpt? replyExcerpt,
     bool suppressLinkPreview = false,
+    ValueChanged<MeshMessage>? onQueued,
   }) async {
     if (reply != null && !canUseMessageActions(peer, reply)) return false;
     return _sendMessage(
       peer,
       text,
       replyTo: reply == null ? null : referenceFor(reply),
+      replyExcerpt: reply != null && replyExcerpt?.matches(reply.text) == true
+          ? replyExcerpt
+          : null,
       suppressLinkPreview: suppressLinkPreview,
+      onQueued: onQueued,
     );
   }
 
@@ -2102,6 +2597,7 @@ class MeshController extends ChangeNotifier {
       _sendMessage(peer, text, isAttachment: true);
 
   Future<bool> retryMessage(Peer peer, String messageId) async {
+    if (isOutboxAttempt(messageId)) return false;
     final failed = cache?.messages
         .where(
           (message) =>
@@ -2115,6 +2611,7 @@ class MeshController extends ChangeNotifier {
       peer,
       failed.text,
       replyTo: failed.replyTo,
+      replyExcerpt: failed.replyExcerpt,
       retryId: messageId,
       isAttachment: failed.isAttachment,
       suppressLinkPreview: failed.suppressLinkPreview,
@@ -2125,9 +2622,13 @@ class MeshController extends ChangeNotifier {
     Peer peer,
     String text, {
     String? replyTo,
+    MessageExcerpt? replyExcerpt,
     String? retryId,
+    String? outgoingId,
+    bool preserveDraft = false,
     bool isAttachment = false,
     bool suppressLinkPreview = false,
+    ValueChanged<MeshMessage>? onQueued,
   }) async {
     final radio = active;
     final session = _session;
@@ -2142,7 +2643,9 @@ class MeshController extends ChangeNotifier {
     final current = _cacheFor(radio);
     final previousDraft = current.drafts[peer.id];
     final now = DateTime.now();
-    final id = 'out:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
+    final id =
+        outgoingId ??
+        'out:${now.microsecondsSinceEpoch}:${_random.nextInt(1 << 20)}';
     final outgoing = MeshMessage(
       id: id,
       chat: peer.id,
@@ -2151,6 +2654,7 @@ class MeshController extends ChangeNotifier {
       time: now,
       delivery: Delivery.queued,
       replyTo: replyTo,
+      replyExcerpt: replyExcerpt,
       isAttachment: isAttachment,
       suppressLinkPreview: suppressLinkPreview,
       remoteId: session is NetworkMessageActions
@@ -2160,13 +2664,15 @@ class MeshController extends ChangeNotifier {
           : null,
     );
     if (retryId == null) {
-      if (!isAttachment) current.drafts.remove(peer.id);
+      if (!isAttachment && !preserveDraft) current.drafts.remove(peer.id);
     } else {
       _receipts.remove(retryId)?.timer.cancel();
       current.messages.removeWhere((message) => message.id == retryId);
     }
     current.messages.add(outgoing);
+    if (retryId == null) current.promoteChat(peer.id);
     _save(radio);
+    onQueued?.call(outgoing);
     _changed();
     var result = preview ? Delivery.acknowledged : Delivery.submitted;
     try {
@@ -2196,6 +2702,7 @@ class MeshController extends ChangeNotifier {
     }
     if (index >= 0 &&
         !isAttachment &&
+        !preserveDraft &&
         retryId == null &&
         result == Delivery.failed &&
         (current.drafts[peer.id] ?? '').isEmpty) {

@@ -26,7 +26,7 @@ final _trailingUrlPunctuation = RegExp(r'[.!?\])}]+$');
   final pair = _coordinatePair.firstMatch(input);
   if (pair != null) {
     final point = _valid(pair[1], pair[2]);
-    return point == null ? null : (point: point, standalone: false);
+    return point == null ? null : (point: point, standalone: true);
   }
   final links = _webLink.allMatches(input).toList();
   for (final link in links) {

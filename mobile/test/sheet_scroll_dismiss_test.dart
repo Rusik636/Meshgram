@@ -46,7 +46,7 @@ void main() {
     final sheet = find.byType(BottomSheet);
     final top = tester.getTopLeft(sheet).dy;
     final list = tester.getTopLeft(find.byType(ListView));
-    expect(list.dy - top, 16);
+    expect(list.dy - top, MeshSheetGrip.height);
     tester.state<ScrollableState>(find.byType(Scrollable)).position.jumpTo(120);
     await tester.pump();
     final gesture = await tester.startGesture(Offset(list.dx + 30, top + 35));
@@ -66,7 +66,10 @@ void main() {
     final sheet = find.byType(BottomSheet);
     final list = find.byType(ListView);
     final top = tester.getTopLeft(sheet).dy;
-    expect(tester.getTopLeft(list).dy - top, 16);
+    final grip = find.byKey(const ValueKey('mesh-sheet-grip'));
+    final panel = find.byKey(const ValueKey('mesh-sheet-panel'));
+    expect(tester.getTopLeft(list).dy - top, MeshSheetGrip.height);
+    expect(tester.getBottomLeft(grip).dy, tester.getTopLeft(panel).dy);
     await tester.fling(list, const Offset(0, 110), 1600);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(sheet).dy, top);

@@ -7,17 +7,25 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart' hide Radio;
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 
 import '../app_name.dart';
 import '../local_notifications.dart';
 import '../mesh/controller.dart';
 import '../mesh/network.dart';
+import '../mesh/store.dart';
+import '../radio/desktop_usb.dart';
 import 'about.dart';
 import 'chat.dart';
+import 'chat_archive.dart';
+import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
+import 'chat_workspace.dart';
+import 'firmware_page.dart';
 import 'emoji_text.dart';
+import 'haptics.dart';
 import 'radio_discovery.dart';
 import 'ios_control.dart';
 import 'navigation.dart';
@@ -27,7 +35,9 @@ import 'radio_settings.dart';
 import 'profile_page.dart';
 import 'search_field.dart';
 import 'mesh_scroll_edge.dart';
+import 'message_search.dart';
 import 'style.dart';
+import 'swipe_actions.dart';
 import 'page_route.dart';
 
 const _blue = Color(0xff2978d5);
@@ -35,12 +45,41 @@ const _teal = Color(0xff168a87);
 const _violet = Color(0xff7b5bc3);
 
 class MeshHome extends StatefulWidget {
-  const MeshHome({super.key, required this.controller, this.notifications});
+  const MeshHome({
+    super.key,
+    required this.controller,
+    this.notifications,
+    this.tabletDisplay = false,
+  });
   final MeshController controller;
   final LocalMessageNotifications? notifications;
+  final bool tabletDisplay;
 
   @override
   State<MeshHome> createState() => _HomeState();
+}
+
+class _ChatDetailObserver extends NavigatorObserver {
+  _ChatDetailObserver(this.onTopChanged, this.onGesture);
+
+  final ValueChanged<Route<dynamic>> onTopChanged;
+  final ValueChanged<bool> onGesture;
+  Route<dynamic>? top;
+
+  @override
+  void didChangeTop(Route<dynamic> topRoute, Route<dynamic>? previousTopRoute) {
+    top = topRoute;
+    onTopChanged(topRoute);
+  }
+
+  @override
+  void didStartUserGesture(
+    Route<dynamic> route,
+    Route<dynamic>? previousRoute,
+  ) => onGesture(true);
+
+  @override
+  void didStopUserGesture() => onGesture(false);
 }
 
 class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
@@ -55,29 +94,67 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     }
   }
 
-  late final _tabs = MeshNavigationFade(this);
+  late final _settingsFade = AnimationController(vsync: this);
+  int _selectedTab = 0;
   late final _chatCategories = MeshNavigationFade(this);
   late final _searchCategories = MeshNavigationFade(this);
   String? _revealedRadio;
   final _search = TextEditingController();
+  MessageSearchFilters _messageSearchFilters = const MessageSearchFilters();
   final _searchFocus = FocusNode();
   final _chatScroll = MeshSearchScrollController();
   late final _searchMotion = AnimationController(vsync: this);
   GlobalKey<IosControlState> _iosSearch = GlobalKey();
   bool _searchActive = false;
   bool _editingChats = false, _showHidden = false, _removingChats = false;
+  bool _archiveRevealed = false;
+  bool _archiveSwipeOpen = false;
+  bool _archiveClosingShownRow = false;
+  bool _archiveReady = false, _archiveMature = false;
+  Timer? _archiveDwell;
+  int? _archivePointer;
+  double _archiveDistance = 0;
+  late final _archiveProgress = AnimationController(
+    vsync: this,
+    value: controller.archiveHidden ? 0 : 1,
+  );
+  late final _archivePhysics = ChatArchiveScrollPhysics(
+    _applyArchiveDrag,
+    parent: const AlwaysScrollableScrollPhysics(),
+  );
+  ({int sequence, double extent}) _archiveRetraction = (sequence: 0, extent: 0);
   String? _revealedChat;
+  final _previewBackground = GlobalKey();
+  final _folderTabsScroll = ScrollController();
+  final _folderRailScroll = ScrollController();
+  Radio? _folderProfile;
   final _selectedChats = <String>{};
   late final AppLifecycleListener _lifecycle;
+  final _detailKey = GlobalKey<NavigatorState>();
+  late final _detailObserver = _ChatDetailObserver(_detailTopChanged, (active) {
+    if (mounted) setState(() => _detailBackGesture = active);
+  });
+  bool _workspaceEnabled = false;
+  bool _split = false;
+  bool _desktopRail = false;
+  double? _resizedChatListWidth;
+  String? _detailPeer;
+  bool _detailOpen = false;
+  bool _detailBackGesture = false;
+  Route<void>? _settingsDetail;
+  Route<void>? _workspaceConversation;
   MeshController get controller => widget.controller;
   @override
   void initState() {
     super.initState();
+    _folderProfile = controller.active;
     controller.addListener(_changed);
     if (controller.hideSystemNavigation) unawaited(_applySystemNavigation());
     _lifecycle = AppLifecycleListener(
+      onInactive: () => _finishArchiveDrag(released: false),
       onResume: () {
         controller.refreshNodePresence();
+        unawaited(controller.flushOutbox());
         if (widget.notifications == null) {
           unawaited(controller.restoreConnection());
         }
@@ -148,7 +225,39 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      final profile = controller.active;
+      if (profile != _folderProfile) {
+        final previous = _folderProfile;
+        _folderProfile = profile;
+        if (_detailPeer != null &&
+            (previous == null ||
+                profile == null ||
+                radioKey(previous) != radioKey(profile))) {
+          _detailPeer = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted &&
+                controller.active == profile &&
+                _detailPeer == null) {
+              final detail = _detailKey.currentState;
+              if (_settingsDetail?.isActive == true) {
+                if (_workspaceConversation case final route?
+                    when route.isActive) {
+                  detail?.removeRoute(route);
+                }
+              } else {
+                detail?.popUntil((route) => route.isFirst);
+              }
+            }
+          });
+        }
+        _resetArchiveVisibility();
+        if (_chatCategories.selected >= 3) _chatCategories.jumpTo(0);
+      } else if (controller.cache?.hiddenChats.isNotEmpty != true) {
+        _resetArchiveVisibility();
+      }
+    });
   }
 
   @override
@@ -158,20 +267,61 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _search.dispose();
     _searchFocus.dispose();
     _chatScroll.dispose();
+    _folderTabsScroll.dispose();
+    _folderRailScroll.dispose();
     _searchMotion.dispose();
-    _tabs.opacity.dispose();
+    _archiveDwell?.cancel();
+    _archiveProgress.dispose();
+    _settingsFade.dispose();
     _chatCategories.opacity.dispose();
     _searchCategories.opacity.dispose();
     super.dispose();
   }
 
-  void _openSettings() {
-    _selectTab(1);
+  void _openSettings() => _selectTab(1);
+
+  bool get _flashingFirmware =>
+      _detailObserver.top?.settings.name == firmwareBoardRoute &&
+      _detailObserver.top?.popDisposition == RoutePopDisposition.doNotPop;
+
+  Future<T?> _pushWorkspacePage<T>(PageRoute<T> route) async {
+    if (_flashingFirmware) return null;
+    final detail = _split ? _detailKey.currentState : null;
+    if (detail == null) return Navigator.of(context).push<T>(route);
+    if (_selectedTab == 1 && _settingsDetail?.isActive != true) {
+      _settingsDetail = route;
+    }
+    try {
+      return await detail.push<T>(route);
+    } finally {
+      if (_settingsDetail == route) _settingsDetail = null;
+    }
+  }
+
+  Future<void> _openWorkspacePage(WidgetBuilder builder) async {
+    await _pushWorkspacePage(
+      meshPageRoute<void>(context, builder: builder, conversationPane: _split),
+    );
   }
 
   void _selectTab(int index) {
+    if (_flashingFirmware || index == _selectedTab) return;
     FocusScope.of(context).unfocus();
-    _select(_tabs, index);
+    _dismissSidebarMode();
+    if (index == 0 && _settingsDetail?.isActive == true) {
+      _detailKey.currentState?.popUntil(
+        (route) => route.isFirst || route == _workspaceConversation,
+      );
+    }
+    setState(() => _selectedTab = index);
+    final duration = meshMotion(context);
+    unawaited(
+      _settingsFade.animateTo(
+        index.toDouble(),
+        duration: duration,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
   }
 
   void _select(MeshNavigationFade navigation, int index) {
@@ -190,21 +340,61 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       _exitSearch();
     }
     FocusScope.of(context).unfocus();
-    await showMeshChat(context, controller, peer);
+    await showMeshChat(context, controller, peer, open: _openDetail);
+  }
+
+  void _detailTopChanged(Route<dynamic> route) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _detailObserver.top != route) return;
+      final open = !route.isFirst;
+      if (_detailOpen == open) return;
+      setState(() {
+        _detailOpen = open;
+        if (!open) _detailPeer = null;
+      });
+    });
+  }
+
+  Future<void> _openDetail(
+    WidgetBuilder builder, {
+    String? peerId,
+    bool jump = false,
+  }) async {
+    if (_flashingFirmware) return;
+    final detail = _detailKey.currentState;
+    if (detail == null) {
+      await Navigator.of(context)
+          .push<void>(meshPageRoute(context, builder: builder));
+      return;
+    }
+    if (!jump && peerId != null && peerId == _detailPeer) {
+      detail.popUntil(
+        (route) => route.isFirst || route.settings.name == peerId,
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => _detailPeer = peerId);
+    final route = meshPageRoute<void>(
+      context,
+      builder: builder,
+      settings: RouteSettings(name: peerId),
+      conversationPane: true,
+    );
+    _workspaceConversation = route;
+    await detail.pushAndRemoveUntil<void>(route, (route) => route.isFirst);
+    if (_workspaceConversation == route) _workspaceConversation = null;
   }
 
   Future<void> _openProfile(Peer peer, {bool allowReadOnlyChat = false}) async {
     if (_searchActive) _dismissSearchKeyboard();
     FocusScope.of(context).unfocus();
-    await Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => MeshChatProfile(
-          controller: controller,
-          peer: peer,
-          openNewChat: true,
-          allowReadOnlyChat: allowReadOnlyChat,
-        ),
+    await _openWorkspacePage(
+      (_) => MeshChatProfile(
+        controller: controller,
+        peer: peer,
+        openNewChat: true,
+        allowReadOnlyChat: allowReadOnlyChat,
       ),
     );
   }
@@ -222,10 +412,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _enterSearch() {
     if (_searchActive) return;
+    _finishArchiveDrag(released: false);
     setState(() {
       _iosSearch = GlobalKey();
       _searchActive = true;
-      _searchCategories.jumpTo(_chatCategories.selected);
+      _searchCategories.jumpTo(
+        _chatCategories.selected < 3 ? _chatCategories.selected : 0,
+      );
     });
     animateMeshSearch(context, _searchMotion, open: true);
   }
@@ -241,11 +434,12 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     setState(() {
       _searchActive = false;
       _search.clear();
+      _messageSearchFilters = const MessageSearchFilters();
     });
     animateMeshSearch(context, _searchMotion, open: false);
   }
 
-  Future<void> _showRadioSettings(Radio radio) => Navigator.of(context).push(
+  Future<void> _showRadioSettings(Radio radio) => _pushWorkspacePage(
     radioSettingsRoute(
       context,
       RadioSettingsPage(controller: controller, radio: radio),
@@ -254,18 +448,168 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   void _toggleChatEditing() {
     if (_removingChats) return;
+    _finishArchiveDrag(released: false);
     setState(() {
       _editingChats = !_editingChats;
+      _revealedChat = null;
+      _archiveSwipeOpen = false;
+      _selectedChats.clear();
+    });
+  }
+
+  void _showChats(bool hidden) {
+    _finishArchiveDrag(released: false);
+    if (_chatScroll.hasClients) _chatScroll.jumpTo(0);
+    setState(() {
+      _showHidden = hidden;
+      _archiveSwipeOpen = false;
       _revealedChat = null;
       _selectedChats.clear();
     });
   }
 
-  void _showChats(bool hidden) => setState(() {
-    _showHidden = hidden;
-    _revealedChat = null;
-    _selectedChats.clear();
-  });
+  bool get _archiveIsIos => Theme.of(context).platform == TargetPlatform.iOS;
+
+  double get _archiveExtent =>
+      math.max(70, 28 + MediaQuery.textScalerOf(context).scale(30));
+
+  bool get _archiveAvailable =>
+      !_showHidden &&
+      !_editingChats &&
+      !_searchActive &&
+      _chatCategories.selected == 0 &&
+      controller.cache?.hiddenChats.isNotEmpty == true;
+
+  bool get _canPullArchive =>
+      _archiveAvailable && controller.archiveHidden && !_archiveRevealed;
+
+  bool get _archiveCanScrollAway =>
+      _archiveAvailable && controller.archiveHidden && _archiveRevealed;
+
+  void _resetArchiveDrag() {
+    _archiveDwell?.cancel();
+    _archiveDwell = null;
+    _archivePointer = null;
+    _archiveDistance = 0;
+    _archiveMature = false;
+    _archiveReady = false;
+  }
+
+  void _resetArchiveVisibility() {
+    _resetArchiveDrag();
+    _archiveRevealed = false;
+    _archiveSwipeOpen = false;
+    _archiveClosingShownRow = false;
+    final target = controller.archiveHidden ? 0.0 : 1.0;
+    if (_archiveProgress.isAnimating || _archiveProgress.value != target) {
+      _archiveProgress.value = target;
+    }
+  }
+
+  double _applyArchiveDrag(ScrollMetrics position, double offset) {
+    if (_archivePointer == null || !_canPullArchive) return offset;
+    final atTop = position.pixels - position.minScrollExtent;
+    final delta = offset > 0 ? math.max(0.0, offset - atTop) : offset;
+    final extent = _archiveExtent;
+    final fraction = _archiveIsIos ? .67 : 1.0;
+    final previous = math.max(
+      _archiveDistance,
+      _archiveProgress.value * extent / fraction,
+    );
+    if (delta == 0 || (delta < 0 && previous == 0)) return offset;
+    _archiveClosingShownRow = false;
+    _archiveDistance = (previous + delta).clamp(0.0, extent * 1.4);
+    _archiveProgress.value = math.min(
+      1.0,
+      _archiveDistance * fraction / extent,
+    );
+    if (!_archiveIsIos && !_archiveMature && _archiveDwell == null) {
+      _archiveDwell = Timer(const Duration(milliseconds: 200), () {
+        _archiveDwell = null;
+        _archiveMature = true;
+        _checkArchiveThreshold();
+      });
+    }
+    _checkArchiveThreshold();
+    return offset - (delta > 0 ? delta : math.max(-previous, delta));
+  }
+
+  void _checkArchiveThreshold() {
+    if (!_canPullArchive || _archivePointer == null) return;
+    final ready = _archiveIsIos
+        ? _archiveProgress.value * _archiveExtent >= 40
+        : _archiveMature && _archiveProgress.value >= .85;
+    if (ready == _archiveReady) return;
+    setState(() => _archiveReady = ready);
+    if (ready) {
+      unawaited(playMeshHaptic(MeshHaptic.medium));
+      if (_archiveIsIos) _revealArchive(pointerHeld: true);
+    }
+  }
+
+  void _settleArchive() {
+    final target = controller.archiveHidden && !_archiveRevealed ? 0.0 : 1.0;
+    unawaited(
+      _archiveProgress.animateTo(
+        target,
+        duration: meshMotion(context),
+        curve: target == 0 ? Curves.easeInOutCubic : Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  void _revealArchive({bool pointerHeld = false}) {
+    if (!pointerHeld) _resetArchiveDrag();
+    setState(() => _archiveRevealed = true);
+    _settleArchive();
+  }
+
+  void _finishArchiveDrag({required bool released}) {
+    if (_archivePointer == null) return;
+    if (_archiveRevealed) {
+      setState(_resetArchiveDrag);
+      if (!_archiveProgress.isAnimating) _settleArchive();
+    } else if (released && _canPullArchive && _archiveReady) {
+      _revealArchive();
+    } else {
+      _resetArchiveDrag();
+      _settleArchive();
+    }
+  }
+
+  bool _trackArchiveScroll(ScrollNotification event) {
+    if (event.depth != 0 || event.metrics.axis != Axis.vertical) return false;
+    if (event is ScrollStartNotification && _archiveSwipeOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _archiveSwipeOpen) {
+          setState(() => _archiveSwipeOpen = false);
+        }
+      });
+    }
+    if (!_archiveCanScrollAway ||
+        event.metrics.extentBefore <
+            _chatScroll.collapseRange + _archiveExtent) {
+      return false;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_archiveCanScrollAway ||
+          !_chatScroll.hasClients ||
+          _chatScroll.position.extentBefore <
+              _chatScroll.collapseRange + _archiveExtent) {
+        return;
+      }
+      final height = _archiveProgress.value * _archiveExtent;
+      setState(() {
+        _resetArchiveVisibility();
+        _archiveRetraction = (
+          sequence: _archiveRetraction.sequence + 1,
+          extent: height,
+        );
+      });
+    });
+    return false;
+  }
 
   static bool _inCategory(Peer peer, int filter) => switch (filter) {
     1 => !peer.channel,
@@ -273,10 +617,217 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     _ => true,
   };
 
-  List<Peer> _visibleChats([int? filter]) =>
-      (_showHidden ? controller.hiddenConversations : controller.conversations)
-          .where((peer) => _inCategory(peer, filter ?? _chatCategories.shown))
-          .toList();
+  ChatFolder? _folderAt(int index) =>
+      index < 3 ? null : controller.chatFolders.elementAtOrNull(index - 3);
+
+  ChatFolder? get _chatFolder =>
+      _showHidden ? null : _folderAt(_chatCategories.shown);
+
+  bool _matchesChatTab(Peer peer, int index) {
+    if (_showHidden) return true;
+    return _inCategory(peer, index) &&
+        (_folderAt(index)?.chats.contains(peer.id) ?? true);
+  }
+
+  List<String> _chatPins(ChatFolder? folder) =>
+      folder?.pinned ?? controller.cache?.pinnedChats ?? const [];
+
+  void _toggleChatPin(ChatFolder? folder, String id) {
+    setState(() => _revealedChat = null);
+    if (folder == null) {
+      controller.toggleChatPin(id);
+    } else {
+      controller.toggleFolderPin(folder.id, id);
+    }
+  }
+
+  List<ChatPreviewMenuItem> _previewActions(
+    Peer peer,
+    ChatFolder? folder,
+    Radio? profile,
+  ) {
+    final unread = controller.isChatUnread(peer.id);
+    final pinned = _chatPins(folder).contains(peer.id);
+    final muted = controller.cache?.muted.contains(peer.id) ?? false;
+    ChatPreviewMenuItem item(
+      String label,
+      IconData icon,
+      VoidCallback run, {
+      bool destructive = false,
+    }) => (
+      label: label,
+      icon: icon,
+      destructive: destructive,
+      onTap: () {
+        if (mounted && controller.active == profile) run();
+      },
+    );
+
+    return [
+      if (folder != null)
+        item(
+          tr(context, 'Убрать из папки', 'Remove from folder'),
+          Icons.folder_off_outlined,
+          () => controller.saveChatFolder(
+            id: folder.id,
+            name: folder.name,
+            chats: folder.chats.where((id) => id != peer.id).toSet(),
+          ),
+        )
+      else
+        item(
+          _showHidden
+              ? tr(context, 'Показать чат', 'Show chat')
+              : tr(context, 'Скрыть чат', 'Hide chat'),
+          _showHidden
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+          () => _changeVisibility([peer]),
+        ),
+      item(
+        unread
+            ? tr(context, 'Пометить прочитанным', 'Mark as read')
+            : tr(context, 'Пометить непрочитанным', 'Mark as unread'),
+        unread
+            ? Icons.mark_chat_read_outlined
+            : Icons.mark_chat_unread_outlined,
+        () => unread
+            ? controller.markChatsRead([peer.id])
+            : controller.markChatsUnread([peer.id]),
+      ),
+      item(
+        pinned
+            ? tr(context, 'Открепить чат', 'Unpin chat')
+            : tr(context, 'Закрепить чат', 'Pin chat'),
+        pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+        () => _toggleChatPin(folder, peer.id),
+      ),
+      item(
+        muted
+            ? tr(context, 'Включить уведомления', 'Unmute notifications')
+            : tr(context, 'Выключить уведомления', 'Mute notifications'),
+        muted ? Icons.notifications_outlined : Icons.notifications_off_outlined,
+        () => controller.toggleMute(peer.id),
+      ),
+      item(
+        tr(context, 'Удалить чат', 'Delete chat'),
+        Icons.delete_outline_rounded,
+        () => unawaited(_deleteChats([peer])),
+        destructive: true,
+      ),
+    ];
+  }
+
+  List<Peer> _visibleChats([int? filter]) {
+    final index = filter ?? _chatCategories.shown;
+    final folder = _showHidden ? null : _folderAt(index);
+    final chats = _showHidden
+        ? controller.hiddenConversations
+        : controller.conversations;
+    final peers = {
+      for (final peer in chats)
+        if (_matchesChatTab(peer, index)) peer.id: peer,
+    };
+    return [
+      for (final id in _chatPins(folder)) ?peers.remove(id),
+      ...peers.values,
+    ];
+  }
+
+  void _selectChatTab(int index) {
+    if (_removingChats || index == _chatCategories.selected) return;
+    _resetArchiveVisibility();
+    _revealedChat = null;
+    _selectedChats.clear();
+    _select(_chatCategories, index);
+  }
+
+  void _showNewFolder(String id) {
+    final index = controller.chatFolders.indexWhere(
+      (folder) => folder.id == id,
+    );
+    if (index < 0) return;
+    _selectChatTab(index + 3);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final scroll = _desktopRail ? _folderRailScroll : _folderTabsScroll;
+      if (!mounted || !scroll.hasClients) return;
+      final end = scroll.position.maxScrollExtent;
+      final duration = meshMotion(context);
+      if (duration == Duration.zero) {
+        scroll.jumpTo(end);
+      } else {
+        unawaited(
+          scroll.animateTo(end, duration: duration, curve: Curves.easeOutCubic),
+        );
+      }
+    });
+  }
+
+  Future<void> _addFolder() async {
+    final profile = controller.active;
+    final chats = Set<String>.of(_selectedChats);
+    final name = await nameNewChatFolder(context);
+    if (!mounted || controller.active != profile || name == null) return;
+    final id = controller.saveChatFolder(name: name, chats: chats);
+    if (id != null) _showNewFolder(id);
+  }
+
+  Future<void> _editFolder(String id) async {
+    final profile = controller.active;
+    final folder = controller.chatFolders.firstWhere(
+      (folder) => folder.id == id,
+    );
+    final result = await editChatFolder(
+      context,
+      folder: folder,
+      chats: [...controller.conversations, ...controller.hiddenConversations],
+    );
+    if (!mounted || controller.active != profile || result == null) return;
+    controller.saveChatFolder(id: id, name: result.name, chats: result.chats);
+  }
+
+  void _refreshFolderOrder(VoidCallback action) {
+    final current = _folderAt(_chatCategories.selected)?.id;
+    action();
+    if (current == null) return;
+    final index = controller.chatFolders.indexWhere(
+      (folder) => folder.id == current,
+    );
+    setState(() => _chatCategories.jumpTo(index < 0 ? 0 : index + 3));
+  }
+
+  void _reorderFolders(int from, int to) {
+    if (from == to) return;
+    final ids = controller.chatFolders.map((folder) => folder.id).toList();
+    ids.insert(to, ids.removeAt(from));
+    _refreshFolderOrder(() => controller.reorderChatFolders(ids));
+  }
+
+  Future<void> _deleteFolder(String id) async {
+    final profile = controller.active;
+    final folder = controller.chatFolders.firstWhere(
+      (folder) => folder.id == id,
+    );
+    final confirmed = await showMeshDialog<bool>(
+      context: context,
+      builder: (context) => MeshDialog(
+        title: Text(tr(context, 'Удалить папку?', 'Delete folder?')),
+        content: Text(folder.name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr(context, 'Отмена', 'Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(tr(context, 'Удалить', 'Delete')),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || controller.active != profile || confirmed != true) return;
+    _refreshFolderOrder(() => controller.removeChatFolder(id));
+  }
 
   void _changeVisibility(Iterable<Peer> peers) {
     final items = peers.toList();
@@ -363,6 +914,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 4,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: selected.isEmpty
                 ? tr(context, 'Прочитать все', 'Read all')
                 : markUnread
@@ -386,6 +938,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 3,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: _showHidden
                 ? tr(context, 'Показать', 'Show')
                 : tr(context, 'Скрыть', 'Hide'),
@@ -399,6 +952,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           flex: 3,
           child: GlassActionButton(
             primary: false,
+            wrapLabel: _desktopRail,
             label: tr(context, 'Удалить', 'Delete'),
             onTap: _removingChats || selected.isEmpty
                 ? null
@@ -411,75 +965,385 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = meshDesktop(context);
+    final size = MediaQuery.sizeOf(context);
+    final apple = Theme.of(context).platform == TargetPlatform.iOS;
+    final tablet =
+        widget.tabletDisplay || size.shortestSide >= (apple ? 700 : 600);
+    _split =
+        size.width >=
+            (desktop
+                ? meshDesktopSplitWidth
+                : apple
+                ? 740
+                : 840) &&
+        (desktop || tablet);
+    _workspaceEnabled |= desktop || _split || widget.tabletDisplay;
+    _desktopRail = desktop;
+    final rail = _desktopRail ? ChatFolderRail.width : 0.0;
+    final inset = desktop ? meshDesktopWorkspaceInset : 0.0;
+    final theme = Theme.of(context);
     final style = MeshStyle.of(context);
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final nativeNavigation = useIosControls;
+    final detailTheme = desktop && _split
+        ? style.desktopConversationTheme(theme)
+        : theme;
+    final sidebarLeft = rail + 2 * inset;
+    final divider = _split ? (_desktopRail ? 6.0 : 1.0) : 0.0;
+    final maximum = math.min(480.0, size.width - sidebarLeft - divider - 400);
+    final minimum = math.min(300.0, maximum);
+    final sidebarWidth = _split
+        ? (_resizedChatListWidth ?? (size.width - sidebarLeft) / 3)
+              .clamp(minimum, maximum)
+              .toDouble()
+        : size.width - sidebarLeft - inset;
+    final sidebarCanGoBack =
+        (_split || !_detailOpen) &&
+        (_searchActive || _editingChats || _showHidden);
+    final sidebarCovered = !_split && _detailOpen;
+    final top = _detailObserver.top;
+    final detailMotion = top is TransitionRoute<dynamic> ? top.animation : null;
+    var detailMedia = MediaQuery.of(context).removePadding(removeLeft: _split);
+    if (desktop && _split) {
+      detailMedia = detailMedia.copyWith(
+        padding: detailMedia.padding + EdgeInsets.only(top: inset),
+        viewPadding: detailMedia.viewPadding + EdgeInsets.only(top: inset),
+      );
+    }
+    Widget behindDetail(Widget child) => AnimatedBuilder(
+      animation: detailMotion ?? const AlwaysStoppedAnimation(1.0),
+      builder: (context, child) => Offstage(
+        offstage:
+            sidebarCovered &&
+            !_detailBackGesture &&
+            detailMotion?.isCompleted == true,
+        child: child,
+      ),
+      child: ExcludeFocus(
+        excluding: sidebarCovered,
+        child: ExcludeSemantics(
+          excluding: sidebarCovered,
+          child: IgnorePointer(ignoring: sidebarCovered, child: child),
+        ),
+      ),
+    );
     return PopScope(
-      canPop: !_searchActive && !_editingChats && !_showHidden,
+      canPop: !sidebarCanGoBack,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (_searchActive) {
-          _exitSearch();
-        } else if (_editingChats) {
-          _toggleChatEditing();
-        } else if (_showHidden) {
-          _showChats(false);
-        }
+        if (!didPop && sidebarCanGoBack) _dismissSidebarMode();
       },
-      child: Scaffold(
-        // The keyboard can resize the content without relocating the navigation.
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                bottom: keyboard,
-                child: IgnorePointer(
-                  ignoring: _tabs.shown != _tabs.selected,
-                  child: FadeTransition(
-                    opacity: _tabs.opacity,
-                    child: _tabs.shown == 0
-                        ? _chatScene(style, keyboard)
-                        : _settings(style),
+      child: CallbackShortcuts(
+        bindings: desktop
+            ? {
+                const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+                    _showWorkspaceSearch,
+                const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+                    _showWorkspaceSearch,
+                const SingleActivator(LogicalKeyboardKey.escape): () {
+                  if (_searchActive || _editingChats || _showHidden) {
+                    _dismissSidebarMode();
+                  } else {
+                    unawaited(_detailKey.currentState?.maybePop());
+                  }
+                },
+              }
+            : const {},
+        child: Focus(
+          autofocus: desktop,
+          child: RepaintBoundary(
+            key: _previewBackground,
+            child: Stack(
+              children: [
+                if (desktop)
+                  Positioned.fill(
+                    child: ColoredBox(color: style.desktopConversationCanvas),
                   ),
-                ),
-              ),
-              if (_tabs.shown == 0 && _editingChats && !_searchActive)
+                if (_desktopRail)
+                  Positioned(
+                    top: inset,
+                    bottom: inset,
+                    left: inset,
+                    width: rail,
+                    child: behindDetail(_folderRail()),
+                  ),
                 Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: MeshNavigation.bottomContentInset(context),
-                  child: _chatActionsBar(),
-                )
-              else if (!_searchActive)
-                Positioned(
-                  left: nativeNavigation ? 0 : 14,
-                  right: nativeNavigation ? 0 : 14,
-                  bottom: MeshNavigation.bottomBarOffset(context),
-                  child: ExcludeSemantics(
-                    excluding: keyboard > 0,
-                    child: IgnorePointer(
-                      ignoring: keyboard > 0,
-                      child: MeshNavigation(
-                        index: _tabs.selected,
-                        unread: controller.unreadTotal,
-                        settingsUnread: controller.unreadOnOtherRadios,
-                        onSelect: _selectTab,
-                      ),
+                  left: sidebarLeft,
+                  top: inset,
+                  bottom: inset,
+                  width: sidebarWidth,
+                  child: behindDetail(
+                    MediaQuery.removePadding(
+                      context: context,
+                      removeLeft: _desktopRail,
+                      removeRight: _split,
+                      child: desktop
+                          ? DesktopWorkspacePanel(
+                              child: Builder(builder: _sidebar),
+                            )
+                          : ClipRect(child: Builder(builder: _sidebar)),
                     ),
                   ),
                 ),
-            ],
+                if (_split)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    left: sidebarLeft + sidebarWidth,
+                    width: divider,
+                    child: _desktopRail
+                        ? ChatWorkspaceResizeHandle(
+                            onResize: (delta) => setState(() {
+                              _resizedChatListWidth = (sidebarWidth + delta)
+                                  .clamp(minimum, maximum)
+                                  .toDouble();
+                            }),
+                          )
+                        : ColoredBox(color: MeshStyle.of(context).separator),
+                  ),
+                if (_workspaceEnabled)
+                  Positioned(
+                    key: const ValueKey('conversation-pane'),
+                    left: _split ? sidebarLeft + sidebarWidth + divider : 0,
+                    top: 0,
+                    bottom: 0,
+                    right: 0,
+                    // A route in the detail navigator can block earlier
+                    // semantics within its pane, while the list stays usable.
+                    child: Semantics(
+                      container: true,
+                      explicitChildNodes: true,
+                      child: IgnorePointer(
+                        ignoring: !_split && !_detailOpen,
+                        child: MediaQuery(
+                          data: detailMedia,
+                          child: Theme(
+                            data: detailTheme,
+                            child: ChatWorkspacePane(
+                              split: _split,
+                              visible: ModalRoute.isCurrentOf(context) != false,
+                              child: NavigatorPopHandler<void>(
+                                enabled: _detailOpen && !sidebarCanGoBack,
+                                onPopWithResult: (_) => unawaited(
+                                  _detailKey.currentState?.maybePop(),
+                                ),
+                                child: ScaffoldMessenger(
+                                  child: Navigator(
+                                    key: _detailKey,
+                                    observers: [_detailObserver],
+                                    onGenerateRoute: (_) =>
+                                        PageRouteBuilder<void>(
+                                          opaque: false,
+                                          transitionDuration: Duration.zero,
+                                          reverseTransitionDuration:
+                                              Duration.zero,
+                                          pageBuilder: (context, _, _) =>
+                                              ChatWorkspacePane.of(context)!
+                                                  .split
+                                              ? _noConversation(context)
+                                              : const SizedBox.shrink(),
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  void _dismissSidebarMode() {
+    if (_searchActive) {
+      _exitSearch();
+    } else if (_editingChats) {
+      _toggleChatEditing();
+    } else if (_showHidden) {
+      _showChats(false);
+    }
+  }
+
+  void _showWorkspaceSearch() {
+    if (_editingChats) _toggleChatEditing();
+    if (_showHidden) _showChats(false);
+    if (_selectedTab != 0) _selectTab(0);
+    _enterSearch();
+  }
+
+  Widget _noConversation(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      const MeshChatWallpaper(),
+      Center(
+        child: GlassSurface(
+          radius: 14,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            child: Text(tr(context, 'Выберите чат', 'Select a chat')),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  List<String> _builtInFolders(BuildContext context) => [
+    tr(context, 'Все', 'All'),
+    tr(context, 'Личные', 'Direct'),
+    tr(context, 'Каналы', 'Channels'),
+  ];
+
+  Widget _folderRail() {
+    final builtIn = _builtInFolders(context);
+    final folders = controller.chatFolders;
+    final editing = _editingChats && !_showHidden && !_searchActive;
+    final unread = controller.cache?.unread;
+    final unreadPeers = controller.cache?.markedUnread;
+    final chats = controller.conversations;
+    return ChatFolderRail(
+      builtInLabels: builtIn,
+      folders: folders,
+      editing: editing,
+      scrollController: _folderRailScroll,
+      onEdit: (id) => unawaited(_editFolder(id)),
+      onDelete: (id) => unawaited(_deleteFolder(id)),
+      onReorder: _reorderFolders,
+      selected: _selectedTab == 0 ? _chatCategories.selected : null,
+      settingsSelected: _selectedTab == 1,
+      unread: [
+        for (var i = 0; i < builtIn.length + folders.length; i++)
+          chats.where((peer) => _matchesChatTab(peer, i)).fold(0, (
+            count,
+            peer,
+          ) {
+            final value = unread?[peer.id] ?? 0;
+            return count +
+                (value == 0 && unreadPeers?.contains(peer.id) == true
+                    ? 1
+                    : value);
+          }),
+      ],
+      settingsUnread: controller.unreadOnOtherRadios,
+      onFolder: (index) {
+        if (_flashingFirmware) return;
+        if (!editing) _dismissSidebarMode();
+        if (_selectedTab != 0) _selectTab(0);
+        _selectChatTab(index);
+      },
+      onSettings: () {
+        _dismissSidebarMode();
+        _openSettings();
+      },
+    );
+  }
+
+  Widget _sidebar(BuildContext context) {
+    final style = MeshStyle.of(context);
+    final background = _desktopRail ? style.desktopPanel : style.canvas;
+    final keyboard = !_split || _searchActive
+        ? MediaQuery.viewInsetsOf(context).bottom
+        : 0.0;
+    final nativeNavigation = useIosControls;
+    final showingChats = _selectedTab == 0;
+    return Scaffold(
+      backgroundColor: background,
+      // The keyboard can resize the content without relocating the navigation.
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              bottom: keyboard,
+              child: AnimatedBuilder(
+                animation: _settingsFade,
+                child: _chatScene(style, keyboard),
+                builder: (context, chats) => Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Keep the list and its scroll controller attached.
+                    Offstage(
+                      offstage: _settingsFade.value == 1,
+                      child: ExcludeFocus(
+                        excluding: !showingChats,
+                        child: ExcludeSemantics(
+                          excluding: !showingChats,
+                          child: IgnorePointer(
+                            ignoring: !showingChats,
+                            child: IosControlVisibility(
+                              visible: showingChats && _settingsFade.value == 0,
+                              child: chats!,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!showingChats || _settingsFade.value > 0)
+                      FadeTransition(
+                        key: const ValueKey('settings-fade'),
+                        opacity: _settingsFade,
+                        child: ExcludeFocus(
+                          excluding: showingChats,
+                          child: ExcludeSemantics(
+                            excluding: showingChats,
+                            child: IgnorePointer(
+                              ignoring: showingChats,
+                              child: ColoredBox(
+                                color: background,
+                                child: IosControlVisibility(
+                                  visible:
+                                      !showingChats && _settingsFade.value == 1,
+                                  child: _settings(style),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (showingChats && _editingChats && !_searchActive)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: MeshNavigation.bottomContentInset(context),
+                child: _chatActionsBar(),
+              )
+            else if (!_searchActive && !_desktopRail)
+              Positioned(
+                left: nativeNavigation ? 0 : 14,
+                right: nativeNavigation ? 0 : 14,
+                bottom: MeshNavigation.bottomBarOffset(context),
+                child: ExcludeSemantics(
+                  excluding: keyboard > 0,
+                  child: IgnorePointer(
+                    ignoring: keyboard > 0,
+                    child: MeshNavigation(
+                      index: _selectedTab,
+                      unread: controller.unreadTotal,
+                      settingsUnread: controller.unreadOnOtherRadios,
+                      onSelect: _selectTab,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   double get _scrollBottom =>
-      MeshNavigation.contentHeight(context) +
+      (_desktopRail && !_editingChats
+          ? 0
+          : MeshNavigation.contentHeight(context)) +
       MeshNavigation.bottomContentInset(context) +
       9;
 
@@ -488,7 +1352,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final safe = MediaQuery.paddingOf(context);
       final scaler = MediaQuery.textScalerOf(context);
       final caption = _showHidden
-          ? tr(context, 'Скрытые чаты', 'Hidden chats')
+          ? tr(context, 'Архив', 'Archive')
           : tr(context, 'Чаты', 'Chats');
       final headingText = TextPainter(
         text: TextSpan(
@@ -506,15 +1370,15 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ..collapseRange = !_editingChats && !_showHidden && !_searchActive
             ? collapseRange
             : 0
+        ..trailingSnapExtent = _archiveCanScrollAway ? _archiveExtent : 0
         ..reduceMotion = MediaQuery.disableAnimationsOf(context);
       final normalFieldTop = safe.top + headingHeight + 3;
       final normalCategoriesTop = normalFieldTop + fieldHeight + 9;
       final categoryHeight = ChatFilters.contentHeight(context);
-      final categoriesInChats =
-          (_showHidden
-                  ? controller.hiddenConversations
-                  : controller.conversations)
-              .isNotEmpty;
+      final hasChatCategories =
+          !_showHidden &&
+          (controller.active != null || controller.conversations.isNotEmpty);
+      final categoriesInChats = hasChatCategories && !_desktopRail;
       final categoriesInSearch =
           controller.peers.isNotEmpty || controller.conversations.isNotEmpty;
       final searchBottom = (keyboard > 0 ? 0 : safe.bottom) + 2;
@@ -528,21 +1392,59 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       final searchResults = _searchActive || _searchMotion.value > 0
           ? _searchResults(style)
           : null;
+      final editSideWidth =
+          ((constraints.maxWidth - (_desktopRail ? 76 : 112)) / 2).clamp(
+            96.0,
+            _desktopRail ? 172.0 : 128.0,
+          );
       final heading = PageHeading(
         caption,
-        sideWidth: 92,
-        leading: GlassActionButton(
-          primary: false,
-          width: _editingChats ? 84 : 68,
-          label: _editingChats
-              ? tr(context, 'Готово', 'Done')
-              : tr(context, 'Изм.', 'Edit'),
-          onTap: _removingChats || (!categoriesInChats && !_editingChats)
-              ? null
-              : _toggleChatEditing,
-        ),
-        trailing: _editingChats || _showHidden
-            ? null
+        padding: _desktopRail
+            ? const EdgeInsets.fromLTRB(16, meshDesktopWorkspaceInset, 16, 8)
+            : const EdgeInsets.fromLTRB(16, 7, 16, 9),
+        sideWidth: _editingChats
+            ? editSideWidth
+            : _showHidden
+            ? 92
+            : 104,
+        leading: _showHidden && !_editingChats
+            ? GlassButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                label: tr(context, 'Назад', 'Back'),
+                onTap: () => _showChats(false),
+              )
+            : GlassActionButton(
+                primary: false,
+                width: _editingChats ? 84 : 68,
+                label: _editingChats
+                    ? tr(context, 'Готово', 'Done')
+                    : tr(context, 'Изм.', 'Edit'),
+                onTap: _removingChats || (!hasChatCategories && !_editingChats)
+                    ? null
+                    : _toggleChatEditing,
+              ),
+        trailing: _showHidden && !_editingChats
+            ? GlassActionButton(
+                primary: false,
+                width: 68,
+                label: tr(context, 'Изм.', 'Edit'),
+                onTap: controller.hiddenConversations.isNotEmpty
+                    ? _toggleChatEditing
+                    : null,
+              )
+            : _editingChats
+            ? (_showHidden
+                  ? null
+                  : GlassActionButton(
+                      primary: false,
+                      width: editSideWidth,
+                      fitContent: _desktopRail,
+                      icon: Icons.create_new_folder_outlined,
+                      label: tr(context, 'Добавить', 'Add'),
+                      onTap: controller.active == null || _removingChats
+                          ? null
+                          : () => unawaited(_addFolder()),
+                    ))
             : GlassButton(
                 icon: Icons.edit_note_rounded,
                 label: tr(context, 'Новый чат', 'New chat'),
@@ -550,20 +1452,22 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 onTap: _newChat,
               ),
       );
-      final categoryBar = ChatFilters(
-        selected: _searchActive
-            ? _searchCategories.selected
-            : _chatCategories.selected,
-        onSelect: (index) {
-          if (_searchActive) {
-            _select(_searchCategories, index);
-          } else if (!_removingChats && index != _chatCategories.selected) {
-            _revealedChat = null;
-            _selectedChats.clear();
-            _select(_chatCategories, index);
-          }
-        },
-      );
+      final categoryBar = _searchActive || _showHidden
+          ? ChatFilters(
+              selected: _searchActive ? _searchCategories.selected : 0,
+              onSelect: (index) => _select(_searchCategories, index),
+            )
+          : ChatFolderTabs(
+              builtInLabels: _builtInFolders(context),
+              folders: controller.chatFolders,
+              scrollController: _folderTabsScroll,
+              selected: _chatCategories.selected,
+              editing: _editingChats,
+              onSelect: _selectChatTab,
+              onReorder: _reorderFolders,
+              onEdit: (id) => unawaited(_editFolder(id)),
+              onDelete: (id) => unawaited(_deleteFolder(id)),
+            );
       final closeSearch = GlassButton(
         icon: Icons.close_rounded,
         label: tr(context, 'Закрыть поиск', 'Close search'),
@@ -642,8 +1546,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 height: lerpDouble(headerHeight, resultsTop, progress)!,
                 child: MeshScrollEdge(
                   top: true,
-                  tint: style.canvas,
+                  tint: _desktopRail ? style.desktopPanel : style.canvas,
                   opaqueEdge: true,
+                  blur: !_desktopRail,
                 ),
               ),
               if (progress < 1)
@@ -706,6 +1611,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
 
   Widget _chats(MeshStyle style, double headerHeight, double collapseRange) {
     final hiddenCount = controller.hiddenConversations.length;
+    final background = _desktopRail ? style.desktopPanel : style.canvas;
+    final folder = _chatFolder;
+    final pins = _chatPins(folder);
     final visible = _visibleChats();
     Widget item(BuildContext context, int index) {
       final peer = visible[index];
@@ -715,6 +1623,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         editing: _editingChats,
         reorderIndex: index,
         selected: _selectedChats.contains(peer.id),
+        pinned: pins.contains(peer.id),
         onTap: _editingChats
             ? () {
                 if (!_removingChats) {
@@ -730,20 +1639,23 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       return FadeTransition(
         key: ValueKey(peer.id),
         opacity: _chatCategories.visibility(
-          shared: _inCategory(peer, _chatCategories.counterpart),
+          shared: _matchesChatTab(peer, _chatCategories.counterpart),
         ),
         child: Column(
           children: [
             if (_editingChats)
-              ColoredBox(color: style.canvas, child: row)
+              ColoredBox(color: background, child: row)
             else
               ChatSwipeRow(
+                backgroundColor: background,
                 revealed: _revealedChat == peer.id,
                 hidden: _showHidden,
                 onReveal: (opened) =>
                     setState(() => _revealedChat = opened ? peer.id : null),
                 onVisibility: () => _changeVisibility([peer]),
                 onDelete: () => unawaited(_deleteChats([peer])),
+                onPin: () => _toggleChatPin(folder, peer.id),
+                pinned: pins.contains(peer.id),
                 child: row,
               ),
             if (index != visible.length - 1)
@@ -758,39 +1670,22 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
       );
     }
 
-    return MeshScrollViewport(
-      tint: style.canvas,
+    final viewport = MeshScrollViewport(
+      tint: background,
       fadeTop: false,
       edgeExtent: _scrollBottom,
+      blur: !_desktopRail,
       child: CustomScrollView(
         key: const PageStorageKey('chats'),
         controller: _chatScroll,
+        physics: _archivePhysics,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
           SliverToBoxAdapter(child: SizedBox(height: headerHeight)),
-          if (_showHidden || hiddenCount > 0)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: GlassActionButton(
-                    width: 166,
-                    height: 38,
-                    primary: false,
-                    label: _showHidden
-                        ? tr(context, 'Все чаты', 'All chats')
-                        : tr(
-                            context,
-                            'Скрытые ($hiddenCount)',
-                            'Hidden ($hiddenCount)',
-                          ),
-                    onTap: _editingChats
-                        ? null
-                        : () => _showChats(!_showHidden),
-                  ),
-                ),
-              ),
+          if (_archiveAvailable && hiddenCount > 0)
+            ChatArchiveSliver(
+              retraction: _archiveRetraction,
+              child: _archiveRow(style, hiddenCount),
             ),
           if (visible.isNotEmpty) ...[
             SliverPadding(
@@ -824,7 +1719,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     height: math.max(
                       0,
                       layout.viewportMainAxisExtent +
-                          collapseRange -
+                          collapseRange +
+                          (_archiveRevealed && _archiveAvailable
+                              ? _archiveExtent
+                              : 0) -
                           layout.precedingScrollExtent,
                     ),
                   ),
@@ -913,8 +1811,209 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                 ),
               ),
             ),
+          if (visible.isEmpty && _archiveRevealed && _archiveAvailable)
+            SliverToBoxAdapter(
+              child: SizedBox(height: collapseRange + _archiveExtent),
+            ),
         ],
       ),
+    );
+    return Semantics(
+      customSemanticsActions: {
+        if (_archiveAvailable && hiddenCount > 0)
+          CustomSemanticsAction(label: tr(context, 'Архив', 'Archive')): () =>
+              _showChats(true),
+      },
+      child: Listener(
+        onPointerDown: (event) {
+          if (_canPullArchive) _archivePointer ??= event.pointer;
+        },
+        onPointerUp: (event) {
+          if (event.pointer == _archivePointer) {
+            _finishArchiveDrag(released: true);
+          }
+        },
+        onPointerCancel: (event) {
+          if (event.pointer == _archivePointer) {
+            _finishArchiveDrag(released: false);
+          }
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _trackArchiveScroll,
+          child: viewport,
+        ),
+      ),
+    );
+  }
+
+  void _setArchiveHidden(bool hidden) {
+    if (controller.archiveHidden == hidden) return;
+    final radio = controller.active;
+    _applyArchivePreference(hidden);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hidden
+              ? tr(context, 'Архив скрыт', 'Archive hidden')
+              : tr(context, 'Архив закреплён', 'Archive pinned'),
+        ),
+        action: SnackBarAction(
+          label: tr(context, 'Отменить', 'Undo'),
+          onPressed: () {
+            if (mounted && controller.active == radio) {
+              _applyArchivePreference(!hidden);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _applyArchivePreference(bool hidden) {
+    setState(() {
+      _resetArchiveDrag();
+      _archiveRevealed = false;
+      _archiveSwipeOpen = false;
+      _archiveClosingShownRow = hidden;
+    });
+    controller.setArchiveHidden(hidden);
+    _settleArchive();
+  }
+
+  String _archiveAction(bool hidden) => hidden
+      ? tr(context, 'Закрепить в списке', 'Pin in the list')
+      : tr(context, 'Скрыть из списка', 'Hide from the list');
+
+  Future<void> _archiveMenu(Offset position) async {
+    final hidden = controller.archiveHidden;
+    final radio = controller.active;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final anchor = overlay.globalToLocal(position) & Size.zero;
+    final next = await showMenu<bool>(
+      context: context,
+      position: RelativeRect.fromSize(anchor, overlay.size),
+      items: [
+        PopupMenuItem(value: !hidden, child: Text(_archiveAction(hidden))),
+      ],
+    );
+    if (mounted && controller.active == radio && next != null) {
+      _setArchiveHidden(next);
+    }
+  }
+
+  Widget _archiveRow(MeshStyle style, int count) {
+    final hidden = controller.archiveHidden;
+    final shown = !hidden || _archiveRevealed;
+    final label = tr(context, 'Архив', 'Archive');
+    return AnimatedBuilder(
+      animation: Listenable.merge([_archiveProgress, _chatScroll]),
+      builder: (context, _) {
+        final extent = _archiveExtent;
+        final progress = _archiveProgress.value;
+        if (progress == 0) return const SizedBox.shrink();
+        var visibleFraction = progress;
+        if (_archiveCanScrollAway &&
+            _chatScroll.hasClients &&
+            _chatScroll.position.hasContentDimensions) {
+          final covered = math.max(
+            0.0,
+            _chatScroll.position.extentBefore - _chatScroll.collapseRange,
+          );
+          visibleFraction = (progress - covered / extent).clamp(0.0, 1.0);
+        }
+        final opacity = Curves.easeInOut.transform(visibleFraction);
+        final displaysArchive = shown || _archiveClosingShownRow;
+        final row = ListTile(
+          key: const ValueKey('archive-row'),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: MeshRowIcon(
+            icon: displaysArchive
+                ? Icons.archive_outlined
+                : _archiveReady
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_downward_rounded,
+            tint: displaysArchive || _archiveReady
+                ? style.accent
+                : style.secondary,
+          ),
+          title: Text(
+            displaysArchive || _archiveIsIos
+                ? label
+                : _archiveReady
+                ? tr(
+                    context,
+                    'Отпустите, чтобы показать архив',
+                    'Release to show Archive',
+                  )
+                : tr(
+                    context,
+                    'Потяните, чтобы показать архив',
+                    'Pull down to show Archive',
+                  ),
+          ),
+          trailing: displaysArchive ? Text('$count') : null,
+          onTap: shown ? () => _showChats(true) : null,
+        );
+        final content = shown
+            ? SwipeActionsRow(
+                revealed: _archiveSwipeOpen,
+                onReveal: (open) => setState(() => _archiveSwipeOpen = open),
+                surface: style.canvas,
+                background: style.canvas,
+                actions: [
+                  (
+                    label: _archiveAction(hidden),
+                    icon: hidden
+                        ? Icons.push_pin_outlined
+                        : Icons.visibility_off_outlined,
+                    color: style.accent,
+                    onTap: () => _setArchiveHidden(!hidden),
+                  ),
+                ],
+                child: Semantics(
+                  customSemanticsActions: {
+                    CustomSemanticsAction(label: _archiveAction(hidden)): () =>
+                        _setArchiveHidden(!hidden),
+                  },
+                  child: GestureDetector(
+                    onLongPressStart: (details) =>
+                        unawaited(_archiveMenu(details.globalPosition)),
+                    child: row,
+                  ),
+                ),
+              )
+            : ExcludeSemantics(child: IgnorePointer(child: row));
+        return IgnorePointer(
+          ignoring: opacity == 0,
+          child: Opacity(
+            key: const ValueKey('archive-opacity'),
+            opacity: opacity,
+            child: ClipRect(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                heightFactor: progress,
+                child: SizedBox(
+                  height: extent,
+                  child: Center(
+                    child: AnimatedPadding(
+                      duration: meshMotion(context),
+                      curve: Curves.easeOutCubic,
+                      padding: EdgeInsets.only(
+                        // Center the archive between the visible folder bar
+                        // and the avatar of the first chat.
+                        bottom: _archivePointer == null
+                            ? ChatFolderTabs.verticalInset(context)
+                            : 0,
+                      ),
+                      child: content,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -946,6 +2045,21 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     bool matchesFilter(Peer peer) => _inCategory(peer, _searchCategories.shown);
     bool unchanged(Peer peer) =>
         _inCategory(peer, _searchCategories.counterpart);
+    final scopedMessages = (controller.cache?.messages ?? const <MeshMessage>[])
+        .where((message) {
+          final peer = peers[message.chat];
+          return peer != null && matchesFilter(peer);
+        });
+    final seekingMessages = query.isNotEmpty || !_messageSearchFilters.isEmpty;
+    final hits = seekingMessages
+        ? (scopedMessages
+              .where(
+                (message) =>
+                    _messageSearchFilters.accepts(controller, message, query),
+              )
+              .toList()
+            ..sort((a, b) => b.time.compareTo(a.time)))
+        : const <MeshMessage>[];
     final matching = query.isEmpty
         ? [
             for (final id in controller.cache?.searchHistory ?? const [])
@@ -953,17 +2067,13 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           ]
         : [
             for (final peer in ordered)
-              if (peer.name.toLowerCase().contains(query) ||
-                  controller
-                      .messages(peer.id)
-                      .any(
-                        (message) => message.text.toLowerCase().contains(query),
-                      ))
-                peer,
+              if (peer.name.toLowerCase().contains(query)) peer,
           ];
-    final results = matching.where(matchesFilter).toList();
+    final results = _messageSearchFilters.isEmpty
+        ? matching.where(matchesFilter).toList()
+        : <Peer>[];
     final counterpartHasResults = matching.any(unchanged);
-    final shortcuts = query.isEmpty
+    final shortcuts = !seekingMessages
         ? ordered.where(matchesFilter).take(10).toList()
         : <Peer>[];
     final counterpartShortcuts = query.isEmpty
@@ -984,6 +2094,35 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
           child: CustomScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
+              SliverToBoxAdapter(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 14),
+                    child: GlassButton(
+                      icon: Icons.tune_rounded,
+                      label: tr(
+                        context,
+                        'Фильтры сообщений',
+                        'Message filters',
+                      ),
+                      primary: !_messageSearchFilters.isEmpty,
+                      onTap: () async {
+                        _dismissSearchKeyboard();
+                        final filters = await showMessageSearchFilters(
+                          context,
+                          controller: controller,
+                          messages: scopedMessages,
+                          filters: _messageSearchFilters,
+                        );
+                        if (mounted && _searchActive && filters != null) {
+                          setState(() => _messageSearchFilters = filters);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
               if (shortcuts.isNotEmpty)
                 SliverToBoxAdapter(
                   child: SizedBox(
@@ -1063,7 +2202,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-              if (query.isNotEmpty && results.isEmpty)
+              if (seekingMessages && results.isEmpty && hits.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: FadeTransition(
@@ -1099,6 +2238,47 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
+              if (hits.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 9, 16, 0),
+                    child: Text(
+                      tr(context, 'Сообщения', 'Messages'),
+                      style: TextStyle(
+                        color: style.secondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              if (hits.isNotEmpty)
+                SliverList.builder(
+                  itemCount: hits.length,
+                  itemBuilder: (_, index) {
+                    final message = hits[index];
+                    return MessageSearchResultTile(
+                      key: ValueKey((message.chat, message.id)),
+                      controller: controller,
+                      message: message,
+                      query: query,
+                      chatName: peers[message.chat]?.name,
+                      onTap: () {
+                        _dismissSearchKeyboard();
+                        controller.rememberSearch(message.chat);
+                        if (_split) _exitSearch();
+                        unawaited(
+                          openMeshMessage(
+                            context,
+                            controller: controller,
+                            chatId: message.chat,
+                            messageId: message.id,
+                            open: _openDetail,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -1111,6 +2291,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     MeshStyle style, {
     bool editing = false,
     bool selected = false,
+    bool pinned = false,
     int reorderIndex = 0,
     VoidCallback? onTap,
   }) {
@@ -1124,10 +2305,42 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ? '${tr(context, 'Черновик', 'Draft')}: $draft'
         : message?.text ??
               (peer.channel ? tr(context, 'Канал', 'Channel') : '');
-    return InkWell(
+    final current = _split && _detailOpen && _detailPeer == peer.id;
+    Widget row(BuildContext rowContext, {bool preview = false}) => InkWell(
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
-      onTap: onTap ?? () => unawaited(_openChat(peer)),
+      hoverColor: meshDesktop(context) ? Colors.transparent : null,
+      onTap: preview ? null : onTap ?? () => unawaited(_openChat(peer)),
+      onSecondaryTapDown:
+          !preview && !editing && !_searchActive && meshDesktop(context)
+          ? (details) =>
+                unawaited(_showChatContextMenu(peer, details.globalPosition))
+          : null,
+      onLongPress: preview || editing || _searchActive
+          ? null
+          : () async {
+              final box = rowContext.findRenderObject() as RenderBox;
+              final navigator = Navigator.of(rowContext, rootNavigator: true);
+              final overlay = navigator.overlay!.context.findRenderObject();
+              final anchor = box.localToGlobal(Offset.zero, ancestor: overlay);
+              final profile = controller.active;
+              final folder = _chatFolder;
+              final open = await showMeshChatPreview(
+                rowContext,
+                controller,
+                peer,
+                anchor & box.size,
+                sourceRow: Material(
+                  type: MaterialType.transparency,
+                  child: row(rowContext, preview: true),
+                ),
+                actions: _previewActions(peer, folder, profile),
+                backdropSource: _previewBackground,
+              );
+              if (open && mounted && controller.active == profile) {
+                await _openChat(peer);
+              }
+            },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 17, 8),
         child: Row(
@@ -1150,7 +2363,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               size: 52,
               channel: peer.channel,
               online: controller.isNodeOnline(peer.id),
-              onTap: editing
+              onTap: editing || preview
                   ? null
                   : () =>
                         unawaited(_openProfile(peer, allowReadOnlyChat: true)),
@@ -1181,6 +2394,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                             Icons.notifications_off_outlined,
                             size: 14,
                             color: style.secondary,
+                          ),
+                        ),
+                      if (pinned)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.push_pin_rounded,
+                            size: 14,
+                            color: style.secondary,
+                            semanticLabel: tr(context, 'Закреплён', 'Pinned'),
                           ),
                         ),
                     ],
@@ -1275,6 +2498,42 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
       ),
     );
+    final chat = Builder(builder: row);
+    if (!_split || editing) return chat;
+    return Semantics(
+      selected: current,
+      child: Material(
+        color: current ? style.selection : Colors.transparent,
+        child: chat,
+      ),
+    );
+  }
+
+  Future<void> _showChatContextMenu(Peer peer, Offset position) async {
+    final actions = _previewActions(peer, _chatFolder, controller.active);
+    if (actions.isEmpty) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final selection = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromSize(
+        overlay.globalToLocal(position) & Size.zero,
+        overlay.size,
+      ),
+      items: [
+        for (var i = 0; i < actions.length; i++)
+          PopupMenuItem(
+            value: i,
+            child: Text(
+              actions[i].label,
+              style: actions[i].destructive
+                  ? TextStyle(color: MeshStyle.of(context).error)
+                  : null,
+            ),
+          ),
+      ],
+    );
+    if (mounted && selection != null) actions[selection].onTap();
   }
 
   String? get _status => switch (controller.linkState) {
@@ -1301,6 +2560,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final busy = controller.linkState == LinkState.connecting;
     return ProfilePage(
       key: const PageStorageKey('settings'),
+      backgroundColor: _desktopRail ? style.desktopPanel : null,
       identity:
           (active == null ? null : controller.radioPublicKey(active)) ??
           'local:$profile',
@@ -1331,6 +2591,14 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             showChevron: false,
             onTap: busy ? null : _discoverRadios,
           ),
+          if (controller.usbTransport case final DesktopUsbTransport usb)
+            MeshRow(
+              title: tr(context, 'Прошивки', 'Firmware'),
+              icon: Icons.memory_rounded,
+              tint: _violet,
+              onTap: () =>
+                  unawaited(_openWorkspacePage((_) => FirmwarePage(usb: usb))),
+            ),
         ]),
         if (busy || controller.scanning)
           Padding(
@@ -1382,6 +2650,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         _settingsGroup([
           MeshRow(
+            title: tr(context, 'Избранное', 'Saved Messages'),
+            icon: Icons.bookmark_border_rounded,
+            tint: _blue,
+            onTap: () => unawaited(
+              showSavedChat(context, controller, open: _openDetail),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        _settingsGroup([
+          MeshRow(
             title: tr(context, 'Узлы', 'Nodes'),
             icon: Icons.hub_outlined,
             tint: _violet,
@@ -1404,14 +2683,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
               icon: Icons.notifications_outlined,
               tint: _blue,
               onTap: () => unawaited(
-                Navigator.of(context).push<void>(
-                  meshPageRoute(
-                    context,
-                    builder: (_) => NotificationSettingsPage(
-                      controller: controller,
-                      notifications: notifications,
-                      configureWifi: () => _configureWifiPush(notifications),
-                    ),
+                _openWorkspacePage(
+                  (_) => NotificationSettingsPage(
+                    controller: controller,
+                    notifications: notifications,
+                    configureWifi: () => _configureWifiPush(notifications),
                   ),
                 ),
               ),
@@ -1420,11 +2696,8 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
             title: tr(context, 'О приложении', 'About'),
             icon: Icons.info_outline_rounded,
             tint: _teal,
-            onTap: () => unawaited(
-              Navigator.of(context).push(
-                meshPageRoute<void>(context, builder: (_) => const AboutPage()),
-              ),
-            ),
+            onTap: () =>
+                unawaited(_openWorkspacePage((_) => const AboutPage())),
           ),
         ]),
       ],
@@ -1440,7 +2713,9 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final opened = _revealedRadio == id;
     final canConfigure = controller.canConfigureRadio(radio);
     final unread = selected ? 0 : controller.unreadFor(radio);
-    final local = lanEndpoint(controller.connectionRoute(radio)) != null;
+    final route = controller.connectionRoute(radio);
+    final local = lanEndpoint(route) != null;
+    final usb = usbPortOf(route) != null;
     final (iconTint, glyphColor) = switch ((connected, selected)) {
       (true, true) => (const Color(0xffd5e88b), const Color(0xff253315)),
       (true, false) => (const Color(0xffa9e0b4), const Color(0xff173c26)),
@@ -1449,6 +2724,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
     final status = selected ? _status : null;
     final connectionLabel = [
       controller.label(radio.network),
+      if (usb) 'USB',
       ?status,
     ].join(' · ');
     void close() => setState(() => _revealedRadio = null);
@@ -1472,9 +2748,17 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         child: MeshRow(
           title: radio.name,
           leading: Semantics(
-            label: local ? 'Wi-Fi' : 'Bluetooth',
+            label: usb
+                ? 'USB'
+                : local
+                ? 'Wi-Fi'
+                : 'Bluetooth',
             child: MeshRowIcon(
-              icon: local ? Icons.wifi_rounded : Icons.bluetooth_rounded,
+              icon: usb
+                  ? Icons.usb_rounded
+                  : local
+                  ? Icons.wifi_rounded
+                  : Icons.bluetooth_rounded,
               tint: iconTint,
               glyphColor: glyphColor,
             ),
@@ -1557,25 +2841,16 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
   );
 
   void _discoverRadios() => unawaited(
-    Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => RadioDiscoveryPage(controller: controller),
-      ),
-    ),
+    _openWorkspacePage((_) => RadioDiscoveryPage(controller: controller)),
   );
 
   void _nodes() => unawaited(
-    Navigator.of(context).push<void>(
-      meshPageRoute(
-        context,
-        builder: (_) => MeshNodesPage(
-          controller: controller,
-          openChat: (peer) => controller.canOpenChat(peer)
-              ? _openChat(peer)
-              : _openProfile(peer),
-          openProfile: _openProfile,
-        ),
+    _openWorkspacePage(
+      (_) => MeshNodesPage(
+        controller: controller,
+        openChat: (peer) =>
+            controller.canOpenChat(peer) ? _openChat(peer) : _openProfile(peer),
+        openProfile: _openProfile,
       ),
     ),
   );

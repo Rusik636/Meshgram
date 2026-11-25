@@ -5,6 +5,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'style.dart';
+
 import 'navigation.dart';
 
 typedef SwipeAction = ({
@@ -174,8 +176,8 @@ class _SwipeActionsRowState extends State<SwipeActionsRow>
                 child: SizedBox(
                   height: size,
                   width: size + (index == 0 ? stretch : 0),
-                  child: IconButton(
-                    tooltip: action.label,
+                  child: MeshIconButton(
+                    label: action.label,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     onPressed: action.onTap,

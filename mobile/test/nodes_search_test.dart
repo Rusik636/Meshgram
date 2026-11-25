@@ -13,6 +13,8 @@ import 'package:meshgrame/ui/nodes.dart';
 import 'package:meshgrame/ui/search_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   testWidgets('reduced motion snaps at once and leaves momentum scrolling', (
     tester,
@@ -126,9 +128,9 @@ void main() {
 
     final headingRect = tester.getRect(heading);
     final title = find.text('Nodes');
-    final back = find.byTooltip('Back');
-    final map = find.byTooltip('Node map');
-    final sort = find.byTooltip('Sort by');
+    final back = findControl('Back');
+    final map = findControl('Node map');
+    final sort = findControl('Sort by');
     final mapRect = tester.getRect(map);
     final sortRect = tester.getRect(sort);
     double titleBetween(Finder action) =>
@@ -160,7 +162,7 @@ void main() {
     expect(find.text('Trail radio 7'), findsOneWidget);
     expect(find.byType(MeshNodeRow), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close search'));
+    await tester.tap(findControl('Close search'));
     tester.view.resetViewInsets();
     await tester.pumpAndSettle();
     expect(tester.getRect(field), expanded);
@@ -205,7 +207,7 @@ void main() {
     browseScroll.jumpTo(browseOffset);
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Search nodes'));
+    await tester.tap(findControl('Search nodes'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
     expect(tester.getRect(field).width, greaterThan(compact.width));
@@ -215,7 +217,7 @@ void main() {
     expect(tester.getRect(field).bottom, closeTo(784, .5));
     expect(tester.getRect(heading), headingRect);
     expect(titleX(), closeTo(expandedTitle, .01));
-    await tester.tap(find.byTooltip('Close search'));
+    await tester.tap(findControl('Close search'));
     await tester.pumpAndSettle();
     expect(tester.getRect(field), compact);
     expect(titleX(), closeTo(compactTitle, .01));
@@ -223,7 +225,7 @@ void main() {
       tester.widget<CustomScrollView>(list).controller!.offset,
       browseOffset,
     );
-    await tester.tap(find.byTooltip('Search nodes'));
+    await tester.tap(findControl('Search nodes'));
     await tester.pumpAndSettle();
     await tester.enterText(editor, '!ABCDEF07');
     tester.view.physicalSize = const Size(844, 390);
@@ -240,7 +242,7 @@ void main() {
     expect(find.text('Trail radio 7'), findsOneWidget);
     expectSoftHeader();
 
-    await tester.tap(find.byTooltip('Close search'));
+    await tester.tap(findControl('Close search'));
     tester.view.resetViewInsets();
     await tester.pumpAndSettle();
     final rotated = tester.getRect(field);

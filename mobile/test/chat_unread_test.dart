@@ -11,6 +11,8 @@ import 'package:meshgrame/ui/channel_avatars.dart';
 import 'package:meshgrame/ui/chat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 const _chat = (
   id: 'node:42',
   name: 'Mountain relay',
@@ -80,9 +82,18 @@ void main() {
       final scroll = tester
           .widget<ChatMessageList>(find.byType(ChatMessageList))
           .controller!;
-      final latest = find.byTooltip('Go to latest message');
+      final latest = findControl('Go to latest message');
 
-      expect(find.text('Unread messages'), findsOneWidget);
+      final unread = find.byKey(const ValueKey('unread-divider'));
+      final label = find.text('Unread messages');
+      final lines = find.descendant(of: unread, matching: find.byType(Divider));
+      expect(label, findsOneWidget);
+      expect(lines, findsNWidgets(2));
+      expect(
+        tester.getSize(lines.first).width,
+        tester.getSize(lines.last).width,
+      );
+      expect(tester.getCenter(label).dx, tester.getCenter(unread).dx);
       expect(
         find.byKey(const ValueKey('packet:30')).hitTestable(),
         findsOneWidget,
@@ -125,7 +136,7 @@ void main() {
       expect(tester.getTopLeft(anchor).dy, closeTo(y, 1.0));
       expect(controller.cache!.unread[_chat.id], 1);
       expect(find.bySemanticsLabel('Unread: 1'), findsOneWidget);
-      await tester.tap(find.byTooltip('Go to latest message'));
+      await tester.tap(findControl('Go to latest message'));
       await tester.pumpAndSettle();
       expect(controller.cache!.unread[_chat.id], isNull);
 

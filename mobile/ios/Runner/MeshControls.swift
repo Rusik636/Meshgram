@@ -33,6 +33,9 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
       return surface
     }
     let channel = FlutterMethodChannel(name: "meshgrame/controls/\(id)", binaryMessenger: messenger)
+    if kind == "chatPreviewBackdrop" {
+      return MeshChatPreviewBackdrop(frame: frame, channel: channel, input: input)
+    }
     if input["kind"] as? String == "messageGlass" {
       return MeshMessageGlass(frame: frame, input: input)
     }
@@ -41,6 +44,9 @@ final class MeshControlsFactory: NSObject, FlutterPlatformViewFactory {
     }
     if input["kind"] as? String == "tabs" {
       return MeshTabs(frame, channel, input)
+    }
+    if kind == "folderTabs" {
+      return MeshFolderTabs(frame, channel, input)
     }
     if input["kind"] as? String == "chatSearch" {
       return MeshSearchField(frame: frame, channel: channel, input: input)
@@ -61,6 +67,75 @@ private final class MeshPassiveSurface: UIView, FlutterPlatformView {
 
   required init?(coder: NSCoder) { nil }
   func view() -> UIView { self }
+}
+
+// The chat list mixes Flutter content and UIKit controls. A single UIKit
+// effect samples both without clipping the blur to each platform view.
+private final class MeshChatPreviewBackdrop: NSObject, FlutterPlatformView {
+  private let surface: UIView
+  private let blur = UIVisualEffectView()
+  private let dim = UIView()
+  private let channel: FlutterMethodChannel
+  private var animator: UIViewPropertyAnimator?
+  private var darkStyle = false
+
+  init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
+    surface = UIView(frame: frame)
+    self.channel = channel
+    super.init()
+    surface.isUserInteractionEnabled = false
+    surface.accessibilityElementsHidden = true
+    for layer in [blur, dim] {
+      layer.frame = surface.bounds
+      layer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      surface.addSubview(layer)
+    }
+    update(input)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "update", let input = call.arguments as? [String: Any] else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self?.update(input)
+      result(nil)
+    }
+  }
+
+  deinit {
+    animator?.stopAnimation(true)
+    channel.setMethodCallHandler(nil)
+  }
+
+  func view() -> UIView { surface }
+
+  private func update(_ input: [String: Any]) {
+    let progress = CGFloat(input["progress"] as? Double ?? 0)
+    let dark = input["dark"] as? Bool == true
+    let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+    if input["blur"] as? Bool == true && !reduceTransparency {
+      if animator == nil || dark != darkStyle {
+        animator?.stopAnimation(true)
+        blur.effect = nil
+        darkStyle = dark
+        let effect = UIBlurEffect(style: dark ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight)
+        let newAnimator = UIViewPropertyAnimator(duration: 1, curve: .linear) { [weak blur] in
+          blur?.effect = effect
+        }
+        newAnimator.pausesOnCompletion = true
+        newAnimator.startAnimation()
+        newAnimator.pauseAnimation()
+        animator = newAnimator
+      }
+      animator?.fractionComplete = progress
+    } else {
+      animator?.stopAnimation(true)
+      animator = nil
+      blur.effect = nil
+    }
+    let color = meshColor(input["color"], .black)
+    let opacity = reduceTransparency ? max(0.85, color.cgColor.alpha) : color.cgColor.alpha
+    dim.backgroundColor = color.withAlphaComponent(opacity * progress)
+  }
 }
 
 // UIKit may sample Flutter's overlay when a live backdrop sits beneath its
@@ -117,25 +192,70 @@ private final class MeshMessageGlass: UIView, FlutterPlatformView {
   }
 }
 
+private final class MeshModalGlassView: UIView {
+  let glass: UIVisualEffectView
+  private let showsRim: Bool
+  var radius: CGFloat = 22 {
+    didSet { if radius != oldValue { setNeedsLayout() } }
+  }
+  private let aperture = UIView()
+
+  init(frame: CGRect, effect: UIVisualEffect, showsRim: Bool) {
+    glass = UIVisualEffectView(effect: effect)
+    self.showsRim = showsRim
+    super.init(frame: frame)
+    aperture.backgroundColor = .white
+    glass.clipsToBounds = true
+    addSubview(glass)
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let radius = min(self.radius, min(bounds.width, bounds.height) / 2)
+    if #available(iOS 26.0, *) {
+      if showsRim {
+        glass.frame = bounds
+        glass.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
+        return
+      }
+      // The glass edge sits outside the visible shape, leaving the native
+      // refraction inside without its bright rim.
+      let outset: CGFloat = 4
+      glass.frame = bounds.insetBy(dx: -outset, dy: -outset)
+      glass.cornerConfiguration = .uniformCorners(radius: .fixed(radius + outset))
+      aperture.frame = CGRect(origin: CGPoint(x: outset, y: outset), size: bounds.size)
+      aperture.layer.cornerRadius = radius
+      glass.mask = nil
+      glass.mask = aperture
+    } else {
+      glass.frame = bounds
+      glass.layer.cornerRadius = radius
+      glass.layer.cornerCurve = .continuous
+    }
+  }
+}
+
 private final class MeshModalGlass: NSObject, FlutterPlatformView {
-  private let surface: UIVisualEffectView
+  private let surface: MeshModalGlassView
   private let channel: FlutterMethodChannel
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
+    let clear = input["clear"] as? Bool == true
     let effect: UIVisualEffect
     if #available(iOS 26.0, *) {
-      let glass = UIGlassEffect(style: .regular)
+      let glass = UIGlassEffect(style: clear ? .clear : .regular)
       if input["panel"] as? Bool == true {
         glass.tintColor = meshPanelTint(dark: input["dark"] as? Bool == true)
       }
       effect = glass
     } else {
-      effect = UIBlurEffect(style: .systemMaterial)
+      effect = UIBlurEffect(style: clear ? .systemUltraThinMaterial : .systemMaterial)
     }
-    surface = UIVisualEffectView(effect: effect)
+    surface = MeshModalGlassView(frame: frame, effect: effect, showsRim: clear)
     self.channel = channel
     super.init()
-    surface.frame = frame
     surface.overrideUserInterfaceStyle = input["dark"] as? Bool == true ? .dark : .light
     updateRadius(input)
     surface.clipsToBounds = true
@@ -154,13 +274,7 @@ private final class MeshModalGlass: NSObject, FlutterPlatformView {
   deinit { channel.setMethodCallHandler(nil) }
 
   private func updateRadius(_ values: [String: Any]) {
-    let radius = values["radius"] as? Double ?? 22
-    if #available(iOS 26.0, *) {
-      surface.cornerConfiguration = .uniformCorners(radius: .fixed(radius))
-    } else {
-      surface.layer.cornerRadius = CGFloat(radius)
-      surface.layer.cornerCurve = .continuous
-    }
+    surface.radius = CGFloat(values["radius"] as? Double ?? 22)
   }
 
   func view() -> UIView { surface }
@@ -279,6 +393,9 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
   private var button: UIButton { root.button }
   private var input: [String: Any] = [:]
   private var observer: NSObjectProtocol?
+  private lazy var longPress = UILongPressGestureRecognizer(
+    target: self, action: #selector(controlHeld(_:))
+  )
 
   init(frame: CGRect, channel: FlutterMethodChannel, input: [String: Any]) {
     root = MeshButtonHost(frame: frame)
@@ -290,8 +407,12 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     root.verticalVisualOutset = (input["verticalVisualOutset"] as? NSNumber)
       .map { CGFloat($0.doubleValue) } ?? root.visualOutset
     button.addAction(UIAction { [weak self] _ in
-      self?.channel.invokeMethod("select", arguments: 0)
+      guard let self, self.input["enabled"] as? Bool == true else { return }
+      self.channel.invokeMethod("select", arguments: 0)
     }, for: .touchUpInside)
+    if kind == "chatTitle" || kind == "button" {
+      button.addGestureRecognizer(longPress)
+    }
 
     observer = NotificationCenter.default.addObserver(
       forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil, queue: .main
@@ -314,11 +435,23 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
 
   func view() -> UIView { root }
 
+  @objc private func controlHeld(_ gesture: UILongPressGestureRecognizer) {
+    if gesture.state == .began { _ = handleLongPress() }
+  }
+
+  private func handleLongPress() -> Bool {
+    guard root.isUserInteractionEnabled, button.isEnabled,
+      input["longPressLabel"] is String else { return false }
+    channel.invokeMethod("longPress", arguments: nil)
+    return true
+  }
+
   func update(_ values: [String: Any]) {
     var appearance = values
     let covered = appearance.removeValue(forKey: "coveredByModal") as? Bool == true
-    root.isUserInteractionEnabled = !covered && values["readOnly"] as? Bool != true
-    root.accessibilityElementsHidden = covered
+    let readOnly = values["readOnly"] as? Bool == true
+    root.isUserInteractionEnabled = !covered && !readOnly
+    root.accessibilityElementsHidden = covered || (readOnly && kind == "button")
     guard !(input as NSDictionary).isEqual(to: appearance) else { return }
     input = appearance
     refreshAppearance()
@@ -369,8 +502,15 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let primary = input["primary"] as? Bool == true
     let enabled = input["enabled"] as? Bool == true
     let title = input["label"] as? String ?? ""
-    button.isEnabled = enabled
+    let longPressLabel = input["longPressLabel"] as? String
+    longPress.isEnabled = longPressLabel != nil
+    button.isEnabled = enabled || longPressLabel != nil
     button.accessibilityLabel = title
+    button.accessibilityCustomActions = longPressLabel.map { label in
+      [UIAccessibilityCustomAction(name: label) { [weak self] _ in
+        self?.handleLongPress() ?? false
+      }]
+    }
     let dark = root.overrideUserInterfaceStyle == .dark
     let symbol = input["symbol"] as? String
     let stacked = input["stacked"] as? Bool == true
@@ -382,7 +522,12 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
     let reduced = UIAccessibility.isReduceTransparencyEnabled
     var configuration: UIButton.Configuration
     if #available(iOS 26.0, *), !reduced {
-      configuration = primary ? .prominentGlass() : .glass()
+      if kind == "chatTitle" {
+        configuration = .clearGlass()
+      } else {
+        configuration = primary ? .prominentGlass() : .glass()
+      }
+      configuration.background.shadowProperties.opacity = 0
       if primary {
         configuration.baseBackgroundColor = accent
       }
@@ -423,7 +568,7 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
       configuration.contentInsets = .zero
       button.accessibilityValue = input["onlineLabel"] as? String
     } else if let symbol = input["symbol"] as? String {
-      configuration.image = UIImage(systemName: symbol)
+      configuration.image = UIImage(systemName: symbol) ?? UIImage(named: symbol)
       configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
       if primary && enabled {
         configuration.imageColorTransformer = UIConfigurationColorTransformer { _ in labelColor }
@@ -438,6 +583,14 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
         label.font = UIFont.preferredFont(forTextStyle: .caption1)
         configuration.attributedTitle = label
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 3, bottom: 4, trailing: 3)
+      } else if input["inlineSymbol"] as? Bool == true {
+        var label = AttributedString(title)
+        label.font = .preferredFont(forTextStyle: .subheadline)
+        configuration.attributedTitle = label
+        configuration.imagePlacement = .leading
+        configuration.imagePadding = 5
+        configuration.titleLineBreakMode = .byTruncatingTail
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8)
       } else {
         configuration.contentInsets = .zero
       }

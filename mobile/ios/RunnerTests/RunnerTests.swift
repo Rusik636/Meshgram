@@ -9,6 +9,48 @@ import XCTest
 
 class RunnerTests: XCTestCase {
   @MainActor
+  func testDecorativeGlassButtonKeepsItsMaterialWithoutTakingInput() throws {
+    let bounds = CGRect(x: 0, y: 0, width: 360, height: 64)
+    let control = MeshControlSurface(frame: bounds,
+      channel: FlutterMethodChannel(name: "meshgrame/tests/phraseMaterial", binaryMessenger: TestMessenger()),
+      input: [
+        "kind": "button", "enabled": true, "readOnly": true, "visualOutset": 8,
+      ])
+    let root = control.view()
+    root.layoutIfNeeded()
+    let button = try XCTUnwrap(root.subviews.compactMap { $0 as? UIButton }.first)
+    XCTAssertTrue(button.isEnabled)
+    XCTAssertEqual(button.frame, bounds.insetBy(dx: 8, dy: 8))
+    XCTAssertEqual(button.configuration?.cornerStyle, .capsule)
+    XCTAssertTrue(root.accessibilityElementsHidden)
+    XCTAssertNil(root.hitTest(CGPoint(x: bounds.midX, y: bounds.midY), with: nil))
+  }
+
+  @MainActor
+  func testPassiveGlassKeepsMaterialInsideItsVisibleOutline() throws {
+    guard #available(iOS 26.0, *) else { return }
+    let frame = CGRect(x: 0, y: 0, width: 168, height: 40)
+    let factory = MeshControlsFactory(TestMessenger())
+    let view = factory.create(withFrame: frame, viewIdentifier: 0, arguments: [
+      "kind": "modalGlass", "radius": 20,
+    ])
+    let surface = view.view()
+    surface.layoutIfNeeded()
+    let glass = try XCTUnwrap(surface.subviews.first as? UIVisualEffectView)
+    XCTAssertTrue(glass.effect is UIGlassEffect)
+    XCTAssertGreaterThan(glass.frame.width, surface.bounds.width)
+    let mask = try XCTUnwrap(glass.mask)
+    XCTAssertEqual(glass.convert(mask.frame, to: surface), surface.bounds)
+    XCTAssertEqual(mask.layer.cornerRadius, 20)
+
+    surface.frame.size.height = 32
+    surface.layoutIfNeeded()
+    let resized = try XCTUnwrap(glass.mask)
+    XCTAssertEqual(glass.convert(resized.frame, to: surface), surface.bounds)
+    XCTAssertEqual(resized.layer.cornerRadius, 16)
+  }
+
+  @MainActor
   func testComposerUsesInteractiveGlassAndKeepsTheSameEditor() throws {
     let draft = "Первая строка\nВторая 👋"
     let input = appearance(dark: true).merging([
@@ -66,6 +108,63 @@ class RunnerTests: XCTestCase {
     editor.text = ""
     composer.textViewDidChange(editor)
     XCTAssertFalse(placeholder.isHidden)
+  }
+
+  @MainActor
+  func testComposerDisablesEditingWithoutDroppingTheDraft() throws {
+    let draft = "Сообщение"
+    let input = appearance(dark: true).merging([
+      "text": draft, "placeholder": "Сообщение", "enabled": false,
+    ]) { _, value in value }
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 62),
+      id: 0, input: input, messenger: TestMessenger())
+    let root = composer.view()
+    root.layoutIfNeeded()
+    let field = try XCTUnwrap(root.subviews.first)
+    let editor = try XCTUnwrap(field.subviews.last as? UITextView)
+    XCTAssertFalse(editor.isEditable)
+    XCTAssertFalse(editor.isSelectable)
+    XCTAssertFalse(editor.isUserInteractionEnabled)
+    XCTAssertTrue(editor.accessibilityTraits.contains(.notEnabled))
+    XCTAssertEqual(editor.text, draft)
+
+    composer.updateAppearance(input.merging(["enabled": true]) { _, value in value })
+    XCTAssertTrue(editor.isEditable)
+    XCTAssertTrue(editor.isSelectable)
+    XCTAssertTrue(editor.isUserInteractionEnabled)
+    XCTAssertFalse(editor.accessibilityTraits.contains(.notEnabled))
+    XCTAssertEqual(editor.text, draft)
+  }
+
+  @MainActor
+  func testReplyControlsShareTheNativeComposerSurface() throws {
+    let draft = "Первая строка\nВторая 👋"
+    let messenger = TestMessenger()
+    let composer = MeshComposer(frame: CGRect(x: 0, y: 0, width: 256, height: 128),
+      id: 1, input: appearance(dark: false).merging([
+        "text": draft, "start": 1, "end": 5, "visualOutset": 8,
+        "accessory": [
+          "title": "Мира", "text": "На месте", "openLabel": "Исходное сообщение",
+          "dismissLabel": "Отменить ответ",
+        ],
+      ]) { _, value in value }, messenger: messenger)
+    let root = composer.view()
+    root.layoutIfNeeded()
+    let field = try XCTUnwrap(root.subviews.first)
+    let glass = try XCTUnwrap(field.subviews.first as? UIVisualEffectView)
+    let contents = glass.isUserInteractionEnabled ? glass.contentView : field
+    let editor = try XCTUnwrap(contents.subviews.last as? UITextView)
+    let quote = try XCTUnwrap(contents.subviews.dropLast().last)
+    XCTAssertFalse(quote.isHidden)
+    XCTAssertGreaterThan(quote.bounds.height, 0)
+    XCTAssertEqual(quote.frame.maxY, editor.frame.minY)
+    XCTAssertEqual(editor.frame.maxY, field.bounds.maxY)
+    XCTAssertEqual(editor.text, draft)
+    XCTAssertEqual(editor.selectedRange, NSRange(location: 1, length: 4))
+    let controls = try XCTUnwrap(quote.subviews.first).subviews.compactMap { $0 as? UIControl }
+    XCTAssertEqual(controls.count, 2)
+    controls.forEach { $0.sendActions(for: .touchUpInside) }
+    XCTAssertEqual(Array(messenger.methods.suffix(2)), ["openAccessory", "dismissAccessory"])
   }
 
   @MainActor

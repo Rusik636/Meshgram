@@ -5,9 +5,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' show ImageByteFormat;
+import 'dart:ui' show ImageByteFormat, PointerDeviceKind;
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, kSecondaryMouseButton;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/rendering.dart'
@@ -27,12 +29,14 @@ import 'package:meshgrame/mesh/controller.dart';
 import 'package:meshgrame/mesh/message_packet.dart';
 import 'package:meshgrame/mesh/network.dart';
 import 'package:meshgrame/mesh/nodes.dart';
+import 'package:meshgrame/mesh/radio_outbox.dart';
 import 'package:meshgrame/mesh/route_trace.dart';
 import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/meshcore.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/radio_settings.dart';
 import 'package:meshgrame/ui/about.dart';
+import 'package:meshgrame/ui/desktop_interaction.dart' show DesktopSpring;
 import 'package:meshgrame/ui/signal.dart';
 import 'package:meshgrame/ui/radio_avatar.dart';
 import 'package:meshgrame/ui/profile_page.dart';
@@ -41,6 +45,8 @@ import 'package:meshgrame/ui/swipe_actions.dart';
 import 'package:meshgrame/ui/radio_discovery.dart';
 import 'package:meshgrame/ui/navigation.dart';
 import 'package:meshgrame/ui/ios_control.dart';
+import 'package:meshgrame/ui/macos_glass.dart';
+import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 import 'package:meshgrame/ui/contact_qr.dart';
 import 'package:meshgrame/ui/position_picker.dart';
 import 'package:meshgrame/ui/style.dart';
@@ -48,14 +54,20 @@ import 'package:meshgrame/ui/nodes.dart';
 import 'package:meshgrame/ui/notification_settings.dart';
 import 'package:meshgrame/ui/node_actions.dart';
 import 'package:meshgrame/ui/chat.dart';
+import 'package:meshgrame/ui/chat_folders.dart';
+import 'package:meshgrame/ui/chat_workspace.dart';
 import 'package:meshgrame/ui/channel_avatars.dart';
 import 'package:meshgrame/ui/emoji_picker.dart';
 import 'package:meshgrame/ui/emoji_text.dart';
 import 'package:meshgrame/ui/message_details.dart';
 import 'package:meshgrame/ui/message_input.dart';
 import 'package:meshgrame/ui/message_reactions.dart';
+import 'package:meshgrame/ui/quick_phrases.dart';
 import 'package:meshgrame/ui/qr_scanner.dart';
+import 'package:meshgrame/ui/search_field.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+import 'find_control.dart';
 
 class _TestEmojiBundle extends CachingAssetBundle {
   _TestEmojiBundle(this.catalog);
@@ -289,8 +301,10 @@ class _FakeNetwork
   int textLimit(Peer peer) => 60;
   bool autoAcknowledge = true;
   bool failSends = false;
+  Completer<void>? sendCompletion;
   @override
   Future<void> send(Peer peer, MeshMessage message) async {
+    if (sendCompletion case final completion?) await completion.future;
     if (failSends) throw StateError('Test transport declined the message');
     if (autoAcknowledge) {
       stream.add(DeliveryUpdate(message.id, Delivery.acknowledged));
@@ -358,14 +372,23 @@ class _FakeNetwork
     ];
   }
 
-  @override
-  List<ChannelAction> get channelActions => const [ChannelAction.createPrivate];
+  bool acceptsInvitations = false;
+  ChannelRequest? lastChannelRequest;
 
   @override
-  Future<ChannelProvision> addChannel(ChannelRequest request) async => (
-    peer: (id: 'ch:2', name: request.name, channel: true, writable: true),
-    invitation: null,
-  );
+  List<ChannelAction> get channelActions => [
+    ChannelAction.createPrivate,
+    if (acceptsInvitations) ChannelAction.invitation,
+  ];
+
+  @override
+  Future<ChannelProvision> addChannel(ChannelRequest request) async {
+    lastChannelRequest = request;
+    return (
+      peer: (id: 'ch:2', name: request.name, channel: true, writable: true),
+      invitation: null,
+    );
+  }
 
   @override
   Future<void> writeSettings(Map<String, String> values) async {
@@ -1518,7 +1541,7 @@ void main() {
       final peer = controller.nodes.first;
       await tester.drag(find.text(peer.name), const Offset(-240, 0));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Delete'));
+      await tester.tap(findControl('Delete'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
@@ -1526,7 +1549,7 @@ void main() {
 
       expect(find.byType(SegmentedButton<bool>), findsNothing);
       expect(find.text(controller.cache!.peers['ch:0']!.name), findsNothing);
-      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(findControl('Sort by'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     } finally {
       controller.dispose();
@@ -2029,6 +2052,18 @@ void main() {
     },
   );
 
+  test('the archive pin preference survives cached history migration', () {
+    final legacyJson = ChatCache().toJson()..['hiddenChats'] = ['node:a'];
+    final legacy = ChatCache.fromJson(legacyJson);
+    expect(legacy.archiveHidden, isTrue);
+    final merged = ChatCache()..mergeHistory(legacy);
+    expect(merged.archiveHidden, isTrue);
+    merged.archiveHidden = false;
+    final restored = ChatCache.fromJson(merged.toJson());
+    expect(restored.archiveHidden, isFalse);
+    expect(restored.hiddenChats, {'node:a'});
+  });
+
   testWidgets(
     'chat editing marks read, reorders and hides without deleting a node',
     (tester) async {
@@ -2048,6 +2083,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
+      expect(find.text('Select chats'), findsNothing);
       expect(find.byType(SliverReorderableList), findsOneWidget);
       expect(find.byIcon(Icons.drag_handle_rounded), findsWidgets);
       final chats = controller.conversations;
@@ -2071,12 +2107,777 @@ void main() {
       expect(controller.messages('node:a'), isNotEmpty);
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Hidden (1)'));
+      expect(find.text('Archive'), findsOneWidget);
+      await tester.longPress(find.text('Archive'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hide from the list'));
+      await tester.pumpAndSettle();
+      expect(
+        ChatCache.fromJson(controller.cache!.toJson()).archiveHidden,
+        isTrue,
+      );
+      expect(find.text('Archive'), findsNothing);
+      await tester.drag(find.text('Тропа'), const Offset(0, 35));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsNothing);
+      final pull = await tester.startGesture(
+        tester.getCenter(find.text('Тропа')),
+      );
+      await pull.moveBy(const Offset(0, 28));
+      await pull.moveBy(const Offset(0, 95));
+      await tester.pump(const Duration(milliseconds: 230));
+      expect(find.text('Release to show Archive'), findsOneWidget);
+      await pull.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Archive'));
       await tester.pumpAndSettle();
       expect(find.text('Мира Соколова'), findsOneWidget);
+      await tester.tap(findControl('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsOneWidget);
+      await tester.drag(find.text('Тропа'), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      tester
+          .widget<CustomScrollView>(find.byKey(const PageStorageKey('chats')))
+          .controller!
+          .jumpTo(0);
+      await tester.pumpAndSettle();
+      expect(find.text('Archive'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+  );
+
+  testWidgets(
+    'archive pull arms on Android and reveals at the threshold on iOS',
+    (tester) async {
+      _reduceMotion(tester);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.hideChats(['node:a'], hidden: true);
+      controller.setArchiveHidden(true);
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      final archive = find.byKey(const ValueKey('archive-row'));
+      final start = tester.getCenter(find.text('Тропа'));
+      final gesture = await tester.startGesture(start);
+      await gesture.moveBy(const Offset(0, 25));
+      await gesture.moveBy(const Offset(0, 30));
+      await tester.pump();
+      expect(tester.getSize(archive).height, greaterThan(0));
+      expect(tester.widget<ListTile>(archive).onTap, isNull);
+      await gesture.moveBy(const Offset(0, 65));
+      await tester.pump(const Duration(milliseconds: 230));
+      await tester.pump();
+      final archiveIcon = find.descendant(
+        of: archive,
+        matching: find.byType(MeshRowIcon),
+      );
+      double? heldTop;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+        heldTop = tester.getTopLeft(archiveIcon).dy;
+      } else {
+        expect(find.text('Release to show Archive'), findsOneWidget);
+        expect(tester.widget<ListTile>(archive).onTap, isNull);
+        await gesture.moveBy(const Offset(0, -105));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        expect(tester.widget<ListTile>(archive).onTap, isNotNull);
+        final folderBar = find.byType(ChatFolderTabs);
+        final barBottom =
+            tester.getBottomLeft(folderBar).dy -
+            ChatFolderTabs.verticalInset(tester.element(folderBar));
+        final icon = tester.getRect(archiveIcon);
+        final firstAvatar = find.descendant(
+          of: find.byKey(const ValueKey('ch:0')),
+          matching: find.byType(MeshAvatar),
+        );
+        expect(icon.top, lessThan(heldTop!));
+        expect(
+          icon.top - barBottom,
+          closeTo(tester.getTopLeft(firstAvatar).dy - icon.bottom, .5),
+        );
+      } else {
+        expect(archive, findsNothing);
+      }
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
+  );
+
+  testWidgets(
+    'archive fades and settles on either side of a partial scroll',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.hideChats(['node:a'], hidden: true);
+      controller.setArchiveHidden(true);
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+
+      final trail = find.text('Тропа');
+      final fade = find.byKey(const ValueKey('archive-opacity'));
+      double opacity() => tester.widget<Opacity>(fade).opacity;
+      final scroll =
+          tester
+                  .widget<CustomScrollView>(
+                    find.byKey(const PageStorageKey('chats')),
+                  )
+                  .controller!
+              as MeshSearchScrollController;
+
+      final shortPull = await tester.startGesture(tester.getCenter(trail));
+      await shortPull.moveBy(const Offset(0, 24));
+      await shortPull.moveBy(const Offset(0, 26));
+      await tester.pump();
+      final whilePulling = opacity();
+      expect(whilePulling, inExclusiveRange(0, 1));
+      await shortPull.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final whileClosing = opacity();
+      expect(whileClosing, inExclusiveRange(0, whilePulling));
+      final resumedPull = await tester.startGesture(tester.getCenter(trail));
+      await resumedPull.moveBy(const Offset(0, 24));
+      await resumedPull.moveBy(const Offset(0, 12));
+      await tester.pump();
+      expect(opacity(), greaterThan(whileClosing));
+      await resumedPull.cancel();
+      await tester.pumpAndSettle();
+      expect(fade, findsNothing);
+
+      final longPull = await tester.startGesture(tester.getCenter(trail));
+      await longPull.moveBy(const Offset(0, 28));
+      await longPull.moveBy(const Offset(0, 100));
+      await tester.pump(const Duration(milliseconds: 230));
+      await longPull.up();
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      final fullyOpen = scroll.collapseRange;
+      scroll.jumpTo(fullyOpen);
+      await tester.pumpAndSettle();
+
+      Future<TestGesture> scrollTo(double position) async {
+        final drag = await tester.startGesture(tester.getCenter(trail));
+        await drag.moveBy(const Offset(0, -21));
+        await drag.moveBy(const Offset(0, -8));
+        await drag.moveBy(Offset(0, scroll.offset - position));
+        await tester.pump(const Duration(milliseconds: 160));
+        expect(scroll.offset, closeTo(position, .5));
+        return drag;
+      }
+
+      final mostlyOpen = await scrollTo(fullyOpen + 17);
+      expect(opacity(), inExclusiveRange(0, 1));
+      await mostlyOpen.up();
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(fullyOpen, .5));
+      expect(opacity(), 1);
+
+      final mostlyHidden = await scrollTo(fullyOpen + 52);
+      final beforeClosing = opacity();
+      expect(beforeClosing, inExclusiveRange(0, 1));
+      await mostlyHidden.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(opacity(), inExclusiveRange(0, beforeClosing));
+      await tester.pumpAndSettle();
+      expect(fade, findsNothing);
+      expect(scroll.offset, closeTo(fullyOpen, .5));
+      expect(controller.hiddenConversations.single.id, 'node:a');
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
+  );
+
+  testWidgets(
+    'macOS glass button fills its material and uses system text metrics',
+    (tester) async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(MacGlass.channel, (call) async {
+        expect(call.method, 'configuration');
+        return {'glass': true, 'regularFontSize': 13.5, 'smallFontSize': 11.0};
+      });
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
+      await MacGlass.initialize();
+      try {
+        final scaler = MacGlass.textScaler(const TextScaler.linear(1.2));
+        expect(scaler.scale(16), closeTo(13.5 * 1.2, .01));
+        expect(scaler.scale(11), closeTo(11 * 1.2, .01));
+        var taps = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: GlassActionButton(
+                width: 126,
+                label: 'Готово',
+                primary: false,
+                onTap: () => taps++,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final glass = find.byType(AppKitView);
+        final label = find.text('Готово');
+        expect(
+          tester
+              .getRect(find.byType(FilledButton))
+              .inflate(MacGlass.controlEdgeOutset),
+          tester.getRect(glass),
+        );
+        expect(tester.getCenter(label), tester.getCenter(glass));
+        await tester.tap(label);
+        expect(taps, 1);
+        final base = tester.getRect(glass);
+        final controlWidth = base.deflate(MacGlass.controlEdgeOutset).width;
+        final view = tester.element(glass);
+        final button = find.byType(FilledButton);
+        expect(
+          tester.widget<FilledButton>(button).style!.elevation!.resolve({
+            WidgetState.hovered,
+          }),
+          0,
+        );
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: base.center + const Offset(0, 80));
+        await mouse.moveTo(base.center);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(glass).width,
+          closeTo(controlWidth * 1.04 + 2 * MacGlass.controlEdgeOutset, .1),
+        );
+        expect(
+          tester.getRect(glass),
+          tester.getRect(button).inflate(MacGlass.controlEdgeOutset),
+        );
+        expect(tester.element(glass), same(view));
+        await mouse.down(base.center);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 55));
+        expect(tester.getRect(glass).width, greaterThan(base.width * 1.06));
+        expect(
+          tester.getRect(glass),
+          tester.getRect(button).inflate(MacGlass.controlEdgeOutset),
+        );
+        await mouse.up();
+        expect(taps, 2);
+        await mouse.moveTo(base.center + const Offset(0, 80));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(glass), base);
+        await mouse.removePointer();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                textScaler: MacGlass.textScaler(TextScaler.noScaling),
+              ),
+              child: const Center(
+                child: GlassActionButton(
+                  width: 74,
+                  height: 74,
+                  label: 'Очистить',
+                  icon: Icons.delete_outline_rounded,
+                  symbol: 'trash',
+                  fitContent: true,
+                  onTap: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final stackedLabel = find.text('Очистить');
+        expect(
+          tester.renderObject<RenderParagraph>(stackedLabel).didExceedMaxLines,
+          isFalse,
+        );
+        expect(tester.getCenter(stackedLabel).dx, tester.getCenter(glass).dx);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        messenger.setMockMethodCallHandler(MacGlass.channel, (_) async => null);
+        await MacGlass.initialize();
+        messenger.setMockMethodCallHandler(MacGlass.channel, null);
+        messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
+      }
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.macOS}),
+  );
+
+  testWidgets(
+    'chat workspace keeps the list and conversation across window resizes',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1150, 820);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      const paneKey = ValueKey('conversation-pane');
+      final pane = find.byKey(paneKey);
+      final chat = find.byType(MeshChatPage);
+      Finder chatButton(String name) => find.descendant(
+        of: chat,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GlassButton && widget.label == name,
+        ),
+      );
+      final trail = find.text('Тропа').first;
+      final mira = find.text('Мира Соколова').first;
+      expect(find.text('Select a chat'), findsOneWidget);
+      expect(
+        Theme.of(tester.element(trail)).scaffoldBackgroundColor,
+        const Color(0xffeff1f3),
+      );
+      expect(find.bySemanticsLabel(RegExp('Тропа')), findsWidgets);
+      expect(
+        tester.getTopLeft(pane).dx,
+        greaterThan(tester.getTopRight(trail).dx),
+      );
+
+      if (defaultTargetPlatform == TargetPlatform.windows) {
+        expect(find.byType(ChatFolderRail), findsOneWidget);
+        final rail = find.byType(ChatFolderRail);
+        final settings = find.descendant(
+          of: rail,
+          matching: find.text('Settings'),
+        );
+        DesktopSpring spring(Finder label) => tester.widget<DesktopSpring>(
+          find.ancestor(of: label, matching: find.byType(DesktopSpring)),
+        );
+        expect(spring(settings).enabled, isFalse);
+        final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
+        expect(panelColor.toARGB32(), 0xfff8f9fa);
+        final panels = find.byType(DesktopWorkspacePanel);
+        expect(panels, findsNWidgets(2));
+        for (final panel in tester.widgetList<DesktopWorkspacePanel>(panels)) {
+          final foreground = find.descendant(
+            of: find.byWidget(panel),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is DecoratedBox &&
+                  widget.position == DecorationPosition.foreground,
+            ),
+          );
+          final box = tester.widget<DecoratedBox>(foreground);
+          final outline = box.decoration as BoxDecoration;
+          expect(outline.border!.dimensions, const EdgeInsets.all(1));
+          expect(outline.borderRadius, BorderRadius.circular(22));
+        }
+        final headerEdge = tester.widget<MeshScrollEdge>(
+          find.descendant(
+            of: find.byKey(const ValueKey('chat-header-background')),
+            matching: find.byType(MeshScrollEdge),
+          ),
+        );
+        expect(headerEdge.blur, isFalse);
+        expect(headerEdge.tint, panelColor);
+        final rows = tester.widgetList<SwipeActionsRow>(
+          find.byType(SwipeActionsRow),
+        );
+        expect(rows, isNotEmpty);
+        expect(rows.map((row) => row.closedSurface), everyElement(panelColor));
+        final indicator = find.byKey(const ValueKey('folder-rail-indicator'));
+        final originalTop = tester.getTopLeft(indicator).dy;
+        final direct = find.descendant(of: rail, matching: find.text('Direct'));
+        expect(spring(direct).enabled, isTrue);
+        final folderInk = find.ancestor(
+          of: direct,
+          matching: find.byType(InkWell),
+        );
+        expect(
+          tester.widget<InkWell>(folderInk).highlightColor,
+          Colors.transparent,
+        );
+        expect(
+          tester.widget<InkWell>(folderInk).splashFactory,
+          NoSplash.splashFactory,
+        );
+        expect(tester.getSize(indicator).width, lessThan(8));
+        await tester.tap(direct);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 90));
+        final movingTop = tester.getTopLeft(indicator).dy;
+        await tester.pumpAndSettle();
+        expect(
+          movingTop,
+          inExclusiveRange(originalTop, tester.getTopLeft(indicator).dy),
+        );
+        final directTop = tester.getTopLeft(indicator).dy;
+        await tester.tap(settings);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 90));
+        final movingToSettings = tester.getTopLeft(indicator).dy;
+        await tester.pump(const Duration(milliseconds: 250));
+        final settingsTop = tester.getTopLeft(indicator).dy;
+        expect(movingToSettings, inExclusiveRange(directTop, settingsTop));
+        expect(settingsTop, greaterThan(directTop));
+        expect(find.byType(MeshRow), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(MeshRow),
+            matching: find.byType(DesktopSpring),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(of: rail, matching: find.byType(Tooltip)),
+          findsNothing,
+        );
+        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
+        await tester.pumpAndSettle();
+        final before = tester.getTopLeft(pane).dx;
+        await tester.drag(
+          find.byType(ChatWorkspaceResizeHandle),
+          const Offset(50, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(pane).dx, greaterThan(before));
+        await tester.tap(
+          trail,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Pin chat'), findsOneWidget);
+        await tester.tapAt(const Offset(1000, 700));
+        await tester.pumpAndSettle();
+        expect(
+          controller.saveChatFolder(name: 'Field work', chats: {}),
+          isNotNull,
+        );
+        expect(
+          controller.saveChatFolder(name: 'Repeaters', chats: {}),
+          isNotNull,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatFolderTabs), findsNothing);
+        final remove = findControl('Delete folder Field work');
+        expect(remove, findsNothing);
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Done'), findsOneWidget);
+        expect(find.byType(ChatFolderTabs), findsNothing);
+        expect(find.descendant(of: rail, matching: remove), findsOneWidget);
+        expect(findControl('Delete folder All'), findsNothing);
+        final folderTitle = find.text('Field work');
+        final folderRow = find.ancestor(
+          of: folderTitle,
+          matching: find.byType(InkWell),
+        );
+        final folderIcon = find.descendant(
+          of: folderRow,
+          matching: find.byIcon(Icons.folder_outlined),
+        );
+        final railCenter = tester.getCenter(rail).dx;
+        expect(tester.getCenter(folderIcon).dx, closeTo(railCenter, .5));
+        expect(tester.getCenter(folderTitle).dx, closeTo(railCenter, .5));
+        expect(tester.widget<Text>(folderTitle).maxLines, 1);
+        final reorder = find.descendant(
+          of: rail,
+          matching: find.byType(ReorderableListView),
+        );
+        tester.widget<ReorderableListView>(reorder).onReorderItem!(0, 1);
+        await tester.pumpAndSettle();
+        expect(controller.chatFolders.map((folder) => folder.name), [
+          'Repeaters',
+          'Field work',
+        ]);
+        await tester.tap(remove);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(MeshDialog),
+            matching: find.text('Delete'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.chatFolders.single.name, 'Repeaters');
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+        expect(findControl('Close search'), findsOneWidget);
+        await tester.tap(findControl('Close search'));
+        await tester.pumpAndSettle();
+      } else {
+        expect(find.byType(ChatFolderTabs), findsOneWidget);
+      }
+
+      await tester.tap(trail);
+      await tester.pumpAndSettle();
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      final rail = find.byType(ChatFolderRail);
+      final desktop = defaultTargetPlatform == TargetPlatform.windows;
+      if (desktop) {
+        final panels = find.byType(DesktopWorkspacePanel);
+        expect(
+          tester.getBottomLeft(chatButton('Attachments')).dy,
+          tester.getBottomLeft(panels.last).dy,
+        );
+        final right = tester.element(chatButton('Close chat'));
+        expect(MeshStyle.of(right).canvas, const Color(0xffe1e4e7));
+        expect(
+          Theme.of(right).scaffoldBackgroundColor,
+          const Color(0xffe1e4e7),
+        );
+        final workspace = tester.widget<Stack>(
+          find.ancestor(of: pane, matching: find.byType(Stack)).first,
+        );
+        final backdrop = (workspace.children.first as Positioned).child;
+        expect((backdrop as ColoredBox).color, MeshStyle.of(right).canvas);
+        for (final style in [const MeshStyle(false), const MeshStyle(true)]) {
+          final leftLuminance = style.desktopPanel.computeLuminance();
+          expect(
+            style.desktopConversationCanvas.computeLuminance(),
+            lessThan(leftLuminance),
+          );
+          expect(
+            style.desktopChatWallpaper.map((color) => color.computeLuminance()),
+            everyElement(lessThan(leftLuminance)),
+          );
+        }
+        expect(
+          tester.getCenter(chatButton('Close chat')).dy,
+          closeTo(tester.getCenter(find.text('Edit')).dy, .5),
+        );
+        await tester.tap(
+          find.descendant(of: rail, matching: find.text('Settings')),
+        );
+      } else {
+        tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
+      }
+      await tester.pump();
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isFalse);
+      await tester.pump(const Duration(milliseconds: 120));
+      final settingsFade = find.byKey(const ValueKey('settings-fade'));
+      final settings = find.byType(ProfilePage);
+      expect(
+        tester.widget<FadeTransition>(settingsFade).opacity.value,
+        inExclusiveRange(0, 1),
+      );
+      expect(trail, findsWidgets);
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isFalse);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isTrue);
+      final title = find.descendant(
+        of: settings,
+        matching: find.text('Settings'),
+      );
+      expect(
+        find.descendant(of: settings, matching: find.text('Add a radio')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopRight(settings).dx,
+        lessThanOrEqualTo(tester.getTopLeft(pane).dx),
+      );
+      expect(
+        DefaultTextStyle.of(tester.element(title)).style.decoration,
+        isNot(TextDecoration.underline),
+      );
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      if (desktop) {
+        await tester.tap(find.descendant(of: rail, matching: find.text('All')));
+      } else {
+        tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(0);
+      }
+      await tester.pump();
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isFalse);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isFalse);
+      await tester.pumpAndSettle();
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isTrue);
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
+      expect(mira.hitTestable(), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);
+      await tester.tap(mira);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.widgetList<MeshChatPage>(chat).map((page) => page.peer.name),
+        ['Тропа', 'Мира Соколова'],
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<MeshChatPage>(chat).peer.name, 'Мира Соколова');
+      final conversation = tester.state(chat);
+
+      tester.view.physicalSize = const Size(590, 820);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(pane).dx, 0);
+      expect(tester.state(chat), same(conversation));
+      expect(chatButton('Back'), findsOneWidget);
+      expect(
+        MeshStyle.of(tester.element(chatButton('Back'))).canvas,
+        const Color(0xffeff1f3),
+      );
+      tester.view.physicalSize = const Size(1150, 820);
+      await tester.pumpAndSettle();
+      expect(tester.state(chat), same(conversation));
+      expect(mira.hitTestable(), findsOneWidget);
+      final close = chatButton('Close chat');
+      if (useIosControls) {
+        final native = find.descendant(
+          of: close,
+          matching: find.byType(IosControl),
+        );
+        tester.widget<IosControl>(native).onSelect!(0);
+      } else {
+        await tester.tap(close);
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Select a chat'), findsOneWidget);
+      expect(chat, findsNothing);
+      expect(mira.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets(
+    'desktop secondary click opens the message menu within the chat pane',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1150, 820);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      controller.cache!.messages.add(
+        MeshMessage(
+          id: 'desktop-context-menu',
+          chat: 'ch:0',
+          author: 'Meshgram',
+          text: 'Context menu message',
+          time: DateTime.now(),
+          delivery: Delivery.acknowledged,
+          remoteId: '56',
+        ),
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Тропа').first);
+      await tester.pumpAndSettle();
+
+      final chat = find.byType(MeshChatPage);
+      final pane = tester.getRect(
+        find.byKey(const ValueKey('conversation-pane')),
+      );
+      final bubble = find.descendant(
+        of: chat,
+        matching: find.text('Context menu message'),
+      );
+      final pointer = tester.getCenter(bubble);
+      final menu = find.byKey(const ValueKey('message-menu'));
+      await tester.tapAt(pointer, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+
+      Future<void> openMenu() async {
+        await tester.tapAt(
+          pointer,
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await openMenu();
+      final surfaces = find.descendant(
+        of: menu,
+        matching: find.byType(MessageMenuSurface),
+      );
+      expect(surfaces, findsWidgets);
+      for (final surface in surfaces.evaluate()) {
+        final rect = tester.getRect(find.byWidget(surface.widget));
+        expect(rect.left, greaterThan(pane.left));
+        expect(rect.right, closeTo(pointer.dx, .5));
+        expect(rect.top, greaterThan(pane.top));
+        expect(rect.bottom, lessThan(pointer.dy));
+      }
+      expect(find.byKey(const ValueKey('message-menu-preview')), findsNothing);
+      expect(
+        find.ancestor(
+          of: bubble,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is ImageFiltered && widget.enabled ||
+                widget is Opacity && widget.opacity == 0,
+          ),
+        ),
+        findsNothing,
+      );
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.tap(find.text('Message info'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MessageDetails), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+
+      await openMenu();
+      await tester.tapAt(Offset(pane.left - 20, pane.center.dy));
+      await tester.pumpAndSettle();
+      expect(menu, findsNothing);
+      expect(bubble, findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.windows}),
   );
 
   test('MeshCore retries admin login after a stale saved route', () async {
@@ -2164,7 +2965,7 @@ void main() {
       final field = find.byType(TextField);
       expect(tester.widget<TextField>(field).obscureText, isTrue);
       await tester.enterText(field, 'test-admin');
-      await tester.tap(find.byTooltip('Show password'));
+      await tester.tap(findControl('Show password'));
       await tester.pump();
       expect(tester.widget<TextField>(field).obscureText, isFalse);
       await tester.tap(find.text('Remember password'));
@@ -2308,26 +3109,10 @@ void main() {
       const snapshot = MethodChannel('meshgrame/back_swipe');
       messenger.setMockMethodCallHandler(snapshot, (_) async => false);
       addTearDown(() => messenger.setMockMethodCallHandler(snapshot, null));
-      int? categoryViewId;
-      messenger.setMockMethodCallHandler(SystemChannels.platform_views, (
-        call,
-      ) async {
-        if (call.method != 'create') return null;
-        if (call.arguments case {
-          'id': final int id,
-          'params': final Uint8List parameters,
-          'gestureBlockingPolicy': final String policy,
-        }) {
-          final input = const StandardMessageCodec().decodeMessage(
-            ByteData.sublistView(parameters),
-          );
-          if (input case {'kind': 'tabs', 'textOnly': true}) {
-            categoryViewId = id;
-            expect(policy, 'doNotBlockGesture');
-          }
-        }
-        return null;
-      });
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
       addTearDown(() {
         messenger.setMockMethodCallHandler(SystemChannels.platform_views, null);
       });
@@ -2341,34 +3126,47 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final categories = tester.widget<IosControl>(
-        find.descendant(
-          of: find.byType(ChatFilters),
-          matching: find.byType(IosControl),
+      final picker = find.byType(ChatFolderTabs);
+      final background = find.descendant(
+        of: picker,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GlassSurface && widget.nativeButtonMaterial,
         ),
       );
-      expect(categories.kind, 'tabs');
-      expect(categories.eagerGestures, isTrue);
-      expect(categories.properties['textOnly'], isTrue);
-      expect(categories.properties['labels'], ['All', 'Direct', 'Channels']);
-      expect(categories.properties['titleSize'], 15);
-      expect(tester.getSize(find.byType(ChatFilters)).height, 48);
-      expect(categoryViewId, isNotNull);
-      Future<void> selectCategory(int index) async {
-        await messenger.handlePlatformMessage(
-          'meshgrame/controls/$categoryViewId',
-          const StandardMethodCodec().encodeMethodCall(
-            MethodCall('select', index),
-          ),
-          (_) {},
-        );
-        await tester.pumpAndSettle();
-      }
-
-      await selectCategory(2);
-      expect(find.byTooltip('Мира Соколова profile'), findsNothing);
-      await selectCategory(0);
-      final avatar = find.byTooltip('Мира Соколова profile');
+      expect(tester.getSize(background).height, 40);
+      final backing = find.descendant(
+        of: background,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'button',
+        ),
+      );
+      expect(tester.widget<IosControl>(backing).properties['readOnly'], isTrue);
+      final control = find.descendant(
+        of: picker,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'folderTabs',
+        ),
+      );
+      IosControl categories() => tester.widget<IosControl>(control);
+      expect(categories().kind, 'folderTabs');
+      expect(categories().horizontalDrag, isFalse);
+      expect(categories().tapOnly, isTrue);
+      expect(categories().properties['labels'], ['All', 'Direct', 'Channels']);
+      final widths = categories().properties['widths']! as List<double>;
+      expect(widths, orderedEquals([...widths]..sort()));
+      expect(widths.toSet().length, 3);
+      expect(tester.getSize(picker).height, 48);
+      final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
+      expect(
+        tester.widget<SingleChildScrollView>(scroll).scrollDirection,
+        Axis.horizontal,
+      );
+      categories().onSelect!(2);
+      await tester.pumpAndSettle();
+      expect(findControl('Мира Соколова profile'), findsNothing);
+      categories().onSelect!(0);
+      await tester.pumpAndSettle();
+      final avatar = findControl('Мира Соколова profile');
       await tester.tap(avatar);
       await tester.pumpAndSettle();
       expect(find.byType(MeshChatProfile), findsOneWidget);
@@ -2400,6 +3198,8 @@ void main() {
       tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Nodes'));
+      await tester.drag(find.byType(ProfilePage), const Offset(0, -90));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Nodes'));
       await tester.pumpAndSettle();
       await tester.tap(avatar);
@@ -2593,6 +3393,8 @@ void main() {
     await tester.tap(find.text('Настройки'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Узлы'));
+    await tester.drag(find.byType(ProfilePage), const Offset(0, -90));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Узлы'));
     await tester.pumpAndSettle();
     final page = find.byType(MeshNodesPage);
@@ -2610,20 +3412,20 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(find.byTooltip('Сортировка'));
+    await tester.tap(findControl('Сортировка'));
     await tester.pumpAndSettle();
     expect(find.text('По расстоянию'), findsOneWidget);
     expect(find.text('По последней переписке'), findsNothing);
     await tester.tap(find.text('По имени'));
     await tester.pumpAndSettle();
     expect(controller.nodes.first.name, 'Илья Ветров');
-    await tester.tap(find.byTooltip('Назад'));
+    await tester.tap(findControl('Назад'));
     await tester.pumpAndSettle();
     await controller.connect(controller.radios.last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Узлы'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Сортировка'));
+    await tester.tap(findControl('Сортировка'));
     await tester.pumpAndSettle();
     expect(find.text('По последней переписке'), findsOneWidget);
     expect(find.text('По расстоянию'), findsNothing);
@@ -3117,7 +3919,7 @@ void main() {
       );
       if (useIosControls) {
         expect(nativeClose, findsOneWidget);
-        expect(find.byTooltip('Close'), findsNothing);
+        expect(findControl('Close'), findsNothing);
       }
       await tester.pumpAndSettle();
       expect(find.text('Mira'), findsOneWidget);
@@ -3138,7 +3940,7 @@ void main() {
         );
         tester.widget<IosControl>(share).onSelect!(0);
       } else {
-        await tester.tap(find.byTooltip('Share'));
+        await tester.tap(findControl('Share'));
       }
       await tester.pumpAndSettle();
       expect(shared?.method, 'share');
@@ -3147,7 +3949,7 @@ void main() {
       if (useIosControls) {
         tester.widget<IosControl>(nativeClose).onSelect!(0);
       } else {
-        await tester.tap(find.byTooltip('Close'));
+        await tester.tap(findControl('Close'));
       }
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.qr_code_2_rounded), findsOneWidget);
@@ -3339,7 +4141,7 @@ void main() {
       }
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Профиль Мира Соколова'));
+      await tester.tap(findControl('Профиль Мира Соколова'));
       await tester.pumpAndSettle();
       final profile = find.byType(MeshChatProfile);
       expect(tester.widget<MeshChatProfile>(profile).peer.id, 'node:a');
@@ -3406,7 +4208,7 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final filters = find.byType(ChatFilters);
+      final filters = find.byKey(const ValueKey('chat-categories'));
       final heading = find.byType(PageHeading);
       final close = find.byWidgetPredicate(
         (widget) => widget is GlassButton && widget.label == 'Close search',
@@ -4436,7 +5238,7 @@ void main() {
     );
     final key = find.text(prefix);
     expect(tester.getTopLeft(name).dx, tester.getTopLeft(key).dx);
-    final copy = find.byTooltip('Copy public key');
+    final copy = findControl('Copy public key');
     await tester.ensureVisible(copy);
     await tester.tap(copy);
     await tester.pump();
@@ -4700,9 +5502,9 @@ void main() {
     );
     await tester.drag(find.text('Radio'), const Offset(-245, 0));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Hide'), findsOneWidget);
+    expect(findControl('Hide'), findsOneWidget);
     expect(deletes, 0);
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(findControl('Delete'));
     expect(deletes, 1);
   });
 
@@ -4847,7 +5649,7 @@ void main() {
         });
       }
 
-      final back = find.byTooltip('Back');
+      final back = findControl('Back');
       final avatarView = find.byKey(avatar);
       final wallpaper = find.byType(ProfileWallpaper);
       SliverPaintOrder paintOrder() => tester
@@ -5056,7 +5858,7 @@ void main() {
     expect(find.textContaining('Прокшин Руслан Владимирович'), findsOneWidget);
     expect(find.textContaining('## 1. Стороны'), findsNothing);
     expect(find.text('1. Стороны и предмет соглашения'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(findControl('Back'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Licenses'));
     await tester.runAsync(() async {
@@ -5119,9 +5921,9 @@ void main() {
       expect(stamp, findsOneWidget);
       expect(tester.getRect(stamp).right, lessThan(320));
 
-      final map = find.byTooltip('Node map');
+      final map = findControl('Node map');
       expect(map, findsOneWidget);
-      final sort = find.byTooltip('Sort by');
+      final sort = findControl('Sort by');
       expect(sort, findsOneWidget);
       expect(tester.getRect(map).right, lessThan(tester.getRect(sort).left));
 
@@ -5256,7 +6058,7 @@ void main() {
     await tester.tap(find.text('Open map'));
     await tester.pumpAndSettle();
     expect(find.text('Map position'), findsNothing);
-    expect(find.byTooltip('Close'), findsOneWidget);
+    expect(findControl('Close'), findsOneWidget);
     expect(find.text('55.750000, 37.625000'), findsOneWidget);
     final credit = find.text('© OpenStreetMap contributors');
     final creditButton = find.ancestor(
@@ -5304,7 +6106,7 @@ void main() {
       ),
     );
     final title = find.text('Radio settings');
-    final back = find.byTooltip('Back');
+    final back = findControl('Back');
     final titlePosition = tester.getTopLeft(title);
     final backPosition = tester.getTopLeft(back);
     await tester.drag(find.byType(ListView), const Offset(0, -420));
@@ -5354,11 +6156,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Wi-Fi password'), findsOneWidget);
       expect(link.wifiEnabled, isFalse);
-      await tester.tap(find.byTooltip('Save to radio'));
+      await tester.tap(findControl('Save to radio'));
       await tester.pumpAndSettle();
       expect(link.wifiEnabled, isTrue);
       expect(find.text('Wi-Fi password'), findsOneWidget);
-      await tester.tap(find.byTooltip('Clear search'));
+      await tester.tap(findControl('Clear search'));
       await tester.pumpAndSettle();
       expect(find.text('Wi-Fi network'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -5396,7 +6198,7 @@ void main() {
     await tester.tap(find.text('LoRa settings'));
     await tester.pumpAndSettle();
     expect(find.text('Frequency'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back').last);
+    await tester.tap(findControl('Back').last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Telemetry'),
@@ -5464,7 +6266,7 @@ void main() {
           expect(button.properties['enabled'], isTrue);
           button.onSelect!(0);
         } else {
-          final tooltip = find.byTooltip(label);
+          final tooltip = findControl(label);
           await tester.tap(
             tooltip.evaluate().isEmpty ? find.text(label) : tooltip,
           );
@@ -5710,7 +6512,7 @@ void main() {
       expect(adapter.sessions.single.radioName, 'Field router');
       await tester.tap(find.text('Chats'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('New chat'));
+      await tester.tap(findControl('New chat'));
       await tester.pumpAndSettle();
       expect(
         find.descendant(
@@ -5854,8 +6656,8 @@ void main() {
       await tester.tap(bubble);
       await tester.pump(const Duration(milliseconds: 360));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('All emoji'), findsOneWidget);
-      await tester.drag(find.byTooltip('React 👍'), const Offset(-90, 0));
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.drag(findControl('React 👍'), const Offset(-90, 0));
       await tester.pumpAndSettle();
       expect(menu, findsOneWidget);
       final previewLayer = find.byKey(const ValueKey('message-menu-preview'));
@@ -5881,14 +6683,14 @@ void main() {
       final profile = find.byType(MeshChatProfile);
       expect(tester.widget<MeshChatProfile>(profile).peer.id, 'node:a');
       await tester.tap(
-        find.descendant(of: profile, matching: find.byTooltip('Back')),
+        find.descendant(of: profile, matching: findControl('Back')),
       );
       await tester.pumpAndSettle();
       expect(author, findsOneWidget);
       await tester.tap(find.widgetWithText(ChoiceChip, '🔥 1'));
       await tester.pumpAndSettle();
       expect(find.text('Unknown node'), findsOneWidget);
-      await tester.tap(find.byTooltip('Back to message menu'));
+      await tester.tap(findControl('Back to message menu'));
       await tester.pumpAndSettle();
       expect(find.text('Message info'), findsOneWidget);
       await tester.tapAt(const Offset(6, 6));
@@ -5914,8 +6716,8 @@ void main() {
       expect(tag('👍'), findsOneWidget);
       await tester.longPress(bubble);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('All emoji'), findsOneWidget);
-      await tester.tap(find.byTooltip('All emoji'));
+      expect(findControl('All emoji'), findsOneWidget);
+      await tester.tap(findControl('All emoji'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byKey(const ValueKey('emoji-catalog')), findsOneWidget);
@@ -5926,6 +6728,98 @@ void main() {
       controller.dispose();
     },
   );
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('menu reaction lands in its chip on ${platform.name}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 760);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter(), MeshCoreAdapter()],
+        preview: true,
+      );
+      final cache = controller.cache!;
+      final peer = cache.peers['ch:0']!;
+      final message = MeshMessage(
+        id: 'reaction-flight-message',
+        chat: peer.id,
+        author: 'Mira',
+        text: 'Choose a reaction',
+        time: DateTime.now(),
+        delivery: Delivery.received,
+        remoteId: '56',
+      );
+      cache.messages.add(message);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: MeshChatPage(controller: controller, peer: peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bubble = find.text(message.text);
+      final flight = find.byKey(const ValueKey('reaction-flight'));
+      final chip = find.descendant(
+        of: find.byType(MessageReactionChips),
+        matching: find.text('👍'),
+      );
+      await tester.longPress(bubble);
+      await tester.pumpAndSettle();
+      final option = findControl('React 👍');
+      final source = tester.getCenter(option);
+      await tester.tap(option);
+      for (var frame = 0; frame < 8 && flight.evaluate().isEmpty; frame++) {
+        await tester.pump();
+      }
+      expect(flight, findsOneWidget);
+      expect((tester.getCenter(flight) - source).distance, lessThan(2));
+      expect(controller.reactionsFor(message).single.emoji, '👍');
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: chip, matching: find.byType(Opacity)).first,
+            )
+            .opacity,
+        0,
+      );
+      final destination = tester.getCenter(chip);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final middle = tester.getCenter(flight);
+      if (platform == TargetPlatform.iOS) {
+        expect(middle.dy, closeTo(source.dy - 30, 1));
+      } else {
+        expect(
+          (middle - destination).distance,
+          lessThan((source - destination).distance),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(chip, findsOneWidget);
+
+      _reduceMotion(tester);
+      await tester.pumpAndSettle();
+      await tester.longPress(bubble);
+      await tester.pumpAndSettle();
+      final heart = findControl('React ❤️');
+      await tester.ensureVisible(heart);
+      await tester.tap(heart);
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(
+        controller.reactionsFor(message).map((reaction) => reaction.emoji),
+        unorderedEquals(['👍', '❤️']),
+      );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
 
   testWidgets(
     'channel avatars follow sender groups and pin above the composer',
@@ -6105,9 +6999,38 @@ void main() {
       expect(highlight.value, greaterThan(0));
       await tester.pumpAndSettle();
       expect(highlight.value, 0);
+
+      cache.messages.removeWhere((message) => message.id == 'history-14');
+      controller.refreshNodePresence();
+      final history = tester.widget<ChatMessageList>(
+        find.byType(ChatMessageList),
+      );
+      history.controller!.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Original message'));
+      await tester.pumpAndSettle();
+      expect(find.text('This message is no longer in local history'), findsOne);
+
+      unawaited(
+        openMeshMessage(
+          tester.element(find.byType(MeshChatPage)),
+          controller: controller,
+          chatId: peer.id,
+          messageId: 'history-22',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('history-22')).hitTestable(),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
   );
 
   testWidgets(
@@ -6160,7 +7083,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), '👋');
       await tester.pump();
-      await tester.tap(find.byTooltip('Send'));
+      await tester.tap(findControl('Send'));
       await tester.pumpAndSettle();
       final sent = controller.messages(peer.id).last;
       expect(sent.text, '👋');
@@ -6486,8 +7409,13 @@ void main() {
     },
   );
 
+  final retryMessageTypes = ValueVariant<String>({
+    'Try this again',
+    '👍',
+    'geo:55.758214,52.464570',
+  });
   testWidgets(
-    'retrying from the warning replaces the failed attempt in the chat',
+    'tapping near the warning replaces the failed attempt in the chat',
     (tester) async {
       _reduceMotion(tester);
       const radio = (network: 'test', device: 'one', name: 'Field radio');
@@ -6499,7 +7427,8 @@ void main() {
       );
       await controller.connect(radio);
       final session = adapter.sessions.single..failSends = true;
-      expect(await controller.send(_peer, 'Try this again'), isFalse);
+      final message = retryMessageTypes.currentValue!;
+      expect(await controller.send(_peer, message), isFalse);
       final failed = controller.messages(_peer.id).single;
       expect(failed.delivery, Delivery.failed);
       controller.setDraft(_peer.id, 'Another draft');
@@ -6511,7 +7440,12 @@ void main() {
       await tester.pumpAndSettle();
       session.failSends = false;
       session.autoAcknowledge = false;
-      await tester.tap(find.byIcon(Icons.error_outline_rounded));
+      final warning = tester.getRect(find.byIcon(Icons.error_outline_rounded));
+      final nearWarning = warning.center + const Offset(4, -18);
+      expect(warning.size, const Size.square(15));
+      expect(warning.contains(nearWarning), isFalse);
+      expect(find.bySemanticsLabel(RegExp('Resend message')), findsOneWidget);
+      await tester.tapAt(nearWarning);
       await tester.pump();
       final retried = controller.messages(_peer.id).single;
       expect(retried.id, isNot(failed.id));
@@ -6523,10 +7457,62 @@ void main() {
       session.stream.add(DeliveryUpdate(retried.id, Delivery.acknowledged));
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
-      expect(find.text('Try this again'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Resend message')), findsNothing);
       await tester.pumpWidget(const SizedBox());
       controller.dispose();
     },
+    variant: retryMessageTypes,
+  );
+
+  testWidgets(
+    'returning from settings keeps the first chat below the folder strip',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      await tester.pumpWidget(
+        MeshGrame(controller: controller, locale: const Locale('en')),
+      );
+      await tester.pumpAndSettle();
+
+      const chatsKey = PageStorageKey('chats');
+      final scroll =
+          tester.widget<CustomScrollView>(find.byKey(chatsKey)).controller!
+              as MeshSearchScrollController;
+      final firstChat = find.byKey(const ValueKey('ch:0'));
+      final folders = find.byType(ChatFolderTabs);
+      final navigation = find.byType(MeshNavigation);
+
+      scroll.jumpTo(scroll.collapseRange);
+      await tester.pumpAndSettle();
+      final firstChatTop = tester.getTopLeft(firstChat).dy;
+      final folderBottom = tester.getBottomLeft(folders).dy;
+      expect(firstChatTop, greaterThanOrEqualTo(folderBottom));
+
+      tester.widget<MeshNavigation>(navigation).onSelect(1);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(firstChat, findsNothing);
+      tester.widget<MeshNavigation>(navigation).onSelect(0);
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(firstChat).dy, closeTo(firstChatTop, .5));
+      expect(tester.getBottomLeft(folders).dy, closeTo(folderBottom, .5));
+      expect(scroll.offset, closeTo(scroll.collapseRange, .5));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.android,
+    }),
   );
 
   testWidgets('tab fades leave shared chat rows and navigation visible', (
@@ -6544,8 +7530,9 @@ void main() {
     await tester.pumpAndSettle();
     double rowOpacity(String id) =>
         tester.widget<FadeTransition>(find.byKey(ValueKey(id))).opacity.value;
-    void filter(int index) =>
-        tester.widget<ChatFilters>(find.byType(ChatFilters)).onSelect(index);
+    void filter(int index) => tester
+        .widget<ChatFolderTabs>(find.byType(ChatFolderTabs))
+        .onSelect(index);
     filter(1);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -6571,11 +7558,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(tester.element(nav), same(navElement));
-    expect(find.byType(ChatFilters), findsOneWidget);
+    expect(find.byType(ChatFolderTabs), findsOneWidget);
     for (var frame = 0; frame < 12; frame++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.text('About'), findsOneWidget);
+    expect(find.text('Saved Messages'), findsOneWidget);
     expect(tester.element(nav), same(navElement));
     await tester.pumpWidget(const SizedBox());
     controller.dispose();
@@ -6602,7 +7589,7 @@ void main() {
         MeshGrame(controller: controller, locale: const Locale('en')),
       );
       await tester.pumpAndSettle();
-      final list = find.byType(CustomScrollView);
+      final list = find.byKey(const PageStorageKey<String>('chats'));
       final heading = find.byType(PageHeading);
       final firstChat = find.text('Тропа');
       Finder glass(String label) => find.byWidgetPredicate(
@@ -6683,6 +7670,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getRect(search), expanded);
 
+      tester.view.physicalSize = const Size(390, 844);
+      await tester.pumpAndSettle();
+
       Future<double> titleWidth(String name) async {
         await tester.tap(find.text(name));
         await tester.pumpAndSettle();
@@ -6691,7 +7681,7 @@ void main() {
           matching: find.byType(GlassSurface),
         );
         final width = tester.getSize(capsule).width;
-        await tester.tap(find.byTooltip('Back'));
+        await tester.tap(findControl('Back'));
         await tester.pumpAndSettle();
         return width;
       }
@@ -6702,8 +7692,6 @@ void main() {
         expect(short, lessThan(150));
         expect(long, greaterThan(short + 24));
       }
-      tester.view.physicalSize = const Size(390, 844);
-      await tester.pumpAndSettle();
       await tester.drag(firstChat, const Offset(0, -125));
       await tester.pumpAndSettle();
       expect(tester.getRect(search).width, 48);
@@ -6718,6 +7706,1313 @@ void main() {
       TargetPlatform.iOS,
     }),
   );
+
+  testWidgets(
+    'sent text moves before the transport receipt and respects reduced motion',
+    (tester) async {
+      const radio = (network: 'test', device: 'one', name: 'Field radio');
+      final adapter = _FakeAdapter(radio.network);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: [adapter],
+      );
+      await controller.connect(radio);
+      final session = adapter.sessions.single..autoAcknowledge = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: _peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'On the ridge');
+      await tester.pump();
+      await tester.tap(findControl('Send'));
+      await tester.pump();
+      await tester.pump();
+      final flight = find.byKey(const ValueKey('sending-text-flight'));
+      expect(flight, findsOneWidget);
+      final source = tester.getTopLeft(flight);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.getTopLeft(flight).dy, lessThan(source.dy));
+      final sent = controller.messages(_peer.id).single;
+      expect(sent.delivery, Delivery.submitted);
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(flight, findsNothing);
+      session.stream.add(DeliveryUpdate(sent.id, Delivery.acknowledged));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
+      expect(flight, findsNothing);
+
+      _reduceMotion(tester);
+      session.autoAcknowledge = true;
+      await tester.enterText(find.byType(TextField), 'Ready');
+      await tester.pump();
+      await tester.tap(findControl('Send'));
+      await tester.pumpAndSettle();
+      expect(flight, findsNothing);
+      expect(controller.messages(_peer.id), hasLength(2));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+  );
+
+  testWidgets(
+    'outbox waits for its profile and requires a retry after failure',
+    (tester) async {
+      const first = (network: 'test', device: 'one', name: 'Field radio');
+      const second = (network: 'test', device: 'two', name: 'Backup radio');
+      final adapter = _FakeAdapter(first.network);
+      final store = MeshStore(await SharedPreferences.getInstance());
+      var foreground = false;
+      final controller = MeshController(
+        store: store,
+        transport: _TestTransport(),
+        adapters: [adapter],
+        isChatForeground: () => foreground,
+      );
+      await controller.connect(first);
+      final firstSession = adapter.sessions.single..failSends = true;
+      expect(
+        await controller.enqueueRadioMessage(_peer, 'Radio check'),
+        isTrue,
+      );
+      final queued = controller.outboxFor(_peer.id).single;
+      expect(store.loadOutbox().single.status, OutboxStatus.waiting);
+      expect(controller.messages(_peer.id), isEmpty);
+      await controller.connect(second);
+      foreground = true;
+      await controller.flushOutbox();
+      expect(controller.outboxFor(_peer.id), isEmpty);
+      expect(controller.messages(_peer.id), isEmpty);
+      await controller.connect(first);
+      await tester.pumpAndSettle();
+      final failed = controller.messages(_peer.id).single;
+      final review = controller.outboxFor(_peer.id).single;
+      expect(review.id, queued.id);
+      expect(review.status, OutboxStatus.uncertain);
+      expect(review.attemptId, failed.id);
+      expect(
+        OutboxMessage.decode(
+          review.withChanges(status: OutboxStatus.sending).toJson(),
+        )?.status,
+        OutboxStatus.uncertain,
+      );
+      firstSession.failSends = false;
+      await controller.flushOutbox();
+      expect(controller.messages(_peer.id).single.id, failed.id);
+      expect(await controller.retryMessage(_peer, failed.id), isFalse);
+      controller.setDraft(_peer.id, 'Keep this draft');
+      expect(await controller.updateOutbox(review, _peer, retry: true), isTrue);
+      await tester.pumpAndSettle();
+      expect(controller.outboxFor(_peer.id), isEmpty);
+      expect(
+        controller.messages(_peer.id).single.delivery,
+        Delivery.acknowledged,
+      );
+      expect(controller.messages(_peer.id).single.id, isNot(failed.id));
+      expect(controller.draft(_peer.id), 'Keep this draft');
+      controller.dispose();
+    },
+  );
+
+  test('a radio loss after handoff does not resend the outbox item', () async {
+    const radio = (network: 'test', device: 'one', name: 'Field radio');
+    final adapter = _FakeAdapter(radio.network);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: [adapter],
+    );
+    await controller.connect(radio);
+    final completion = Completer<void>();
+    adapter.sessions.single
+      ..autoAcknowledge = false
+      ..sendCompletion = completion;
+    expect(
+      await controller.enqueueRadioMessage(_peer, 'Status from the ridge'),
+      isTrue,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.outboxFor(_peer.id).single.status, OutboxStatus.sending);
+    final attempt = controller.messages(_peer.id).single;
+    await controller.disconnectRadio(radio);
+    completion.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      controller.outboxFor(_peer.id).single.status,
+      OutboxStatus.uncertain,
+    );
+    expect(controller.messages(_peer.id).single.delivery, Delivery.unconfirmed);
+    await controller.connect(radio);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.messages(_peer.id).single.id, attempt.id);
+    expect(
+      controller.outboxFor(_peer.id).single.status,
+      OutboxStatus.uncertain,
+    );
+    controller.dispose();
+  });
+
+  testWidgets('holding a disabled send arrow opens the offline radio outbox', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final store = MeshStore(await SharedPreferences.getInstance());
+    final controller = MeshController(
+      store: store,
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final profile = controller.active!;
+    final peer = controller.cache!.peers['node:a']!;
+    final messages = controller.messages(peer.id).length;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Ready at the pass');
+    await tester.pumpAndSettle();
+    await controller.disconnectRadio(profile);
+    await tester.pumpAndSettle();
+    await tester.longPress(findControl('Send'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send when the radio connects'));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), isEmpty);
+    expect(controller.messages(peer.id), hasLength(messages));
+    expect(store.loadOutbox().single.text, 'Ready at the pass');
+    await tester.tap(findControl('Radio outbox'));
+    await tester.pumpAndSettle();
+    expect(find.text('Waiting to send'), findsOneWidget);
+    expect(find.text('Radio disconnected'), findsOneWidget);
+    await tester.longPress(find.text('Ready at the pass'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Ready at the ridge');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.loadOutbox().single.text, 'Ready at the ridge');
+    await tester.longPress(find.text('Ready at the ridge'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove from outbox'));
+    await tester.pumpAndSettle();
+    expect(store.loadOutbox(), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  for (final network in ['meshtastic', 'meshcore']) {
+    testWidgets('selected excerpts and text forwarding on $network', (
+      tester,
+    ) async {
+      _reduceMotion(tester);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter(), MeshCoreAdapter()],
+        preview: true,
+      );
+      if (network == 'meshcore') {
+        await controller.connect(controller.radios.last);
+      }
+      final peer = controller.cache!.peers['node:a']!;
+      final source = controller
+          .messages(peer.id)
+          .firstWhere((message) => message.text.contains('гребне'));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final sourceBubble = find.byKey(ValueKey(('bubble', source.id)));
+      await tester.longPress(sourceBubble);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quote selection'));
+      await tester.pumpAndSettle();
+      const selected = 'гребне';
+      final offset = source.text.indexOf(selected);
+      tester
+          .widget<SelectableText>(find.byType(SelectableText))
+          .onSelectionChanged!(
+        TextSelection(
+          baseOffset: offset,
+          extentOffset: offset + selected.length,
+        ),
+        SelectionChangedCause.longPress,
+      );
+      await tester.pump();
+      await tester.tap(find.text('Quote'));
+      await tester.pumpAndSettle();
+      if (network == 'meshtastic') {
+        expect(controller.replyDraft(peer.id)?.id, source.id);
+        expect(controller.replyDraftExcerpt(peer.id)?.text, selected);
+        final restored = ChatCache.fromJson(controller.cache!.toJson());
+        expect(restored.replyExcerpts[peer.id]?.offset, offset);
+        await tester.enterText(find.byType(TextField), 'OK');
+        await tester.pump();
+        await tester.tap(findControl('Send'));
+        await tester.pumpAndSettle();
+        final sent = controller.messages(peer.id).last;
+        expect(sent.replyTo, controller.referenceFor(source));
+        expect(sent.replyExcerpt?.text, selected);
+      } else {
+        expect(controller.replyDraft(peer.id), isNull);
+        expect(controller.draft(peer.id), '«$selected»\n');
+      }
+      await tester.longPress(sourceBubble);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Forward as text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Тропа'));
+      await tester.pumpAndSettle();
+      expect(controller.draft('ch:0'), '${source.author}:\n${source.text}');
+      expect(controller.messages('ch:0'), hasLength(1));
+      await tester.tap(findControl('Back'));
+      await tester.pumpAndSettle();
+      await tester.longPress(sourceBubble);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Forward as text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Saved Messages'));
+      await tester.tap(find.text('Тропа'));
+      await tester.tap(find.text('Contacts'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).last,
+        peer.name.split(' ').first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, peer.name));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Prepare · 3'));
+      await tester.pumpAndSettle();
+      expect(controller.isMessageSaved(source), isTrue);
+      expect(controller.draft(peer.id), contains(source.text));
+      expect(controller.draft('ch:0').split(source.text), hasLength(3));
+      expect(controller.messages('ch:0'), hasLength(1));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
+  testWidgets('quick phrases are edited locally and append to a draft', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final store = MeshStore(await SharedPreferences.getInstance());
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: store,
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final messages = controller.messages(peer.id).length;
+    controller.setDraft(peer.id, 'Team:');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final phraseButton = findControl('Quick phrases');
+    final attachmentButton = findControl('Attachments');
+    final counter = find.text('5 chars · 5/200 B');
+    void expectCenteredCounter() {
+      expect(
+        tester.getCenter(counter).dx,
+        closeTo(tester.getCenter(find.byType(MeshChatPage)).dx, .1),
+      );
+    }
+
+    void expectAlignedButtons() {
+      expect(
+        tester.getCenter(phraseButton).dx,
+        tester.getCenter(attachmentButton).dx,
+      );
+    }
+
+    expectAlignedButtons();
+    expectCenteredCounter();
+    controller.setReplyDraft(peer.id, controller.messages(peer.id).first);
+    await tester.pumpAndSettle();
+    expect(findControl('Cancel reply'), findsOneWidget);
+    expectAlignedButtons();
+    controller.setReplyDraft(peer.id, null);
+    await tester.pumpAndSettle();
+
+    await tester.tap(phraseButton);
+    await tester.pumpAndSettle();
+    final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    expectCenteredCounter();
+    expect(
+      tester.getBottomLeft(counter).dy,
+      lessThan(tester.getTopLeft(strip).dy),
+    );
+    expect(findControl('Collapse quick phrases'), findsNothing);
+    expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+    await tester.tapAt(const Offset(7, 140));
+    await tester.pumpAndSettle();
+    expect(strip, findsNothing);
+    await tester.tap(phraseButton);
+    await tester.pumpAndSettle();
+    expect(find.text('I’m here'), findsOneWidget);
+    await tester.tap(find.text('I’m here'));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), 'Team: I’m here');
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(strip, findsNothing);
+
+    await tester.tap(phraseButton);
+    await tester.pumpAndSettle();
+    await tester.tap(findControl('Expand quick phrases'));
+    await tester.pumpAndSettle();
+    final sheet = find.byType(BottomSheet);
+    Finder inSheet(Finder child) => find.descendant(of: sheet, matching: child);
+    expect(inSheet(find.byType(Divider)), findsNWidgets(2));
+    expect(inSheet(find.byIcon(Icons.edit_outlined)), findsNothing);
+    await tester.longPress(inSheet(find.text('I’m here')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'At the ridge');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.quickPhrases?.first, 'At the ridge');
+    await tester.tap(inSheet(find.text('At the ridge')));
+    await tester.pumpAndSettle();
+    expect(controller.draft(peer.id), 'Team: I’m here At the ridge');
+    expect(strip, findsNothing);
+    expectAlignedButtons();
+    expect(controller.messages(peer.id), hasLength(messages));
+    expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('quick phrase strip grows before revealing its contents', (
+    tester,
+  ) async {
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final trigger = findControl('Quick phrases');
+    final strip = find.byType(QuickPhraseStrip);
+    final phrase = find.descendant(of: strip, matching: find.text('I’m here'));
+    await tester.tap(trigger);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 75));
+    final openingWidth = tester.getSize(strip).width;
+    expect(openingWidth, greaterThan(48));
+    expect(phrase, findsNothing);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(strip).width, greaterThan(openingWidth));
+    expect(phrase, findsOneWidget);
+    await tester.tap(phrase);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 185));
+    expect(strip, findsOneWidget);
+    expect(phrase, findsNothing);
+    await tester.pumpAndSettle();
+    expect(strip, findsNothing);
+    expect(trigger, findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets(
+    'iOS quick phrases use the native glass button as a passive background',
+    (tester) async {
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform_views,
+        (_) async => null,
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          null,
+        ),
+      );
+      final store = MeshStore(await SharedPreferences.getInstance());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: QuickPhraseStrip(
+              store: store,
+              onSelect: null,
+              onExpand: null,
+              progress: 1,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final glass = tester.widget<IosControl>(find.byType(IosControl));
+      expect(glass.kind, 'button');
+      expect(glass.properties['enabled'], isTrue);
+      expect(glass.properties['readOnly'], isTrue);
+      expect(glass.onSelect, isNull);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
+  testWidgets('mouse wheel moves the desktop quick phrases horizontally', (
+    tester,
+  ) async {
+    final store = MeshStore(await SharedPreferences.getInstance());
+    await store.setQuickPhrases([
+      for (var index = 1; index <= 8; index++) 'Quick phrase $index',
+    ]);
+    var expansions = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.windows),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 255,
+              child: QuickPhraseStrip(
+                store: store,
+                onSelect: (_) {},
+                onExpand: () => expansions++,
+                progress: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final list = find.byKey(const ValueKey('quick-phrase-scroll'));
+    final scroll = tester.widget<ListView>(list).controller!;
+    void wheel(double dy) => tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: tester.getCenter(list),
+        kind: PointerDeviceKind.mouse,
+        scrollDelta: Offset(0, dy),
+      ),
+    );
+    wheel(120);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 120);
+    wheel(-60);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 60);
+    wheel(5000);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, scroll.position.maxScrollExtent);
+    expect(expansions, 0);
+  });
+
+  testWidgets('radio status replaces the draft counter until connected', (
+    tester,
+  ) async {
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final radio = controller.active!;
+    await controller.disconnectRadio(radio);
+    final peer = controller.cache!.peers['node:a']!;
+    controller.setDraft(peer.id, 'Test');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final disconnected = find.text('Radio disconnected');
+    final connected = find.text('Connection established');
+    final counter = find.text('4 chars · 4/200 B');
+    final field = find.descendant(
+      of: find.byType(MessageInput),
+      matching: find.byType(TextField),
+    );
+    TextField editor() => tester.widget<TextField>(field);
+    expect(disconnected, findsOneWidget);
+    expect(
+      tester.widget<Text>(disconnected).style?.color,
+      const MeshStyle(false).error,
+    );
+    expect(counter, findsNothing);
+    expect(editor().enabled, isFalse);
+    await tester.tap(field, warnIfMissed: false);
+    await tester.pump();
+    expect(editor().focusNode!.hasFocus, isFalse);
+    expect(editor().controller!.text, 'Test');
+
+    await controller.connect(radio);
+    await tester.pumpAndSettle();
+    expect(disconnected, findsNothing);
+    expect(connected, findsOneWidget);
+    expect(counter, findsNothing);
+    await tester.pump(const Duration(milliseconds: 1400));
+    await tester.pumpAndSettle();
+    expect(connected, findsNothing);
+    expect(counter, findsOneWidget);
+    expect(editor().enabled, isTrue);
+    await tester.tap(field);
+    await tester.pump();
+    expect(editor().focusNode!.hasFocus, isTrue);
+
+    await controller.disconnectRadio(radio);
+    await tester.pumpAndSettle();
+    expect(editor().enabled, isFalse);
+    expect(editor().focusNode!.hasFocus, isFalse);
+    expect(controller.draft(peer.id), 'Test');
+    await controller.connect(radio);
+    await tester.pumpAndSettle();
+    expect(connected, findsOneWidget);
+    await controller.disconnectRadio(radio);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    expect(disconnected, findsOneWidget);
+    expect(counter, findsNothing);
+    expect(connected, findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('the quick phrase pull can be reversed before release', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(375, 760);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    var readyHaptics = 0;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate' &&
+          call.arguments == 'HapticFeedbackType.mediumImpact') {
+        readyHaptics++;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    final store = MeshStore(await SharedPreferences.getInstance());
+    await store.setQuickPhrases([
+      for (var index = 1; index <= 8; index++) 'Quick reply $index',
+    ]);
+    final controller = MeshController(
+      store: store,
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MeshChatPage(controller: controller, peer: peer),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(findControl('Quick phrases'));
+    await tester.pumpAndSettle();
+    final strip = find.byKey(const ValueKey('quick-phrase-scroll'));
+    expect(
+      find.descendant(of: strip, matching: find.byType(VerticalDivider)),
+      findsWidgets,
+    );
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: strip, matching: find.byType(Scrollable)),
+        )
+        .position;
+    final sheet = find.byType(BottomSheet);
+    await tester.drag(strip, const Offset(100, 0));
+    await tester.pumpAndSettle();
+    expect(sheet, findsNothing);
+    await tester.drag(strip, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(position.pixels, greaterThan(0));
+    expect(sheet, findsNothing);
+
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    final arrow = find.byKey(const ValueKey('pull-arrow'));
+    final pencil = find.byKey(const ValueKey('quick-phrase-pencil'));
+    double arrowScale() =>
+        tester.widget<Transform>(arrow).transform.entry(0, 0);
+    final reversed = await tester.startGesture(tester.getCenter(strip));
+    await reversed.moveBy(const Offset(-25, 0));
+    await reversed.moveBy(const Offset(-24, 0));
+    await tester.pumpAndSettle();
+    expect(arrow, findsOneWidget);
+    expect(readyHaptics, 0);
+    final initialScale = arrowScale();
+
+    await reversed.moveBy(const Offset(-45, 0));
+    await tester.pumpAndSettle();
+    expect(arrowScale(), greaterThan(initialScale));
+    expect(readyHaptics, 1);
+    expect(sheet, findsNothing);
+    await reversed.moveBy(const Offset(56, 0));
+    await tester.pumpAndSettle();
+    expect(arrowScale(), lessThan(initialScale));
+    await reversed.moveBy(const Offset(25, 0));
+    await tester.pumpAndSettle();
+    expect(pencil, findsOneWidget);
+    expect(arrow, findsNothing);
+    await reversed.up();
+    await tester.pumpAndSettle();
+    expect(sheet, findsNothing);
+    expect(readyHaptics, 1);
+
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    final confirmed = await tester.startGesture(tester.getCenter(strip));
+    await confirmed.moveBy(const Offset(-25, 0));
+    await confirmed.moveBy(const Offset(-75, 0));
+    await tester.pumpAndSettle();
+    expect(readyHaptics, 2);
+    expect(sheet, findsNothing);
+    await confirmed.up();
+    await tester.pumpAndSettle();
+    expect(sheet, findsOneWidget);
+    expect(readyHaptics, 2);
+    await tester.tap(findControl('Add phrase'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'Added from the list');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.quickPhrases?.last, 'Added from the list');
+    expect(controller.draft(peer.id), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('local folders and message pins survive a cache reload', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final message = controller.messages(peer.id).first;
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Unread'), findsNothing);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(peer.name));
+    await tester.tap(find.text('Тропа'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.text('New folder'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), ' Field team ');
+    await tester.pump();
+    await tester.tap(find.descendant(of: dialog, matching: find.text('Add')));
+    await tester.pumpAndSettle();
+    final folder = controller.chatFolders.single.id;
+    expect(find.text('Field team'), findsOneWidget);
+    expect(findControl('Delete folder Field team'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    controller.toggleFolderPin(folder, peer.id);
+    controller.setPinnedMessage(peer.id, message.id);
+    final cache = ChatCache.fromJson(controller.cache!.toJson());
+    expect(cache.folders[folder]?.name, 'Field team');
+    expect(cache.folders[folder]?.chats, {peer.id, 'ch:0'});
+    expect(cache.folders[folder]?.pinned, [peer.id]);
+    expect(cache.pinnedMessages[peer.id], message.id);
+
+    await tester.pumpAndSettle();
+    final row = find.text(peer.name);
+    expect(
+      tester.getTopLeft(row).dy,
+      lessThan(tester.getTopLeft(find.text('Тропа')).dy),
+    );
+    expect(find.text('Илья Ветров'), findsNothing);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    final pin = find.text('Pinned message');
+    await tester.tap(pin);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(ValueKey(('bubble', message.id))).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(findControl('Unpin message'));
+    await tester.pumpAndSettle();
+    expect(controller.pinnedMessageId(peer.id), isNull);
+    expect(transport.links, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('folder tabs reorder on hold and delete without deleting chats', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final first = controller.saveChatFolder(
+      name: 'Field team',
+      chats: {'node:a'},
+    );
+    final second = controller.saveChatFolder(
+      name: 'Survey crew',
+      chats: {'ch:0'},
+    );
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+    await tester.drag(scroll, const Offset(-260, 0));
+    await tester.pumpAndSettle();
+    final tabs = tester.widget<CustomScrollView>(scroll).controller!;
+    expect(tabs.offset, greaterThan(0));
+    tabs.jumpTo(tabs.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final left = tester.getCenter(find.text('Field team'));
+    final right = tester.getCenter(find.text('Survey crew'));
+    expect(find.text('Survey crew').hitTestable(), findsOneWidget);
+    final hold = await tester.startGesture(right);
+    await tester.pump(const Duration(milliseconds: 550));
+    await tester.pump();
+    await hold.moveBy(const Offset(-64, 0));
+    await tester.pump(const Duration(milliseconds: 100));
+    await hold.moveTo(left + const Offset(35, 0));
+    await tester.pump(const Duration(milliseconds: 240));
+    await hold.up();
+    await tester.pumpAndSettle();
+    expect(controller.chatFolders.map((folder) => folder.id), [second, first]);
+    expect(
+      tester.getCenter(find.text('Survey crew')).dx,
+      lessThan(tester.getCenter(find.text('Field team')).dx),
+    );
+
+    tabs.jumpTo(tabs.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final deleteButton = findControl('Delete folder Field team');
+    final close = find.descendant(
+      of: deleteButton,
+      matching: find.byIcon(Icons.close_rounded),
+    );
+    expect(
+      tester.getCenter(close).dx,
+      greaterThan(tester.getCenter(find.text('Field team')).dx),
+    );
+    await tester.tap(deleteButton);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Delete'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.chatFolders.map((folder) => folder.id), [second]);
+    expect(controller.messages('node:a'), isNotEmpty);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets(
+    'Android fills folder slots and animates selection without splash',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+      const labels = ['All', 'DM', 'Ops'];
+      late StateSetter updateTabs;
+      var selected = 0;
+      var folders = <ChatFolder>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (_, setState) {
+                updateTabs = setState;
+                return ChatFolderTabs(
+                  builtInLabels: labels,
+                  folders: folders,
+                  scrollController: scrollController,
+                  selected: selected,
+                  editing: false,
+                  onSelect: (index) => setState(() => selected = index),
+                  onReorder: (_, _) {},
+                  onEdit: (_) {},
+                  onDelete: (_) {},
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      final scroll = find.byKey(const ValueKey('chat-folder-scroll'));
+      final indicator = find.byKey(const ValueKey('chat-folder-indicator'));
+      Finder tab(String label) =>
+          find.ancestor(of: find.text(label), matching: find.byType(InkWell));
+
+      expect(scrollController.position.maxScrollExtent, 0);
+      expect(
+        tester.getTopLeft(tab(labels.first)).dx,
+        tester.getTopLeft(scroll).dx,
+      );
+      expect(
+        tester.getTopRight(tab(labels.last)).dx,
+        tester.getTopRight(scroll).dx,
+      );
+      expect(
+        tester.getSize(tab('DM')).width,
+        closeTo(tester.getSize(tab('All')).width, .01),
+      );
+      final target = tester.widget<InkWell>(tab('Ops'));
+      expect(target.splashFactory, NoSplash.splashFactory);
+      expect(target.highlightColor, Colors.transparent);
+
+      final start = tester.getCenter(indicator).dx;
+      final finish = tester.getCenter(tab('Ops')).dx;
+      await tester.tap(find.text('Ops'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(tester.getCenter(indicator).dx, inExclusiveRange(start, finish));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(indicator).dx, closeTo(finish, .01));
+
+      updateTabs(() {
+        folders = [
+          for (var i = 0; i < 4; i++)
+            ChatFolder(
+              id: '$i',
+              name: 'Field survey group $i',
+              chats: const {},
+            ),
+        ];
+      });
+      await tester.pumpAndSettle();
+      expect(scrollController.position.maxScrollExtent, greaterThan(0));
+      await tester.drag(scroll, const Offset(-240, 0));
+      await tester.pumpAndSettle();
+      expect(scrollController.offset, greaterThan(0));
+      expect(selected, 2);
+      await tester.pumpWidget(const SizedBox());
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.android}),
+  );
+
+  testWidgets('iOS scrolls folder tabs without changing the selection', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final names = [for (var i = 1; i <= 8; i++) 'Field $i'];
+    for (final name in names) {
+      await tester.pump();
+      controller.saveChatFolder(name: name, chats: {'node:a'});
+    }
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    final scroll = find.byKey(const ValueKey('native-chat-folder-scroll'));
+    expect(tester.getSize(scroll), const Size(352, 34));
+    expect(tester.getTopLeft(scroll).dx, 19);
+    expect(
+      tester.getCenter(scroll).dy,
+      tester.getCenter(find.byType(ChatFolderTabs)).dy,
+    );
+    final scrollController = tester
+        .widget<SingleChildScrollView>(scroll)
+        .controller!;
+    final picker = find.byType(ChatFolderTabs);
+    int selected() => tester.widget<ChatFolderTabs>(picker).selected;
+    IosControl tabs() => tester.widget<IosControl>(
+      find.descendant(
+        of: picker,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IosControl && widget.kind == 'folderTabs',
+        ),
+      ),
+    );
+    await tester.drag(scroll, const Offset(-550, 0));
+    await tester.pumpAndSettle();
+    expect(scrollController.offset, greaterThan(0));
+    expect(selected(), 0);
+    final displayed = tabs().properties['labels']! as List<String>;
+    expect(displayed, ['All', 'Direct', 'Channels', ...names]);
+    final label = names.last;
+    final end = scrollController.position.maxScrollExtent;
+    scrollController.jumpTo(end - 18);
+    await tester.pumpAndSettle();
+    tabs().onSelect!(displayed.indexOf(label));
+    await tester.pumpAndSettle();
+    expect(selected(), names.indexOf(label) + 3);
+    expect(scrollController.offset, end);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  }, variant: const TargetPlatformVariant({TargetPlatform.iOS}));
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('chat preview expands from the row on ${platform.name}', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 760);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      final peer = controller.cache!.peers['node:a']!;
+      const row = Rect.fromLTWH(0, 125, 390, 68);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: platform),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Stack(
+                children: [
+                  Positioned.fromRect(
+                    rect: row,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onLongPress: () => unawaited(
+                        showMeshChatPreview(
+                          context,
+                          controller,
+                          peer,
+                          row,
+                          sourceRow: const Text('Row snapshot'),
+                        ),
+                      ),
+                      child: const Center(child: Text('Source chat')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final card = find.byKey(const ValueKey('chat-preview-card'));
+      await tester.longPress(find.text('Source chat'));
+      await tester.pump();
+      expect(tester.getRect(card), row);
+      expect(find.text('Row snapshot'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 65));
+      expect(tester.getRect(card).height, inExclusiveRange(row.height, 480));
+      await tester.pumpAndSettle();
+      final expanded = tester.getRect(card);
+      expect(expanded.height, 480);
+      expect(find.text('Row snapshot'), findsNothing);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pump();
+      expect(tester.getRect(card), expanded);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.getRect(card).height,
+        inExclusiveRange(row.height, expanded.height),
+      );
+      await tester.pumpAndSettle();
+      expect(card, findsNothing);
+      expect(tester.getCenter(find.text('Source chat')), row.center);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
+  for (final network in ['meshtastic', 'meshcore']) {
+    testWidgets('shared $network channel and contact links become chat cards', (
+      tester,
+    ) async {
+      _reduceMotion(tester);
+      final adapter = _FakeAdapter(network);
+      final controller = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: _TestTransport(),
+        adapters: [adapter],
+      );
+      await controller.connect((
+        device: 'link-radio',
+        name: 'Radio',
+        network: network,
+      ));
+      final session = adapter.sessions.single..acceptsInvitations = true;
+      final field =
+          (CodedBufferWriter()
+                ..writeField(2, PbFieldType.OY, List<int>.filled(16, 5))
+                ..writeField(3, PbFieldType.OY, utf8.encode('Trail Team')))
+              .toBuffer();
+      final blob = (CodedBufferWriter()..writeField(1, PbFieldType.OY, field))
+          .toBuffer();
+      final invite = network == 'meshcore'
+          ? 'meshcore://channel/add?name=Trail%20Team&secret=${'05' * 16}'
+          : 'https://meshtastic.org/e/?add=true#${base64Url.encode(blob).replaceAll('=', '')}';
+      final contact = compactContactLink((
+        network: network,
+        id: network == 'meshcore' ? 'node:${'a' * 12}' : 'node:42',
+        name: 'Base Operator',
+        publicKey: 'a' * 64,
+        type: network == 'meshcore' ? 1 : null,
+        shortName: null,
+      ), 200)!;
+      for (final (index, text) in [
+        'Contact for overnight $contact',
+        'Join us ($invite)',
+      ].indexed) {
+        session.stream.add(
+          TextReceived(
+            MeshMessage(
+              id: 'shared-link-$index',
+              chat: _peer.id,
+              author: 'Mira',
+              text: text,
+              time: DateTime.now(),
+              delivery: Delivery.received,
+            ),
+            _peer,
+          ),
+        );
+      }
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: controller, peer: _peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Base Operator'), findsOneWidget);
+      expect(find.text('Contact for overnight'), findsOneWidget);
+      expect(find.text('Trail Team'), findsOneWidget);
+      expect(find.text('Join us'), findsOneWidget);
+      expect(find.textContaining('secret='), findsNothing);
+      expect(session.lastChannelRequest, isNull);
+      await tester.tap(find.text('Join channel'));
+      await tester.pumpAndSettle();
+      expect(session.lastChannelRequest?.invitation, invite);
+      expect(controller.cache!.peers['ch:2']?.name, 'Trail Team');
+      expect(find.byType(MeshChatPage), findsOneWidget);
+      expect(
+        tester.widget<MeshChatPage>(find.byType(MeshChatPage)).peer.id,
+        'ch:2',
+      );
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
+  }
+
+  testWidgets('new messages promote chats below persistent chat pins', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final adapter = _FakeAdapter('meshtastic');
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: _TestTransport(),
+      adapters: [adapter],
+    );
+    await controller.connect((
+      device: 'pin-order-radio',
+      name: 'Radio',
+      network: adapter.id,
+    ));
+    final session = adapter.sessions.single;
+    const first = (
+      id: 'node:first',
+      name: 'First',
+      writable: true,
+      channel: false,
+    );
+    const second = (
+      id: 'node:second',
+      name: 'Second',
+      writable: true,
+      channel: false,
+    );
+    const third = (
+      id: 'node:third',
+      name: 'Third',
+      writable: true,
+      channel: false,
+    );
+    void receive(Peer peer, int index) {
+      session.stream.add(
+        TextReceived(
+          MeshMessage(
+            id: '${peer.id}-$index',
+            chat: peer.id,
+            author: peer.name,
+            text: 'Packet $index',
+            // A radio's clock may lag behind even though the message arrived last.
+            time: DateTime(2026, 11, 24, 12, 30 - index),
+            delivery: Delivery.received,
+          ),
+          peer,
+        ),
+      );
+    }
+
+    receive(first, 1);
+    receive(second, 2);
+    receive(third, 3);
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    double top(Peer peer) => tester.getTopLeft(find.text(peer.name)).dy;
+    expect(top(third), lessThan(top(second)));
+    Finder action(String label) => find.descendant(
+      of: find.byKey(const ValueKey('chat-preview-actions')),
+      matching: find.text(label),
+    );
+    await tester.longPress(find.text(first.name));
+    await tester.pumpAndSettle();
+    await tester.tap(action('Pin chat'));
+    await tester.pumpAndSettle();
+    expect(top(first), lessThan(top(third)));
+    receive(second, 4);
+    await tester.pumpAndSettle();
+    expect(top(first), lessThan(top(second)));
+    expect(top(second), lessThan(top(third)));
+    final restored = ChatCache.fromJson(controller.cache!.toJson());
+    expect(restored.pinnedChats, [first.id]);
+    await tester.longPress(find.text(first.name));
+    await tester.pumpAndSettle();
+    await tester.tap(action('Unpin chat'));
+    await tester.pumpAndSettle();
+    expect(top(second), lessThan(top(first)));
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
+  testWidgets('chat preview leaves unread messages and row swipes intact', (
+    tester,
+  ) async {
+    _reduceMotion(tester);
+    final transport = _TestTransport();
+    final controller = MeshController(
+      store: MeshStore(await SharedPreferences.getInstance()),
+      transport: transport,
+      adapters: const [MeshtasticAdapter()],
+      preview: true,
+    );
+    final peer = controller.cache!.peers['node:a']!;
+    final unread = controller.cache!.unread[peer.id];
+    expect(unread, greaterThan(0));
+    final latest = controller.messages(peer.id).last;
+    await tester.pumpWidget(
+      MeshGrame(controller: controller, locale: const Locale('en')),
+    );
+    await tester.pumpAndSettle();
+    final row = find.text(peer.name);
+    final preview = find.byKey(const ValueKey('open-chat-preview'));
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    expect(preview, findsOneWidget);
+    final menu = find.byKey(const ValueKey('chat-preview-actions'));
+    final previewHistory = find.descendant(
+      of: preview,
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(
+      tester.widget<SingleChildScrollView>(previewHistory).clipBehavior,
+      Clip.none,
+    );
+    final heading = find.ancestor(
+      of: find.descendant(of: preview, matching: find.text(peer.name)),
+      matching: find.byType(GlassSurface),
+    );
+    expect(tester.widget<GlassSurface>(heading.first).modal, isTrue);
+    expect(
+      tester.getTopLeft(menu).dy,
+      greaterThan(tester.getBottomLeft(preview).dy),
+    );
+    final delete = find.descendant(
+      of: menu,
+      matching: find.text('Delete chat'),
+    );
+    expect(delete.hitTestable(), findsOneWidget);
+    final text = find.descendant(of: preview, matching: find.text(latest.text));
+    expect(
+      DefaultTextStyle.of(tester.element(text)).style.decoration,
+      isNot(TextDecoration.underline),
+    );
+    expect(find.byKey(ValueKey(('bubble', latest.id))), findsOneWidget);
+    expect(find.byType(MeshChatPage), findsNothing);
+    expect(controller.cache!.unread[peer.id], unread);
+    expect(transport.links, isEmpty);
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(preview, findsNothing);
+    expect(controller.cache!.unread[peer.id], unread);
+    await tester.longPress(row);
+    await tester.pumpAndSettle();
+    await tester.tap(preview);
+    await tester.pumpAndSettle();
+    expect(find.byType(MeshChatPage), findsOneWidget);
+    await tester.tap(findControl('Back'));
+    await tester.pumpAndSettle();
+    await tester.drag(row, const Offset(-160, 0));
+    await tester.pumpAndSettle();
+    expect(findControl('Delete').hitTestable(), findsOneWidget);
+    expect(preview, findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
 
   testWidgets(
     'chat profile, search and switching radios use the two-tab interface',
@@ -6780,21 +9075,21 @@ void main() {
       final target = find.text('Вижу метку. Скоро будем.');
       await tester.drag(target, const Offset(-115, 0));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Отменить ответ'), findsOneWidget);
-      await tester.tap(find.byTooltip('Отменить ответ'));
+      expect(findControl('Отменить ответ'), findsOneWidget);
+      await tester.tap(findControl('Отменить ответ'));
       await tester.pumpAndSettle();
       await tester.longPress(target);
       await tester.pumpAndSettle();
       expect(find.text('Ответить'), findsOneWidget);
-      await tester.tap(find.byTooltip('Реакция 👍'));
+      await tester.tap(findControl('Реакция 👍'));
       await tester.pumpAndSettle();
       expect(find.text('👍'), findsOneWidget);
       await tester.longPress(target);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Все эмодзи'));
+      await tester.tap(findControl('Все эмодзи'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('Флаги'));
-      await tester.tap(find.byTooltip('Флаги'));
+      await tester.ensureVisible(findControl('Флаги'));
+      await tester.tap(findControl('Флаги'));
       await tester.pumpAndSettle();
       expect(find.text('Флаги'), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, 'Россия');
@@ -6803,24 +9098,27 @@ void main() {
       await tester.tap(find.text('🇷🇺'));
       await tester.pumpAndSettle();
       expect(find.text('🇷🇺'), findsOneWidget);
-      await tester.tap(find.byTooltip('Профиль чата'));
+      await tester.tap(findControl('Профиль чата'));
       await tester.pumpAndSettle();
       expect(find.text('Идентификатор'), findsOneWidget);
       await tester.tap(find.text('Поиск'));
       await tester.pumpAndSettle();
       expect(find.text('Поиск в чате'), findsOneWidget);
-      await tester.tap(find.byTooltip('Назад'));
+      await tester.tap(findControl('Закрыть поиск'));
+      await tester.pumpAndSettle();
+      expect(find.text('Мира Соколова'), findsOneWidget);
+      await tester.tap(findControl('Назад'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Настройки'));
       await tester.pumpAndSettle();
       expect(find.text('Heltec V3'), findsWidgets);
       expect(find.text('≈-59 dBm'), findsOneWidget);
-      expect(find.byTooltip('Отключить').hitTestable(), findsNothing);
+      expect(findControl('Отключить').hitTestable(), findsNothing);
       await tester.drag(find.text('Heltec V3').last, const Offset(-145, 0));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Отключить').hitTestable(), findsOneWidget);
-      expect(find.byTooltip('Удалить').hitTestable(), findsOneWidget);
-      await tester.tap(find.byTooltip('Отключить'));
+      expect(findControl('Отключить').hitTestable(), findsOneWidget);
+      expect(findControl('Удалить').hitTestable(), findsOneWidget);
+      await tester.tap(findControl('Отключить'));
       await tester.pumpAndSettle();
       expect(find.text('≈-59 dBm'), findsNothing);
       await tester.tap(find.text('T-Deck Plus'));

@@ -2,7 +2,6 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'dart:async';
-import 'dart:collection';
 import 'dart:io';
 import 'dart:typed_data' show Endian;
 
@@ -10,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:nsd/nsd.dart' as nsd;
 
 import '../mesh/network.dart';
+import 'framed_radio_link.dart';
 
 class LanTransport implements RadioLanTransport {
   final _discoveries = <String, nsd.Discovery>{};
@@ -21,6 +21,8 @@ class LanTransport implements RadioLanTransport {
     Map<String, LanRadioProtocol> protocols,
     void Function(List<DiscoveredRadio>) update,
   ) async {
+    // The mDNS plugin has no Linux implementation. Direct TCP still works.
+    if (Platform.isLinux) return;
     final generation = ++_generation;
     await _endScan();
     if (generation != _generation) return;
@@ -133,7 +135,8 @@ class LanTransport implements RadioLanTransport {
   }
 }
 
-class _TcpRadioLink implements RadioLink, RadioSignalLink, RadioLatencyLink {
+class _TcpRadioLink extends FramedRadioLink
+    implements RadioSignalLink, RadioLatencyLink {
   static const _wifi = MethodChannel('meshgrame/wifi_signal');
 
   @override
@@ -142,7 +145,7 @@ class _TcpRadioLink implements RadioLink, RadioSignalLink, RadioLatencyLink {
 
   @override
   Future<Duration?> readLinkLatency() async {
-    if (_closed || !(Platform.isIOS || Platform.isMacOS)) return null;
+    if (isClosed || !(Platform.isIOS || Platform.isMacOS)) return null;
     // Darwin's public tcp_connection_info struct has tcpi_srtt at byte 44.
     const connectionInfo = 0x106; // TCP_CONNECTION_INFO in <netinet/tcp.h>.
     final info = _socket.getRawOption(
@@ -152,153 +155,13 @@ class _TcpRadioLink implements RadioLink, RadioSignalLink, RadioLatencyLink {
     return smoothedRtt > 0 ? Duration(milliseconds: smoothedRtt) : null;
   }
 
-  _TcpRadioLink(this._socket, this._protocol) {
-    _listening = _socket.listen(_receive, onError: _finish, onDone: _finish);
-    unawaited(_socket.done.then<void>((_) {}, onError: _finish));
-    if (_protocol.wake.isNotEmpty) _socket.add(_protocol.wake);
-    if (_protocol.heartbeat.isNotEmpty) {
-      _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
-        unawaited(
-          write(
-            _protocol.rx,
-            _protocol.heartbeat,
-          ).catchError((Object _) => _finish()),
-        );
-      });
-    }
+  _TcpRadioLink(this._socket, LanRadioProtocol protocol)
+    : super(protocol, _socket, (bytes) async {
+        _socket.add(bytes);
+        await _socket.flush();
+      }, _socket.destroy) {
+    unawaited(_socket.done.then<void>((_) {}, onError: (Object _) => close()));
   }
 
   final Socket _socket;
-  final LanRadioProtocol _protocol;
-  final _frames = StreamController<Uint8List>();
-  final _notices = StreamController<Uint8List>.broadcast();
-  final _ended = StreamController<void>.broadcast();
-  final _inbox = ListQueue<Uint8List>();
-  Uint8List _pending = Uint8List(0);
-  late final StreamSubscription<Uint8List> _listening;
-  Future<void> _writes = Future.value();
-  Timer? _heartbeat;
-  var _closed = false;
-
-  void _receive(Uint8List chunk) {
-    final prefix = _protocol.inputPrefix;
-    final header = prefix.length + 2;
-    final data = _pending.isEmpty
-        ? chunk
-        : Uint8List.fromList([..._pending, ...chunk]);
-    final words = ByteData.sublistView(data);
-    var offset = 0;
-    while (offset + header <= data.length) {
-      var matches = true;
-      for (var i = 0; i < prefix.length; i++) {
-        if (data[offset + i] != prefix[i]) {
-          matches = false;
-          break;
-        }
-      }
-      if (!matches) {
-        offset++;
-        continue;
-      }
-      final size = words.getUint16(offset + prefix.length, _protocol.endian);
-      if (size == 0 || size > _protocol.maxPayload) {
-        offset++;
-        continue;
-      }
-      final end = offset + header + size;
-      if (end > data.length) break;
-      final frame = data.sublist(offset + header, end);
-      if (_protocol.notice == null) {
-        _frames.add(frame);
-      } else {
-        if (_inbox.length >= 8192) {
-          _finish();
-          return;
-        }
-        _inbox.add(frame);
-        _notices.add(Uint8List(0));
-      }
-      offset = end;
-    }
-    _pending = data.sublist(offset);
-  }
-
-  @override
-  bool contains(String characteristic) =>
-      characteristic == _protocol.rx ||
-      characteristic == _protocol.tx ||
-      characteristic == _protocol.notice;
-
-  @override
-  Future<StreamSubscriptionHandle> subscribe(
-    String characteristic,
-    void Function(Uint8List) onFrame,
-  ) async {
-    if (characteristic == _protocol.notice) {
-      return _LanSubscription(_notices.stream.listen(onFrame));
-    }
-    if (characteristic == _protocol.tx && _protocol.notice == null) {
-      return _LanSubscription(_frames.stream.listen(onFrame));
-    }
-    throw StateError('Unsupported TCP subscription');
-  }
-
-  @override
-  Future<Uint8List> read(String characteristic) async {
-    if (_protocol.notice == null || characteristic != _protocol.tx) {
-      throw StateError('Unsupported TCP read');
-    }
-    return _inbox.isEmpty ? Uint8List(0) : _inbox.removeFirst();
-  }
-
-  @override
-  Future<void> write(String characteristic, List<int> bytes) {
-    if (characteristic != _protocol.rx ||
-        bytes.isEmpty ||
-        bytes.length > _protocol.maxPayload) {
-      throw const FormatException('Invalid companion frame');
-    }
-    final prefix = _protocol.outputPrefix;
-    final header = prefix.length + 2;
-    final frame = Uint8List(header + bytes.length)
-      ..setAll(0, prefix)
-      ..setAll(header, bytes);
-    ByteData.sublistView(frame)
-        .setUint16(prefix.length, bytes.length, _protocol.endian);
-    final write = _writes.then((_) async {
-      if (_closed) throw StateError('TCP connection closed');
-      _socket.add(frame);
-      await _socket.flush();
-    });
-    _writes = write.then<void>((_) {}, onError: (Object _) => _finish());
-    return write;
-  }
-
-  @override
-  Stream<void> get disconnected => _ended.stream;
-
-  void _finish([Object? _]) {
-    if (_closed) return;
-    _closed = true;
-    _heartbeat?.cancel();
-    _socket.destroy();
-    _ended.add(null);
-    unawaited(_ended.close());
-    unawaited(_frames.close());
-    unawaited(_notices.close());
-  }
-
-  @override
-  Future<void> close() async {
-    _finish();
-    await _listening.cancel();
-  }
-}
-
-class _LanSubscription implements StreamSubscriptionHandle {
-  const _LanSubscription(this.subscription);
-  final StreamSubscription<Uint8List> subscription;
-
-  @override
-  Future<void> cancel() => subscription.cancel();
 }

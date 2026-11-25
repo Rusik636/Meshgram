@@ -15,6 +15,7 @@ import '../mesh/message_packet.dart';
 import '../mesh/network.dart';
 import '../mesh/nodes.dart';
 import '../mesh/radio_settings_index.dart';
+import 'channel_invitation.dart';
 import 'channel_keys.dart';
 
 part 'meshtastic_settings.dart';
@@ -23,6 +24,7 @@ class MeshtasticAdapter
     implements
         NetworkAdapter,
         NetworkLanAdapter,
+        NetworkUsbAdapter,
         NetworkBufferedMessages,
         NetworkMessageBudget,
         NetworkMessageReferences,
@@ -57,6 +59,8 @@ class MeshtasticAdapter
     wake: [0x94, 0x94, 0x94, 0x94],
     heartbeat: [0x3a, 0x02, 0x08, 0x01],
   );
+  @override
+  UsbRadioProtocol get usb => (framing: lan, baudRate: 115200);
   @override
   NetworkSession createSession(RadioLink link) => _TasticSession(link);
   @override
@@ -1386,20 +1390,8 @@ class _TasticSession
     final configs = <List<int>>[];
     if (request.action == ChannelAction.invitation) {
       final uri = Uri.tryParse(request.invitation.trim());
-      if (uri == null ||
-          uri.scheme != 'https' ||
-          !const {'meshtastic.org', 'www.meshtastic.org'}.contains(uri.host) ||
-          !const {'/e/', '/e'}.contains(uri.path) ||
-          uri.fragment.isEmpty ||
-          uri.fragment.length > 8000) {
-        throw const FormatException('channel-invite');
-      }
-      final invite = UnknownFieldSet()
-        ..mergeFromCodedBufferReader(
-          CodedBufferReader(
-            base64Url.decode(base64Url.normalize(uri.fragment)),
-          ),
-        );
+      if (uri == null) throw const FormatException('channel-invite');
+      final invite = readMeshtasticChannelInvitation(uri);
       final invitedLoRa = invite.getField(2)?.lengthDelimited.firstOrNull;
       if (invitedLoRa != null) {
         final region = _protobuf(invitedLoRa).number(7);

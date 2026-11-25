@@ -7,8 +7,59 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'network.dart';
+import 'radio_outbox.dart';
 import 'nodes.dart';
 import 'route_trace.dart';
+
+class ChatFolder {
+  const ChatFolder({
+    required this.id,
+    required this.name,
+    required this.chats,
+    this.pinned = const [],
+  });
+
+  final String id, name;
+  final Set<String> chats;
+  final List<String> pinned;
+
+  ChatFolder withChanges({
+    String? name,
+    Set<String>? chats,
+    List<String>? pinned,
+  }) => ChatFolder(
+    id: id,
+    name: name ?? this.name,
+    chats: chats ?? this.chats,
+    pinned: pinned ?? this.pinned,
+  );
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'name': name,
+    'chats': chats.toList(),
+    'pinned': pinned,
+  };
+
+  static ChatFolder? fromJson(Object? value) {
+    if (value is! Map || value['id'] is! String || value['name'] is! String) {
+      return null;
+    }
+    final chats = (value['chats'] as List? ?? const [])
+        .whereType<String>()
+        .toSet();
+    return ChatFolder(
+      id: value['id'] as String,
+      name: value['name'] as String,
+      chats: chats,
+      pinned: (value['pinned'] as List? ?? const [])
+          .whereType<String>()
+          .where(chats.contains)
+          .toSet()
+          .toList(),
+    );
+  }
+}
 
 class ChatCache {
   final peers = <String, Peer>{};
@@ -20,6 +71,7 @@ class ChatCache {
   final routeTraces = <int, RouteTrace>{};
   DateTime? routeTraceCooldownUntil;
   final replies = <String, String>{};
+  final replyExcerpts = <String, MessageExcerpt>{};
   final unread = <String, int>{};
   final _unreadIds = <String, Set<String>>{};
   final markedUnread = <String>{};
@@ -27,8 +79,12 @@ class ChatCache {
   final muted = <String>{};
   final unmuted = <String>{};
   final hiddenChats = <String>{};
+  bool? _archiveHidden;
   final keptChats = <String>{};
   final chatOrder = <String>[];
+  final pinnedChats = <String>[];
+  final folders = <String, ChatFolder>{};
+  final pinnedMessages = <String, String>{};
   final searchHistory = <String>[];
   String? radioPublicKey;
   String? radioHardwareId;
@@ -40,6 +96,9 @@ class ChatCache {
     nodeNumber: radioNodeNumber,
     publicKey: radioPublicKey,
   );
+
+  bool get archiveHidden => _archiveHidden ?? false;
+  set archiveHidden(bool hidden) => _archiveHidden = hidden;
 
   Map<String, Object> toJson() => {
     'peers': [
@@ -70,6 +129,10 @@ class ChatCache {
       'routeTraces': routeTraces.values.map((trace) => trace.toJson()).toList(),
     'routeTraceCooldownUntil': ?routeTraceCooldownUntil?.millisecondsSinceEpoch,
     'replies': replies,
+    if (replyExcerpts.isNotEmpty)
+      'replyExcerpts': replyExcerpts.map(
+        (chat, excerpt) => MapEntry(chat, excerpt.toJson()),
+      ),
     'unread': unread,
     if (markedUnread.isNotEmpty) 'markedUnread': markedUnread.toList(),
     if (_unreadIds.isNotEmpty)
@@ -78,8 +141,14 @@ class ChatCache {
     'muted': muted.toList(),
     if (unmuted.isNotEmpty) 'unmuted': unmuted.toList(),
     'hiddenChats': hiddenChats.toList(),
+    if (_archiveHidden != null || hiddenChats.isNotEmpty)
+      'archiveHidden': archiveHidden,
     'keptChats': keptChats.toList(),
     'chatOrder': chatOrder,
+    if (pinnedChats.isNotEmpty) 'pinnedChats': pinnedChats,
+    if (folders.isNotEmpty)
+      'folders': folders.values.map((folder) => folder.toJson()).toList(),
+    if (pinnedMessages.isNotEmpty) 'pinnedMessages': pinnedMessages,
     'searchHistory': searchHistory,
     'radioPublicKey': ?radioPublicKey,
     'radioHardwareId': ?radioHardwareId,
@@ -181,6 +250,14 @@ class ChatCache {
     cache.replies.addAll(
       (json['replies'] as Map? ?? const {}).cast<String, String>(),
     );
+    for (final entry in (json['replyExcerpts'] as Map? ?? const {}).entries) {
+      if (entry.key case final String chat
+          when cache.replies.containsKey(chat)) {
+        if (MessageExcerpt.decode(entry.value) case final excerpt?) {
+          cache.replyExcerpts[chat] = excerpt;
+        }
+      }
+    }
     cache.unread.addAll((json['unread'] as Map).cast<String, int>());
     for (final entry in (json['unreadIds'] as Map? ?? const {}).entries) {
       if (entry.key case final String chat
@@ -199,12 +276,28 @@ class ChatCache {
     cache.hiddenChats.addAll(
       (json['hiddenChats'] as List? ?? const []).cast<String>(),
     );
+    cache._archiveHidden =
+        json['archiveHidden'] as bool? ??
+        (cache.hiddenChats.isNotEmpty ? true : null);
     cache.keptChats.addAll(
       (json['keptChats'] as List? ?? const []).cast<String>(),
     );
     cache.chatOrder.addAll(
       (json['chatOrder'] as List? ?? const []).cast<String>(),
     );
+    cache.pinnedChats.addAll(
+      (json['pinnedChats'] as List? ?? const []).whereType<String>().toSet(),
+    );
+    for (final entry in (json['folders'] as List? ?? const [])) {
+      if (ChatFolder.fromJson(entry) case final folder?) {
+        cache.folders[folder.id] = folder;
+      }
+    }
+    for (final entry in (json['pinnedMessages'] as Map? ?? const {}).entries) {
+      if (entry.key is String && entry.value is String) {
+        cache.pinnedMessages[entry.key as String] = entry.value as String;
+      }
+    }
     cache.searchHistory.addAll(
       (json['searchHistory'] as List? ?? []).cast<String>(),
     );
@@ -233,6 +326,12 @@ class ChatCache {
   void addUnread(MeshMessage message) {
     _unreadIds[message.chat] = {...unreadIds(message.chat), message.id};
     unread.update(message.chat, (count) => count + 1, ifAbsent: () => 1);
+  }
+
+  void promoteChat(String id) {
+    chatOrder
+      ..remove(id)
+      ..insert(0, id);
   }
 
   void markRead(String chat) {
@@ -366,16 +465,30 @@ class ChatCache {
       drafts.putIfAbsent(entry.key, () => entry.value);
     }
     for (final entry in other.replies.entries) {
-      replies.putIfAbsent(entry.key, () => entry.value);
+      if (replies.containsKey(entry.key)) continue;
+      replies[entry.key] = entry.value;
+      if (other.replyExcerpts[entry.key] case final excerpt?) {
+        replyExcerpts[entry.key] = excerpt;
+      }
     }
     markedUnread.addAll(other.markedUnread);
     muted.addAll(other.muted);
     unmuted.addAll(other.unmuted);
+    _archiveHidden ??= other._archiveHidden;
     hiddenChats.addAll(other.hiddenChats);
     keptChats.addAll(other.keptChats);
     chatOrder.addAll(
       other.chatOrder.where((id) => !chatOrder.contains(id)).toList(),
     );
+    pinnedChats.addAll(
+      other.pinnedChats.where((id) => !pinnedChats.contains(id)).toList(),
+    );
+    for (final entry in other.folders.entries) {
+      folders.putIfAbsent(entry.key, () => entry.value);
+    }
+    for (final entry in other.pinnedMessages.entries) {
+      pinnedMessages.putIfAbsent(entry.key, () => entry.value);
+    }
     searchHistory.addAll(
       other.searchHistory.where((id) => !searchHistory.contains(id)).toList(),
     );
@@ -409,6 +522,67 @@ class ChatCache {
 int compareChatMessages(MeshMessage first, MeshMessage second) {
   final byTime = first.time.compareTo(second.time);
   return byTime != 0 ? byTime : first.id.compareTo(second.id);
+}
+
+class SavedMessage {
+  SavedMessage({
+    required this.message,
+    required this.profile,
+    required this.radioName,
+    required this.chatName,
+    required this.author,
+    required this.savedAt,
+    this.isNote = false,
+    Iterable<String> labels = const [],
+  }) : labels = List.unmodifiable(labels);
+
+  final MeshMessage message;
+  final String profile, radioName, chatName, author;
+  final DateTime savedAt;
+  final bool isNote;
+  final List<String> labels;
+
+  (String, String, String) get key => (profile, message.chat, message.id);
+
+  SavedMessage withLabels(Iterable<String> next) => SavedMessage(
+    message: message,
+    profile: profile,
+    radioName: radioName,
+    chatName: chatName,
+    author: author,
+    savedAt: savedAt,
+    isNote: isNote,
+    labels: next,
+  );
+
+  Map<String, Object> toJson() => {
+    'message': message.toJson(),
+    'profile': profile,
+    'radioName': radioName,
+    'chatName': chatName,
+    'author': author,
+    'savedAt': savedAt.millisecondsSinceEpoch,
+    if (isNote) 'isNote': true,
+    'labels': labels,
+  };
+
+  static SavedMessage? decode(String entry) {
+    try {
+      final json = jsonDecode(entry) as Map<String, dynamic>;
+      return SavedMessage(
+        message: MeshMessage.fromJson(json['message'] as Map<String, dynamic>),
+        profile: json['profile'] as String,
+        radioName: json['radioName'] as String,
+        chatName: json['chatName'] as String,
+        author: json['author'] as String,
+        savedAt: DateTime.fromMillisecondsSinceEpoch(json['savedAt'] as int),
+        isNote: json['isNote'] == true,
+        labels: (json['labels'] as List? ?? []).whereType<String>(),
+      );
+    } on Object {
+      return null;
+    }
+  }
 }
 
 class MeshStore {
@@ -504,6 +678,30 @@ class MeshStore {
   Future<bool> setRecentReactionEmojis(List<String> emojis) =>
       preferences.setStringList('${_key}recentReactionEmojis', emojis);
 
+  List<String>? get quickPhrases =>
+      preferences.getStringList('${_key}quickPhrases');
+  Future<bool> setQuickPhrases(List<String> phrases) =>
+      preferences.setStringList('${_key}quickPhrases', phrases);
+
+  List<OutboxMessage> loadOutbox() {
+    final raw = preferences.getString('${_key}outbox');
+    if (raw == null) return [];
+    try {
+      final values = jsonDecode(raw) as List;
+      return [for (final value in values) ?OutboxMessage.decode(value)];
+    } on FormatException {
+      return [];
+    } on TypeError {
+      return [];
+    }
+  }
+
+  Future<bool> saveOutbox(List<OutboxMessage> messages) =>
+      preferences.setString(
+        '${_key}outbox',
+        jsonEncode(messages.map((message) => message.toJson()).toList()),
+      );
+
   String? nodeSort(String network) =>
       preferences.getString('${_key}nodeSort.$network');
   Future<bool> setNodeSort(String network, NodeSort sort) =>
@@ -523,4 +721,20 @@ class MeshStore {
 
   Future<bool> save(String key, ChatCache cache) =>
       preferences.setString('${_key}cache.$key', jsonEncode(cache.toJson()));
+
+  List<SavedMessage> get savedMessages => [
+    for (final entry in preferences.getStringList('${_key}savedMessages') ?? [])
+      ?SavedMessage.decode(entry),
+  ];
+
+  String get savedChatDraft =>
+      preferences.getString('${_key}savedChatDraft') ?? '';
+
+  Future<bool> setSavedChatDraft(String value) =>
+      preferences.setString('${_key}savedChatDraft', value);
+
+  Future<bool> setSavedMessages(List<SavedMessage> items) =>
+      preferences.setStringList('${_key}savedMessages', [
+        for (final item in items) jsonEncode(item.toJson()),
+      ]);
 }

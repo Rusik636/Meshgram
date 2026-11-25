@@ -80,8 +80,7 @@ class _AttachmentSheet extends StatefulWidget {
 
 class _AttachmentSheetState extends State<_AttachmentSheet>
     with TickerProviderStateMixin {
-  static const _gripHeight = 18.0;
-  static const _gripTargetHeight = 48.0;
+  static const _contactHeaderDragHeight = 30.0;
   static const _attributionMargin = 8.0;
   static const _spring = SpringDescription(
     mass: 5,
@@ -417,7 +416,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
   }
 
   Widget _locationHeading(String location) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
     child: LayoutBuilder(
       builder: (context, constraints) {
         const buttonSize = 48.0;
@@ -476,17 +475,17 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     ),
   );
 
-  Widget _header(String location, double travel) {
-    final style = MeshStyle.of(context);
-    final showingMap = _tab == _AttachmentTab.location;
-    final extendGrip =
-        !showingMap && Theme.of(context).platform == TargetPlatform.iOS;
+  Widget _dragHeader(
+    double travel,
+    Widget child, {
+    Key? key,
+    bool translucent = false,
+  }) {
     final canDrag = travel > 0 && _expandedBeforeContactSearch == null;
     return GestureDetector(
-      key: const ValueKey('attachment-grip'),
-      // The invisible extension overlaps the Contacts header. Let its
-      // controls receive taps while recognizing vertical drags here.
-      behavior: extendGrip
+      key: key,
+      // Keep the Contacts header buttons tappable through the drag area.
+      behavior: translucent
           ? HitTestBehavior.translucent
           : HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
@@ -510,29 +509,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               drag?.cancel();
             }
           : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: _gripHeight,
-            width: double.infinity,
-            child: Center(
-              child: Container(
-                width: 35,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: style.secondary.withValues(alpha: .45),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-          ),
-          if (showingMap)
-            _locationHeading(location)
-          else if (extendGrip)
-            const SizedBox(height: _gripTargetHeight - _gripHeight),
-        ],
-      ),
+      child: child,
     );
   }
 
@@ -543,7 +520,7 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
     double attributionHeight,
   ) {
     final showingMap = _tab == _AttachmentTab.location;
-    final navigationBottom = MeshTabBar.bottomOffset(context);
+    final navigationBottom = MeshTabBar.bottomOffset(context) + 6;
     final panelExtent = MeshTabBar.heightOf(context) + navigationBottom + 6;
     final footer = math.max(
       MediaQuery.paddingOf(context).bottom,
@@ -568,14 +545,13 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
             bottom: bottomObstruction,
             child: Column(
               children: [
-                _header(location, travel),
+                _dragHeader(travel, _locationHeading(location)),
                 Expanded(child: _location()),
               ],
             ),
           ),
         ] else ...[
           Positioned.fill(
-            top: _gripHeight,
             child: AttachmentContacts(
               contacts: widget.contacts,
               controller: widget.controller,
@@ -588,17 +564,24 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
               beginSheetDrag: () => _startSheetDrag(travel),
             ),
           ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _header(location, travel),
-          ),
+          if (Theme.of(context).platform == TargetPlatform.iOS)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: _contactHeaderDragHeight,
+              child: _dragHeader(
+                travel,
+                const SizedBox.expand(),
+                translucent: true,
+              ),
+            ),
         ],
       ],
     );
     final switching = _tabs.shown != _tabs.selected;
-    return Material(
+    final panel = Material(
+      key: const ValueKey('attachment-sheet-panel'),
       color: MeshStyle.of(context).surface,
       borderRadius: BorderRadius.circular(_expanded && showingMap ? 0 : 26),
       clipBehavior: Clip.antiAlias,
@@ -616,8 +599,8 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
           ),
           if (panelProgress > 0)
             PositionedDirectional(
-              start: useIosControls ? 0 : 16,
-              end: useIosControls ? 0 : 16,
+              start: 16,
+              end: 16,
               bottom: navigationBottom - panelExtent * (1 - panelProgress),
               child: IgnorePointer(
                 ignoring: _expanded,
@@ -639,20 +622,33 @@ class _AttachmentSheetState extends State<_AttachmentSheet>
         ],
       ),
     );
+    final separateRegion =
+        useIosControls &&
+        (widget.paperclip == null || _paperclipAnimation == null);
+    return Column(
+      children: [
+        _dragHeader(
+          travel,
+          const MeshSheetGrip(),
+          key: const ValueKey('attachment-grip'),
+        ),
+        Expanded(
+          child: separateRegion
+              ? MeshOpaqueSheetRegion(
+                  presentingRoute: widget.presentingRoute,
+                  motion: _inset,
+                  child: panel,
+                )
+              : panel,
+        ),
+      ],
+    );
   }
 
   Widget _withPaperclipTransition(Widget panel, Size size, double bottom) {
     final paperclip = widget.paperclip;
     final animation = _paperclipAnimation;
-    if (paperclip == null || animation == null) {
-      return useIosControls
-          ? MeshOpaqueSheetRegion(
-              presentingRoute: widget.presentingRoute,
-              motion: _inset,
-              child: panel,
-            )
-          : panel;
-    }
+    if (paperclip == null || animation == null) return panel;
     return _AttachmentPaperclipMorph(
       presentingRoute: widget.presentingRoute,
       detent: _inset,
@@ -759,7 +755,6 @@ class _AttachmentPaperclipMorph extends StatelessWidget {
       media.size.height - bottom - size.height,
     );
     final style = MeshStyle.of(context);
-    final native = useIosControls && !media.highContrast;
     return AnimatedBuilder(
       animation: animation,
       child: child,
@@ -774,7 +769,12 @@ class _AttachmentPaperclipMorph extends StatelessWidget {
             : paperclip.start;
         final bounds = Rect.lerp(
           source.shift(-origin),
-          Offset.zero & size,
+          Rect.fromLTWH(
+            0,
+            MeshSheetGrip.height,
+            size.width,
+            math.max(0, size.height - MeshSheetGrip.height),
+          ),
           Curves.easeInOutCubic.transform(progress),
         )!;
         final sourceRadius = source.shortestSide / 2;
@@ -816,21 +816,7 @@ class _AttachmentPaperclipMorph extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (native)
-                            IosControl(
-                              kind: 'modalGlass',
-                              properties: {
-                                'panel': true,
-                                'dark': style.dark,
-                                'radius': radius,
-                              },
-                            )
-                          else
-                            ColoredBox(
-                              color: media.highContrast
-                                  ? style.surface
-                                  : style.pill,
-                            ),
+                          ColoredBox(color: style.surface),
                           if (glyphOpacity > 0)
                             Center(
                               child: Opacity(

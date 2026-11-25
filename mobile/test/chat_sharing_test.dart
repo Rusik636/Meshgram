@@ -18,6 +18,8 @@ import 'package:meshgrame/ui/search_field.dart';
 import 'package:meshgrame/ui/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'find_control.dart';
+
 void main() {
   testWidgets('sends a contact as a separate message and keeps the draft', (
     tester,
@@ -46,7 +48,7 @@ void main() {
     expect(find.byType(MessageMenuSurface), findsNothing);
     final contactSearch = find.byType(MeshSearchEditor);
     final searchElement = tester.element(contactSearch);
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(findControl('Sort by'));
     await tester.pumpAndSettle();
     expect(find.byType(SheetBody), findsOneWidget);
     expect(composer().coveredByModal, isTrue);
@@ -164,7 +166,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(MeshChatProfile),
-        matching: find.byTooltip('Back'),
+        matching: findControl('Back'),
       ),
     );
     await tester.pumpAndSettle();
@@ -248,14 +250,31 @@ void main() {
     final preview = find.byType(MeshLocationPreview);
     expect(preview, findsOneWidget);
     expect(tester.widget<MeshLocationPreview>(preview).position, point);
-    await tester.tap(
-      find.descendant(of: preview, matching: find.text('Location')),
+    expect(
+      tester.widget<MeshLocationPreview>(preview).standaloneMessage,
+      isTrue,
     );
+    expect(find.text('Location'), findsNothing);
+    expect(
+      tester
+          .widget<MeshMapAttribution>(find.byType(MeshMapAttribution))
+          .textOnly,
+      isTrue,
+    );
+    final mapBounds = tester.getRect(preview);
+    expect(mapBounds.width, closeTo(mapBounds.height * 2, .1));
+    final stamp = tester.getRect(
+      find.byKey(const ValueKey('location-message-stamp')),
+    );
+    expect(mapBounds.contains(stamp.topLeft), isTrue);
+    expect(mapBounds.contains(stamp.bottomRight), isTrue);
+    await tester.tap(preview);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Copy coordinates'), findsOneWidget);
+    expect(findControl('Copy coordinates'), findsOneWidget);
     expect(find.text('55.750000, 49.140000'), findsOneWidget);
     final map = tester.widget<MeshMap>(find.byType(MeshMap));
     expect(map.interactive, isTrue);
+    expect(map.attributionTextOnly, isFalse);
     expect(map.pins.single.position, point);
     expect(tester.takeException(), isNull);
 
@@ -280,14 +299,15 @@ void main() {
     const text = 'Check https://example.org/route';
     await tester.enterText(find.byType(TextField), text);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 210));
     final preview = find.byType(MessageLinkPreview);
     expect(tester.widget<MessageLinkPreview>(preview).compact, isTrue);
 
-    await tester.tap(find.byTooltip('Remove preview'));
+    await tester.tap(findControl('Remove preview'));
     await tester.pumpAndSettle();
     expect(preview, findsNothing);
     expect(controller.draft(chat.id), text);
-    await tester.tap(find.byTooltip('Send'));
+    await tester.tap(findControl('Send'));
     await tester.pumpAndSettle();
 
     final sent = controller.messages(chat.id).last;
@@ -314,7 +334,7 @@ void main() {
     await tester.enterText(find.byType(TextField), text);
     await tester.pumpAndSettle();
     expect(tester.widget<MessageLinkPreview>(preview).compact, isTrue);
-    await tester.tap(find.byTooltip('Send'));
+    await tester.tap(findControl('Send'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 13));
     expect(controller.messages(chat.id).last.suppressLinkPreview, isFalse);
@@ -352,7 +372,7 @@ Finder _contactCaption(String text) => find.byWidgetPredicate(
 );
 
 Future<void> _openAttachment(WidgetTester tester, String item) async {
-  await tester.tap(find.byTooltip('Attachments'));
+  await tester.tap(findControl('Attachments'));
   await tester.pumpAndSettle();
   if (item != 'Location') {
     await tester.tap(find.text(item));

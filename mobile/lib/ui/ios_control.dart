@@ -17,6 +17,27 @@ bool get useIosControls =>
 
 const meshIosGlassOutset = 8.0;
 
+/// Keeps UIKit controls out of a scene's opacity transition.
+class IosControlVisibility extends InheritedWidget {
+  const IosControlVisibility({
+    super.key,
+    required this.visible,
+    required super.child,
+  });
+
+  final bool visible;
+
+  static bool visibleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<IosControlVisibility>()
+          ?.visible ??
+      true;
+
+  @override
+  bool updateShouldNotify(IosControlVisibility oldWidget) =>
+      visible != oldWidget.visible;
+}
+
 class MeshIosGlassFrame extends StatelessWidget {
   const MeshIosGlassFrame({
     super.key,
@@ -50,17 +71,21 @@ class IosControl extends StatefulWidget {
     required this.kind,
     required this.properties,
     this.onSelect,
+    this.onLongPress,
     this.onTextChanged,
     this.horizontalDrag = false,
     this.eagerGestures = false,
+    this.tapOnly = false,
   });
 
   final String kind;
   final Map<String, Object> properties;
   final ValueChanged<int>? onSelect;
+  final VoidCallback? onLongPress;
   final ValueChanged<String>? onTextChanged;
   final bool horizontalDrag;
   final bool eagerGestures;
+  final bool tapOnly;
 
   @override
   IosControlState createState() => IosControlState();
@@ -108,12 +133,13 @@ class IosControlState extends State<IosControl> {
         : meshIosGlassOutset;
     final view = UiKitView(
       viewType: 'meshgrame/controls',
-      gestureBlockingPolicy: widget.eagerGestures
+      gestureBlockingPolicy: widget.eagerGestures || widget.tapOnly
           ? UiKitViewGestureBlockingPolicy.doNotBlockGesture
           : UiKitViewGestureBlockingPolicy.fallbackToPluginDefault,
       creationParams: {
         'kind': widget.kind,
         ...widget.properties,
+        if (widget.tapOnly) 'tapOnly': true,
         if (hasGlassOutset) 'visualOutset': meshIosGlassOutset,
         if (verticalOutset != meshIosGlassOutset)
           'verticalVisualOutset': verticalOutset,
@@ -124,6 +150,8 @@ class IosControlState extends State<IosControl> {
           Factory<OneSequenceGestureRecognizer>(
             HorizontalDragGestureRecognizer.new,
           )
+        else if (widget.tapOnly)
+          Factory<OneSequenceGestureRecognizer>(TapGestureRecognizer.new)
         else if (widget.eagerGestures || widget.onTextChanged != null)
           Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
       },
@@ -134,6 +162,8 @@ class IosControlState extends State<IosControl> {
           switch ((call.method, call.arguments)) {
             case ('select', final int index):
               widget.onSelect?.call(index);
+            case ('longPress', _):
+              widget.onLongPress?.call();
             case ('text', final String text):
               widget.onTextChanged?.call(text);
           }
@@ -141,7 +171,13 @@ class IosControlState extends State<IosControl> {
         unawaited(_send('update', widget.properties));
       },
     );
-    final clippedView = MeshSheetControlClip(child: view);
+    final clippedView = Visibility(
+      visible: IosControlVisibility.visibleOf(context),
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: MeshSheetControlClip(child: view),
+    );
     return hasGlassOutset
         ? MeshIosGlassFrame(verticalOutset: verticalOutset, child: clippedView)
         : clippedView;
