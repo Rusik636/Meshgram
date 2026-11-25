@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chat_workspace.dart' show meshDesktop;
+import 'desktop_interaction.dart' show desktopPressedKeys;
 import 'ios_control.dart';
 import 'sheet_control_clip.dart';
 import 'style.dart';
@@ -297,13 +298,7 @@ class MessageInputState extends State<MessageInput> {
             key != LogicalKeyboardKey.numpadEnter)) {
       return KeyEventResult.ignored;
     }
-    final pressed = LogicalKeyboardKey.collapseSynonyms({
-      ...HardwareKeyboard.instance.logicalKeysPressed,
-      // macOS can report a modifier without its left/right hardware flag.
-      if (Theme.of(context).platform == TargetPlatform.macOS)
-        // ignore: deprecated_member_use
-        ...RawKeyboard.instance.keysPressed,
-    });
+    final pressed = desktopPressedKeys(context);
     if (pressed.contains(LogicalKeyboardKey.control) ||
         pressed.contains(LogicalKeyboardKey.meta) ||
         pressed.contains(LogicalKeyboardKey.alt)) {

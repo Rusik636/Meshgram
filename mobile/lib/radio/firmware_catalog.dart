@@ -24,6 +24,13 @@ enum FirmwareChip {
   final int headerOffset;
   bool get usesUf2 => uf2Family != null;
   String get extension => usesUf2 ? 'uf2' : 'bin';
+  String get label => switch (this) {
+    esp32s3 => 'ESP32-S3',
+    esp32c3 => 'ESP32-C3',
+    esp32c6 => 'ESP32-C6',
+    nrf52840 => 'nRF52840',
+    _ => nameForTool.toUpperCase(),
+  };
 }
 
 class FirmwareTarget {
@@ -66,8 +73,17 @@ class FirmwareBoard {
   Iterable<String> get protocols =>
       targets.map((target) => target.project).toSet();
 
+  Iterable<FirmwareChip> get chips =>
+      targets.map((target) => target.chip).toSet();
+
   bool matches(String query) {
-    final search = [name, manufacturer, ...aliases].join(' ').toLowerCase();
+    final search = [
+      name,
+      manufacturer,
+      ...aliases,
+      ...protocols,
+      for (final chip in chips) ...[chip.label, chip.nameForTool],
+    ].join(' ').toLowerCase();
     return query
         .toLowerCase()
         .trim()

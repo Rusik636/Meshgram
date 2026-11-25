@@ -4,6 +4,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 bool meshDesktop(BuildContext context) =>
     meshDesktopPlatform(Theme.of(context).platform);
@@ -14,6 +15,15 @@ bool meshDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.linux => true,
   _ => false,
 };
+
+Set<LogicalKeyboardKey> desktopPressedKeys(BuildContext context) =>
+    LogicalKeyboardKey.collapseSynonyms({
+      ...HardwareKeyboard.instance.logicalKeysPressed,
+      // macOS can report a modifier without its left/right hardware flag.
+      if (Theme.of(context).platform == TargetPlatform.macOS)
+        // ignore: deprecated_member_use
+        ...RawKeyboard.instance.keysPressed,
+    });
 
 ButtonStyle? meshDesktopButtonStyle(
   BuildContext context, [

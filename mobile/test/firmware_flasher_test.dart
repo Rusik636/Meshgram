@@ -13,6 +13,20 @@ import 'package:meshgrame/radio/firmware_catalog.dart';
 import 'package:meshgrame/radio/firmware_flasher.dart';
 import 'package:meshgrame/ui/firmware_page.dart';
 
+class _CatalogAssets extends CachingAssetBundle {
+  _CatalogAssets(this.catalog);
+  final Map<String, String> catalog;
+
+  @override
+  Future<ByteData> load(String key) => rootBundle.load(key);
+
+  @override
+  Future<String> loadString(String key, {bool cache = true}) {
+    if (catalog[key] case final value?) return Future.value(value);
+    return rootBundle.loadString(key, cache: cache);
+  }
+}
+
 const target = FirmwareTarget(
   project: 'MeshCore',
   repository: 'meshcore-dev/MeshCore',
@@ -203,18 +217,52 @@ void main() {
   testWidgets(
     'desktop catalogue can search MeshCore and open the pictured board',
     (tester) async {
-      await tester.pumpWidget(MaterialApp(home: FirmwarePage(usb: _TestUsb())));
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 75));
-      });
+      final assets = await tester.runAsync(
+        () async => _CatalogAssets({
+          for (final key in [
+            'assets/boards/catalog.json',
+            'assets/boards/firmware.json',
+          ])
+            key: await rootBundle.loadString(key),
+        }),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DefaultAssetBundle(
+            bundle: assets!,
+            child: FirmwarePage(usb: _TestUsb()),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'Heltec V3');
+      final search = find.byType(TextField);
+      final mac =
+          Theme.of(tester.element(search)).platform == TargetPlatform.macOS;
+      final modifier = mac
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+      await tester.enterText(search, 'Heltec V3 MeshCore ESP32-S3');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All manufacturers'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is PopupMenuItem<String> && widget.value == 'Heltec',
+        ),
+      );
       await tester.pumpAndSettle();
       final board = find.descendant(
         of: find.byType(Card),
         matching: find.text('Heltec V3'),
       );
       expect(board, findsOneWidget);
+      expect(find.text('ESP32-S3 · Meshtastic · MeshCore'), findsWidgets);
       await tester.tap(board);
       await tester.pumpAndSettle();
       expect(find.text('Protocol'), findsOneWidget);
@@ -227,6 +275,10 @@ void main() {
       expect(find.text('Download image'), findsOneWidget);
       expect(find.text('Choose file'), findsOneWidget);
     },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
   );
 
   test(
