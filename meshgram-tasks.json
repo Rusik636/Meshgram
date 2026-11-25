@@ -4270,6 +4270,35 @@
           "result": "Сборка 126 для arm64 и x86_64."
         }
       ]
+    },
+    {
+      "id": "93",
+      "parent_id": null,
+      "title": "Установить обновление на iPhone и iPad по Wi‑Fi",
+      "platform": [
+        "ios",
+        "ipados"
+      ],
+      "branch": "task/93-install-ios-over-wifi",
+      "depends_on": [
+        "92"
+      ],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Meshgram 0.3.62 (127) установлен поверх сборки 119 на обоих физических устройствах через localNetwork."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro, iOS 27.0.1",
+          "result": "CoreDevice установил подписанную сборку по Wi‑Fi. Проверка списка приложений показала dev.meshgrame.client, версия 0.3.62, сборка 127."
+        },
+        {
+          "kind": "check",
+          "device": "iPad (A16), iPadOS 27.0.1",
+          "result": "CoreDevice установил подписанную сборку по Wi‑Fi. Проверка списка приложений показала dev.meshgrame.client, версия 0.3.62, сборка 127."
+        }
+      ]
     }
   ]
 }
