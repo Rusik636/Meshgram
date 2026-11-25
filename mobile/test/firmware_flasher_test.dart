@@ -4,6 +4,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride, defaultTargetPlatform;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +16,7 @@ import 'package:meshgrame/radio/firmware_catalog.dart';
 import 'package:meshgrame/radio/firmware_flasher.dart';
 import 'package:meshgrame/ui/firmware_filters.dart';
 import 'package:meshgrame/ui/firmware_page.dart';
+import 'package:meshgrame/ui/macos_glass.dart';
 
 class _CatalogAssets extends CachingAssetBundle {
   _CatalogAssets(this.catalog);
@@ -218,6 +222,34 @@ void main() {
   testWidgets(
     'desktop catalogue combines filters and opens the pictured board',
     (tester) async {
+      final mac = defaultTargetPlatform == TargetPlatform.macOS;
+      if (mac) {
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(
+          MacGlass.channel,
+          (_) async => {'glass': true},
+        );
+        messenger.setMockMethodCallHandler(
+          SystemChannels.platform_views,
+          (_) async => null,
+        );
+        await MacGlass.initialize();
+        addTearDown(() async {
+          messenger.setMockMethodCallHandler(MacGlass.channel, null);
+          messenger.setMockMethodCallHandler(
+            SystemChannels.platform_views,
+            null,
+          );
+          final platform = debugDefaultTargetPlatformOverride;
+          debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+          try {
+            await MacGlass.initialize();
+          } finally {
+            debugDefaultTargetPlatformOverride = platform;
+          }
+        });
+      }
       final assets = await tester.runAsync(
         () async => _CatalogAssets({
           for (final key in [
@@ -237,8 +269,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       final search = find.byType(TextField);
-      final mac =
-          Theme.of(tester.element(search)).platform == TargetPlatform.macOS;
       final modifier = mac
           ? LogicalKeyboardKey.metaLeft
           : LogicalKeyboardKey.controlLeft;
@@ -256,6 +286,41 @@ void main() {
       final toolbarY = tester.getCenter(filterButton).dy;
       final collapsedSize = tester.getSize(filterControl);
       final anchor = tester.getTopLeft(filterControl);
+      final glass = find.descendant(
+        of: filterControl,
+        matching: find.byType(AppKitView),
+      );
+      final glassClip = find.descendant(
+        of: filterControl,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is ClipRRect && widget.clipper != null,
+        ),
+      );
+      final glassElement = mac ? tester.element(glass) : null;
+      if (mac) {
+        final base = tester.getRect(glass);
+        expect(
+          base,
+          tester.getRect(filterControl).inflate(MacGlass.controlEdgeOutset),
+        );
+        expect(tester.widget<ClipRRect>(glassClip).clipBehavior, Clip.none);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        final away = base.center + const Offset(0, 100);
+        await mouse.addPointer(location: away);
+        await mouse.moveTo(base.center);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(glass).width,
+          closeTo(
+            collapsedSize.width * 1.04 + 2 * MacGlass.controlEdgeOutset,
+            .1,
+          ),
+        );
+        await mouse.moveTo(away);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(glass), base);
+        await mouse.removePointer();
+      }
       final board = find.descendant(
         of: find.byType(Card),
         matching: find.text('Heltec V3'),
@@ -275,6 +340,15 @@ void main() {
       final expandedSize = tester.getSize(filterControl);
       expect(expandedSize.height, greaterThan(collapsedSize.height));
       expect(tester.getTopLeft(filterControl), anchor);
+      if (mac) {
+        final clip = tester.widget<ClipRRect>(glassClip);
+        expect(clip.clipBehavior, Clip.antiAlias);
+        expect(
+          clip.clipper!.getClip(expandedSize).outerRect,
+          (Offset.zero & expandedSize).inflate(MacGlass.controlEdgeOutset),
+        );
+        expect(tester.element(glass), same(glassElement));
+      }
       expect(tester.getTopLeft(board), boardPosition);
       await tester.tap(find.text('Boards: 1'));
       await tester.pump();

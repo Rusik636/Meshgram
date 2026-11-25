@@ -497,9 +497,13 @@ class _FirmwarePageState extends State<FirmwarePage>
                 );
                 return macGlass
                     ? ClipRRect(
-                        borderRadius: corners,
+                        clipper: const _FilterGlassClip(),
+                        clipBehavior: progress == 0
+                            ? Clip.none
+                            : Clip.antiAlias,
                         child: GlassSurface(
                           radius: _filterButtonHeight / 2,
+                          springEnabled: progress == 0 && !_filtersOpen,
                           child: content,
                         ),
                       )
@@ -526,6 +530,19 @@ const _filterTop = 10.0;
 const _filterButtonHeight = 36.0;
 const _filterLabelFade = Interval(0, .34, curve: Curves.easeInOut);
 const _filterMenuFade = Interval(.48, 1, curve: Curves.easeInOut);
+
+class _FilterGlassClip extends CustomClipper<RRect> {
+  const _FilterGlassClip();
+
+  @override
+  RRect getClip(Size size) => RRect.fromRectAndRadius(
+    (Offset.zero & size).inflate(MacGlass.controlEdgeOutset),
+    const Radius.circular(_filterButtonHeight / 2 + MacGlass.controlEdgeOutset),
+  );
+
+  @override
+  bool shouldReclip(_FilterGlassClip oldClipper) => false;
+}
 
 enum _FirmwareLayoutChild { toolbar, catalogue, filters }
 
