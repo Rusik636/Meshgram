@@ -22,6 +22,7 @@ import '../mesh/radio_outbox.dart';
 import '../radio/channel_invitation.dart';
 import 'channel_avatars.dart';
 import 'chat_attachments.dart';
+import 'mesh_icon.dart';
 import 'style.dart';
 import 'page_route.dart';
 import 'ios_control.dart';
@@ -2957,7 +2958,7 @@ class _ChatState extends State<MeshChatPage>
                     top: 0,
                     child: GlassButton(
                       coveredByModal: _controlsCovered,
-                      icon: Icons.short_text_rounded,
+                      glyph: MeshSvgGlyph.quickPhrases,
                       label: tr(context, 'Быстрые фразы', 'Quick phrases'),
                       onTap: enabled && !_quickPhrasesOpen
                           ? () => setState(() => _quickPhrasesOpen = true)

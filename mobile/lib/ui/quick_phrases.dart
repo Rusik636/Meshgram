@@ -12,6 +12,7 @@ import 'package:flutter/services.dart' show HardwareKeyboard;
 import '../mesh/store.dart';
 import 'desktop_interaction.dart' show meshDesktop, meshDesktopButtonStyle;
 import 'haptics.dart';
+import 'mesh_icon.dart';
 import 'style.dart';
 
 List<String> _phrases(BuildContext context, MeshStore store) =>
@@ -248,7 +249,12 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
                   opacity: iconOpacity,
                   child: SizedBox(
                     width: 48,
-                    child: Icon(Icons.short_text_rounded, color: style.text),
+                    child: Center(
+                      child: MeshSvgIcon(
+                        MeshSvgGlyph.quickPhrases,
+                        color: style.text,
+                      ),
+                    ),
                   ),
                 ),
               ),

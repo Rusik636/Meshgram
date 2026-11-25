@@ -33,6 +33,7 @@ dependencies:
   libserialport_plus: 1.0.6
   archive: ^4.7.1
   file_selector: ^1.1.0
+  flutter_svg: ^2.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -47,6 +48,7 @@ flutter:
     - assets/firmware_tools/
     - assets/about/
     - assets/sounds/message.wav
+    - ios/Runner/Assets.xcassets/MeshQuickPhrases.imageset/quick_phrases.svg
   fonts:
     - family: MeshgramNotoColorEmoji
       fonts:

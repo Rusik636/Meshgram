@@ -568,7 +568,7 @@ final class MeshControlSurface: NSObject, FlutterPlatformView {
       configuration.contentInsets = .zero
       button.accessibilityValue = input["onlineLabel"] as? String
     } else if let symbol = input["symbol"] as? String {
-      configuration.image = UIImage(systemName: symbol)
+      configuration.image = UIImage(systemName: symbol) ?? UIImage(named: symbol)
       configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
       if primary && enabled {
         configuration.imageColorTransformer = UIConfigurationColorTransformer { _ in labelColor }

@@ -427,15 +427,17 @@ const meshGlassButtonExtent = 48.0;
 class GlassButton extends StatelessWidget {
   const GlassButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.glyph,
     required this.label,
     required this.onTap,
     this.onLongPress,
     this.longPressLabel,
     this.primary = false,
     this.coveredByModal = false,
-  });
-  final IconData icon;
+  }) : assert((icon == null) != (glyph == null));
+  final IconData? icon;
+  final MeshSvgGlyph? glyph;
   final String label;
   final VoidCallback? onTap, onLongPress;
   final String? longPressLabel;
@@ -444,7 +446,10 @@ class GlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
-    final symbol = useIosControls ? meshGlassButtonSymbol(icon) : null;
+    final svg = glyph;
+    final symbol = useIosControls
+        ? svg?.iosImage ?? meshGlassButtonSymbol(icon!)
+        : null;
     if (symbol != null) {
       return SizedBox.square(
         dimension: meshGlassButtonExtent,
@@ -470,7 +475,7 @@ class GlassButton extends StatelessWidget {
             height: meshGlassButtonExtent,
           ),
           padding: EdgeInsets.zero,
-          icon: Icon(icon, size: 20),
+          icon: svg == null ? Icon(icon, size: 20) : MeshSvgIcon(svg),
           color: primary
               ? (style.dark ? const Color(0xff10254b) : Colors.white)
               : style.text,

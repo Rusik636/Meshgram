@@ -2,6 +2,36 @@
 // AGPL-3.0-only with attribution under section 7(b); see NOTICE.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+enum MeshSvgGlyph {
+  quickPhrases(
+    'ios/Runner/Assets.xcassets/MeshQuickPhrases.imageset/quick_phrases.svg',
+    'MeshQuickPhrases',
+  );
+
+  const MeshSvgGlyph(this.asset, this.iosImage);
+
+  final String asset, iosImage;
+}
+
+class MeshSvgIcon extends StatelessWidget {
+  const MeshSvgIcon(this.glyph, {super.key, this.color});
+  final MeshSvgGlyph glyph;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = color ?? IconTheme.of(context).color!;
+    return SvgPicture.asset(
+      glyph.asset,
+      width: 20,
+      height: 20,
+      colorFilter: ColorFilter.mode(tint, BlendMode.srcIn),
+      excludeFromSemantics: true,
+    );
+  }
+}
 
 String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.add_rounded => 'plus',
@@ -30,7 +60,6 @@ String? meshGlassButtonSymbol(IconData icon) => switch (icon) {
   Icons.schedule_rounded => 'clock',
   Icons.search_rounded => 'magnifyingglass',
   Icons.share_outlined => 'square.and.arrow.up',
-  Icons.short_text_rounded => 'text.bubble',
   Icons.sort_rounded => 'line.3.horizontal.decrease',
   Icons.tune_rounded => 'slider.horizontal.3',
   Icons.delete_outline_rounded => 'trash',
