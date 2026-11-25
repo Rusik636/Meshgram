@@ -5,7 +5,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
-bool meshDesktop(BuildContext context) => switch (Theme.of(context).platform) {
+bool meshDesktop(BuildContext context) =>
+    meshDesktopPlatform(Theme.of(context).platform);
+
+bool meshDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.macOS ||
   TargetPlatform.windows ||
   TargetPlatform.linux => true,
@@ -17,35 +20,54 @@ ButtonStyle? meshDesktopButtonStyle(
   ButtonStyle? style,
 ]) {
   if (!meshDesktop(context)) return style;
-  return (style ?? const ButtonStyle()).copyWith(
-    splashFactory: NoSplash.splashFactory,
-    overlayColor: WidgetStateProperty.resolveWith((states) {
-      if (!states.contains(WidgetState.focused)) return Colors.transparent;
-      return style?.overlayColor?.resolve({WidgetState.focused}) ??
-          Theme.of(context).focusColor;
-    }),
-  );
+  return desktopButtonFeedback(Theme.of(context).focusColor, style);
 }
 
+ButtonStyle desktopButtonFeedback(Color focusColor, [ButtonStyle? style]) =>
+    (style ?? const ButtonStyle()).copyWith(
+      splashFactory: NoSplash.splashFactory,
+      overlayColor: WidgetStateProperty.resolveWith((states) {
+        if (!states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.pressed)) {
+          return Colors.transparent;
+        }
+        return style?.overlayColor?.resolve({WidgetState.focused}) ??
+            focusColor;
+      }),
+    );
+
 class DesktopSpring extends StatelessWidget {
-  const DesktopSpring({super.key, required this.child, this.enabled = true});
+  const DesktopSpring({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.buildScaled,
+  });
 
   final Widget child;
   final bool enabled;
+  final Widget Function(BuildContext, double, Widget)? buildScaled;
 
   @override
   Widget build(BuildContext context) => meshDesktop(context)
       ? _SpringTarget(
           enabled: enabled && !MediaQuery.disableAnimationsOf(context),
+          buildScaled: buildScaled,
           child: child,
         )
-      : child;
+      : buildScaled?.call(context, 1, child) ?? child;
 }
 
 class _SpringTarget extends StatefulWidget {
-  const _SpringTarget({required this.enabled, required this.child});
+  const _SpringTarget({
+    required this.enabled,
+    required this.buildScaled,
+    required this.child,
+  });
 
   final bool enabled;
+  final Widget Function(BuildContext, double, Widget)? buildScaled;
   final Widget child;
 
   @override
@@ -71,6 +93,7 @@ class _SpringTargetState extends State<_SpringTarget>
         _scale.value,
         _hovered ? 1.04 : 1,
         _scale.velocity + impulse,
+        snapToEnd: true,
       ),
     );
   }
@@ -112,11 +135,13 @@ class _SpringTargetState extends State<_SpringTarget>
       child: AnimatedBuilder(
         animation: _scale,
         child: widget.child,
-        builder: (context, child) => Transform.scale(
-          scale: _scale.value,
-          transformHitTests: false,
-          child: child,
-        ),
+        builder: (context, child) =>
+            widget.buildScaled?.call(context, _scale.value, child!) ??
+            Transform.scale(
+              scale: _scale.value,
+              transformHitTests: false,
+              child: child,
+            ),
       ),
     ),
   );

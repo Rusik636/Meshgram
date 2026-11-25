@@ -3127,6 +3127,7 @@ class _ChatState extends State<MeshChatPage>
         ? tr(context, 'Канал', 'Channel')
         : tr(context, 'Личный чат', 'Direct chat');
     final native = useIosControls;
+    final macGlass = MacGlass.enabled(context);
     final (avatarTop, avatarBottom) = MeshAvatar.colorsFor(peer.name);
     final avatar = MeshAvatar.initialsFor(peer.name);
     final properties = <String, Object>{
@@ -3143,6 +3144,7 @@ class _ChatState extends State<MeshChatPage>
     };
     final profileButton = MeshIconButton(
       label: tr(context, 'Профиль чата', 'Chat profile'),
+      spring: !macGlass,
       padding: EdgeInsets.zero,
       onPressed: () => unawaited(_profile(peer)),
       icon: MeshAvatar(
@@ -3212,10 +3214,10 @@ class _ChatState extends State<MeshChatPage>
                 onSelect: (_) => unawaited(_profile(peer)),
               ),
             )
-          else if (MacGlass.enabled(context))
+          else if (macGlass)
             SizedBox.square(
               dimension: 48,
-              child: GlassSurface(child: profileButton),
+              child: GlassSurface(springEnabled: true, child: profileButton),
             )
           else
             profileButton,
@@ -4518,36 +4520,34 @@ class _ChatTitle extends StatelessWidget {
               onSelect: onTap == null ? null : (_) => onTap?.call(),
               onLongPress: onLongPress,
             )
-          : DesktopSpring(
-              enabled: onTap != null || onLongPress != null,
-              child: GlassSurface(
-                radius: 100,
-                child: InkWell(
-                  hoverColor: meshDesktop(context) ? Colors.transparent : null,
-                  splashFactory: meshDesktop(context)
-                      ? NoSplash.splashFactory
-                      : null,
-                  onTap: onTap,
-                  onLongPress: onLongPress,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: padding),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: titleStyle,
-                        ),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: subtitleStyle,
-                        ),
-                      ],
-                    ),
+          : GlassSurface(
+              springEnabled: onTap != null || onLongPress != null,
+              radius: 100,
+              child: InkWell(
+                hoverColor: meshDesktop(context) ? Colors.transparent : null,
+                splashFactory: meshDesktop(context)
+                    ? NoSplash.splashFactory
+                    : null,
+                onTap: onTap,
+                onLongPress: onLongPress,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: padding),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: titleStyle,
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: subtitleStyle,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -5169,8 +5169,12 @@ class MeshChatProfile extends StatelessWidget {
         fitContent: !useIosControls,
       );
     }
+    final desktop = meshDesktop(context);
     final button = InkWell(
       onTap: onTap,
+      hoverColor: desktop ? Colors.transparent : null,
+      highlightColor: desktop ? Colors.transparent : null,
+      splashFactory: desktop ? NoSplash.splashFactory : null,
       child: Padding(
         padding: const EdgeInsets.all(4),
         child: Column(
@@ -5197,14 +5201,16 @@ class MeshChatProfile extends StatelessWidget {
     );
     return SizedBox.square(
       dimension: size,
-      child: Material(
-        color: style.pill,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(19),
-          side: BorderSide(color: style.separator),
+      child: DesktopSpring(
+        child: Material(
+          color: style.pill,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(19),
+            side: BorderSide(color: style.separator),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: button,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: button,
       ),
     );
   }

@@ -35,6 +35,7 @@ import 'package:meshgrame/radio/meshcore.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/radio_settings.dart';
 import 'package:meshgrame/ui/about.dart';
+import 'package:meshgrame/ui/desktop_interaction.dart' show DesktopSpring;
 import 'package:meshgrame/ui/signal.dart';
 import 'package:meshgrame/ui/radio_avatar.dart';
 import 'package:meshgrame/ui/profile_page.dart';
@@ -2356,6 +2357,33 @@ void main() {
         expect(tester.getCenter(label), tester.getCenter(glass));
         await tester.tap(label);
         expect(taps, 1);
+        final base = tester.getRect(glass);
+        final view = tester.element(glass);
+        final button = find.byType(FilledButton);
+        expect(
+          tester.widget<FilledButton>(button).style!.elevation!.resolve({
+            WidgetState.hovered,
+          }),
+          0,
+        );
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: base.center + const Offset(0, 80));
+        await mouse.moveTo(base.center);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(glass).width, closeTo(base.width * 1.04, .1));
+        expect(tester.getRect(glass), tester.getRect(button));
+        expect(tester.element(glass), same(view));
+        await mouse.down(base.center);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 55));
+        expect(tester.getRect(glass).width, greaterThan(base.width * 1.06));
+        expect(tester.getRect(glass), tester.getRect(button));
+        await mouse.up();
+        expect(taps, 2);
+        await mouse.moveTo(base.center + const Offset(0, 80));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(glass), base);
+        await mouse.removePointer();
 
         await tester.pumpWidget(
           MaterialApp(
@@ -2437,6 +2465,10 @@ void main() {
       if (defaultTargetPlatform == TargetPlatform.windows) {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
+        expect(
+          find.descendant(of: rail, matching: find.byType(DesktopSpring)),
+          findsNothing,
+        );
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
         expect(panelColor.toARGB32(), 0xfff8f9fa);
         final panels = find.byType(DesktopWorkspacePanel);

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../mesh/store.dart';
+import 'desktop_interaction.dart' show meshDesktopButtonStyle;
 import 'haptics.dart';
 import 'style.dart';
 
@@ -126,14 +127,17 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
                   return ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 190),
                     child: TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: style.text,
-                        disabledForegroundColor: style.secondary,
-                        minimumSize: const Size(48, 48),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                      style: meshDesktopButtonStyle(
+                        context,
+                        TextButton.styleFrom(
+                          foregroundColor: style.text,
+                          disabledForegroundColor: style.secondary,
+                          minimumSize: const Size(48, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                       onPressed: select == null ? null : () => select(phrase),

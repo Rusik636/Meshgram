@@ -67,8 +67,12 @@ void main() {
       expect(scale(), closeTo(1, .001));
       final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
       expect(
-        style.overlayColor!.resolve({WidgetState.hovered}),
+        style.overlayColor!.resolve({WidgetState.hovered, WidgetState.focused}),
         Colors.transparent,
+      );
+      expect(
+        style.overlayColor!.resolve({WidgetState.focused}),
+        isNot(Colors.transparent),
       );
       await mouse.removePointer();
     });

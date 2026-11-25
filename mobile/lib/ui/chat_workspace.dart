@@ -9,7 +9,7 @@ import 'package:flutter/semantics.dart';
 
 import '../mesh/store.dart';
 
-import 'desktop_interaction.dart';
+import 'desktop_interaction.dart' show meshDesktop;
 import 'macos_glass.dart';
 import 'style.dart';
 
@@ -319,43 +319,41 @@ class ChatFolderRail extends StatelessWidget {
                       label: tr(context, 'Изменить папку', 'Edit folder'),
                     ): onEdit,
                   },
-            child: DesktopSpring(
-              child: Material(
-                color: fill ? style.selection : Colors.transparent,
+            child: Material(
+              color: fill ? style.selection : Colors.transparent,
+              borderRadius: shape,
+              child: InkWell(
                 borderRadius: shape,
-                child: InkWell(
-                  borderRadius: shape,
-                  hoverColor: Colors.transparent,
-                  highlightColor: isFolder ? Colors.transparent : null,
-                  splashFactory: isFolder ? NoSplash.splashFactory : null,
-                  onTap: onTap,
-                  onDoubleTap: onEdit,
-                  onSecondaryTap: onEdit,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 3,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Badge(
-                          isLabelVisible: count > 0,
-                          label: Text(count > 99 ? '99+' : '$count'),
-                          child: Icon(icon, color: foreground, size: 24),
+                hoverColor: Colors.transparent,
+                highlightColor: isFolder ? Colors.transparent : null,
+                splashFactory: isFolder ? NoSplash.splashFactory : null,
+                onTap: onTap,
+                onDoubleTap: onEdit,
+                onSecondaryTap: onEdit,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Badge(
+                        isLabelVisible: count > 0,
+                        label: Text(count > 99 ? '99+' : '$count'),
+                        child: Icon(icon, color: foreground, size: 24),
+                      ),
+                      const SizedBox(height: 4),
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: labelStyle.copyWith(color: foreground),
                         ),
-                        const SizedBox(height: 4),
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: labelStyle.copyWith(color: foreground),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
