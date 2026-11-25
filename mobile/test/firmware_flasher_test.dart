@@ -250,14 +250,41 @@ void main() {
       await tester.enterText(search, 'Heltec V3 MeshCore ESP32-S3');
       await tester.pumpAndSettle();
       final filterButton = find.text('Filters');
+      final filterControl = find.byKey(
+        const ValueKey('firmware-filter-control'),
+      );
+      final toolbarY = tester.getCenter(filterButton).dy;
+      final collapsedSize = tester.getSize(filterControl);
       final board = find.descendant(
         of: find.byType(Card),
         matching: find.text('Heltec V3'),
       );
       final boardPosition = tester.getTopLeft(board);
       await tester.tap(filterButton);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(
+        tester.getSize(filterControl).width,
+        greaterThan(collapsedSize.width),
+      );
       expect(tester.getTopLeft(board), boardPosition);
+      await tester.pumpAndSettle();
+      expect(filterButton, findsNothing);
+      final expandedSize = tester.getSize(filterControl);
+      expect(expandedSize.height, greaterThan(collapsedSize.height));
+      expect(tester.getTopLeft(board), boardPosition);
+      await tester.tap(find.text('Boards: 1'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+      expect(
+        tester.getSize(filterControl).height,
+        lessThan(expandedSize.height),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getSize(filterControl), collapsedSize);
+      expect(tester.getTopLeft(board), boardPosition);
+      await tester.tap(filterButton);
+      await tester.pumpAndSettle();
       Finder option(String value) => find.descendant(
         of: find.byType(FirmwareFilterPanel),
         matching: find.text(value),
@@ -266,7 +293,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.getCenter(find.byType(FirmwareFilterTag)).dy,
-        closeTo(tester.getCenter(filterButton).dy, 1),
+        closeTo(toolbarY, 1),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(FirmwareFilterTag),
+          matching: find.byIcon(Icons.close_rounded),
+        ),
+        findsOneWidget,
       );
       await tester.tap(option('Chip'));
       await tester.pumpAndSettle();
@@ -288,6 +322,9 @@ void main() {
       await tester.tap(selectedChip);
       await tester.pumpAndSettle();
       expect(find.byType(FirmwareFilterTag), findsNWidgets(3));
+      expect(filterButton, findsOneWidget);
+      await tester.tap(filterButton);
+      await tester.pumpAndSettle();
       await tester.tap(option('Chip'));
       await tester.pumpAndSettle();
       expect(
@@ -302,7 +339,7 @@ void main() {
         isFalse,
       );
       final filteredBoardPosition = tester.getTopLeft(board);
-      await tester.tap(filterButton);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(board), filteredBoardPosition);
       expect(board, findsOneWidget);

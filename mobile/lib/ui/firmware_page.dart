@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -29,12 +30,14 @@ class FirmwarePage extends StatefulWidget {
   State<FirmwarePage> createState() => _FirmwarePageState();
 }
 
-class _FirmwarePageState extends State<FirmwarePage> {
+class _FirmwarePageState extends State<FirmwarePage>
+    with SingleTickerProviderStateMixin {
   late final Future<FirmwareCatalog> _catalog = FirmwareCatalog.read(
     DefaultAssetBundle.of(context),
   );
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  late final AnimationController _filterMotion;
   FirmwareSelection _selection = {};
   bool _filtersOpen = false;
   String _query = '';
@@ -42,10 +45,21 @@ class _FirmwarePageState extends State<FirmwarePage> {
   @override
   void initState() {
     super.initState();
+    _filterMotion = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
     HardwareKeyboard.instance.addHandler(_findShortcut);
   }
 
   bool _findShortcut(KeyEvent event) {
+    if (_filtersOpen &&
+        event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        ModalRoute.isCurrentOf(context) == true) {
+      _setFiltersOpen(false);
+      return true;
+    }
     if (event is! KeyDownEvent ||
         (event.logicalKey != LogicalKeyboardKey.keyF &&
             event.physicalKey != PhysicalKeyboardKey.keyF) ||
@@ -70,6 +84,7 @@ class _FirmwarePageState extends State<FirmwarePage> {
     HardwareKeyboard.instance.removeHandler(_findShortcut);
     _search.dispose();
     _searchFocus.dispose();
+    _filterMotion.dispose();
     super.dispose();
   }
 
@@ -224,6 +239,18 @@ class _FirmwarePageState extends State<FirmwarePage> {
     );
   }
 
+  void _setFiltersOpen(bool open) {
+    if (_filtersOpen == open) return;
+    setState(() => _filtersOpen = open);
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _filterMotion.value = open ? 1 : 0;
+    } else if (open) {
+      _filterMotion.forward();
+    } else {
+      _filterMotion.reverse();
+    }
+  }
+
   void _toggleFilter(FirmwareFacet facet, String value) {
     final values = {...?_selection[facet]};
     if (!values.remove(value)) values.add(value);
@@ -255,26 +282,19 @@ class _FirmwarePageState extends State<FirmwarePage> {
         )
         .toList();
     final label = tr(context, 'Фильтры', 'Filters');
-    final native = MacGlass.firmwareFiltersAvailable;
-    const buttonHeight = 36.0;
-    const toolbarTop = 10.0;
-    void togglePanel() => setState(() => _filtersOpen = !_filtersOpen);
-
-    final icon = _filtersOpen ? Icons.expand_less_rounded : Icons.tune_rounded;
-    final button = native
-        ? GlassActionButton(
-            label: label,
-            icon: icon,
-            fitContent: true,
-            height: buttonHeight,
-            primary: false,
-            onTap: togglePanel,
-          )
-        : OutlinedButton.icon(
-            onPressed: togglePanel,
-            icon: Icon(icon, size: 18),
-            label: Text(label),
-          );
+    final textStyle = Theme.of(context).textTheme.labelLarge!
+        .copyWith(fontWeight: FontWeight.w600, color: style.text);
+    final textMeasure = TextPainter(
+      text: TextSpan(text: label, style: textStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final buttonWidth = math.min(
+      textMeasure.width.ceilToDouble() + 50,
+      width - 2 * inset,
+    );
+    textMeasure.dispose();
     final scaledText = MediaQuery.textScalerOf(context).scale(16);
     final columns =
         ((width - 2 * inset + 12) /
@@ -350,87 +370,224 @@ class _FirmwarePageState extends State<FirmwarePage> {
           ),
       ],
     );
-    final catalogWithOverlay = LayoutBuilder(
-      builder: (context, bounds) {
-        final panelHeight = (bounds.maxHeight - 8).clamp(0.0, 224.0);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            catalogue,
-            PositionedDirectional(
-              start: inset,
-              top: 0,
-              width: math.min(420, width - 2 * inset),
-              child: AnimatedSize(
-                alignment: AlignmentDirectional.topStart,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 220),
-                curve: Curves.easeInOutCubic,
-                child: !_filtersOpen || panelHeight == 0
-                    ? const SizedBox.shrink()
-                    : native
-                    ? SizedBox(
-                        height: panelHeight,
-                        child: MacFirmwareFilterPanel(
-                          options: options,
-                          selection: _selection,
-                          dark: style.dark,
-                          onToggle: _toggleFilter,
-                        ),
-                      )
-                    : ConstrainedBox(
-                        constraints: BoxConstraints(maxHeight: panelHeight),
-                        child: FirmwareFilterPanel(
-                          options: options,
-                          selection: _selection,
-                          onToggle: _toggleFilter,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final panel = MacGlass.firmwareFiltersAvailable
+        ? MacFirmwareFilterPanel(
+            options: options,
+            selection: _selection,
+            dark: style.dark,
+            onToggle: _toggleFilter,
+            onClose: () => _setFiltersOpen(false),
+          )
+        : FirmwareFilterPanel(
+            options: options,
+            selection: _selection,
+            onToggle: _toggleFilter,
+            onClose: () => _setFiltersOpen(false),
+          );
+    return CustomMultiChildLayout(
+      delegate: _FirmwareCatalogLayout(
+        motion: _filterMotion,
+        inset: inset,
+        buttonWidth: buttonWidth,
+        textDirection: Directionality.of(context),
+      ),
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(inset, toolbarTop, inset, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    SizedBox(height: buttonHeight, child: button),
-                    ...tags,
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  tr(
-                    context,
-                    'Плат: ${boards.length}',
-                    'Boards: ${boards.length}',
+        LayoutId(id: _FirmwareLayoutChild.catalogue, child: catalogue),
+        LayoutId(
+          id: _FirmwareLayoutChild.toolbar,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(inset, _filterTop, inset, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(width: buttonWidth, height: _filterButtonHeight),
+                      ...tags,
+                    ],
                   ),
-                  style: TextStyle(color: style.secondary, fontSize: 13),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    tr(
+                      context,
+                      'Плат: ${boards.length}',
+                      'Boards: ${boards.length}',
+                    ),
+                    style: TextStyle(color: style.secondary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        Expanded(child: catalogWithOverlay),
+        LayoutId(
+          id: _FirmwareLayoutChild.filters,
+          child: TapRegion(
+            key: const ValueKey('firmware-filter-control'),
+            behavior: HitTestBehavior.opaque,
+            onTapOutside: _filtersOpen ? (_) => _setFiltersOpen(false) : null,
+            child: AnimatedBuilder(
+              animation: _filterMotion,
+              child: panel,
+              builder: (context, menu) {
+                final progress = _filterMotion.value;
+                final buttonOpacity = 1 - _filterLabelFade.transform(progress);
+                final menuOpacity = _filterMenuFade.transform(progress);
+                final content = Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (menuOpacity > 0)
+                      IgnorePointer(
+                        ignoring: !_filtersOpen || menuOpacity < 1,
+                        child: ExcludeSemantics(
+                          excluding: !_filtersOpen || menuOpacity < 1,
+                          child: Opacity(opacity: menuOpacity, child: menu),
+                        ),
+                      ),
+                    if (buttonOpacity > 0)
+                      PositionedDirectional(
+                        start: 0,
+                        top: 0,
+                        width: buttonWidth,
+                        height: _filterButtonHeight,
+                        child: Opacity(
+                          opacity: buttonOpacity,
+                          child: ExcludeSemantics(
+                            excluding: _filtersOpen,
+                            child: Semantics(
+                              button: true,
+                              child: InkWell(
+                                hoverColor: Colors.transparent,
+                                splashFactory: NoSplash.splashFactory,
+                                onTap: _filtersOpen
+                                    ? null
+                                    : () => _setFiltersOpen(true),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.tune_rounded,
+                                      size: 18,
+                                      color: style.text,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        label,
+                                        style: textStyle,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+                return macGlass
+                    ? GlassSurface(
+                        radius: _filterButtonHeight / 2,
+                        child: content,
+                      )
+                    : Material(
+                        color: style.surface,
+                        elevation: 4 * progress,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            _filterButtonHeight / 2,
+                          ),
+                          side: BorderSide(color: style.separator),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: content,
+                      );
+              },
+            ),
+          ),
+        ),
       ],
     );
   }
+}
+
+const _filterTop = 10.0;
+const _filterButtonHeight = 36.0;
+const _filterLabelFade = Interval(0, .34, curve: Curves.easeInOut);
+const _filterMenuFade = Interval(.48, 1, curve: Curves.easeInOut);
+
+enum _FirmwareLayoutChild { toolbar, catalogue, filters }
+
+class _FirmwareCatalogLayout extends MultiChildLayoutDelegate {
+  _FirmwareCatalogLayout({
+    required this.motion,
+    required this.inset,
+    required this.buttonWidth,
+    required this.textDirection,
+  }) : super(relayout: motion);
+
+  final Animation<double> motion;
+  final double inset, buttonWidth;
+  final TextDirection textDirection;
+
+  @override
+  void performLayout(Size size) {
+    final toolbar = layoutChild(
+      _FirmwareLayoutChild.toolbar,
+      BoxConstraints.tightFor(width: size.width),
+    );
+    positionChild(_FirmwareLayoutChild.toolbar, Offset.zero);
+    final listHeight = math.max(0.0, size.height - toolbar.height);
+    layoutChild(
+      _FirmwareLayoutChild.catalogue,
+      BoxConstraints.tightFor(width: size.width, height: listHeight),
+    );
+    positionChild(_FirmwareLayoutChild.catalogue, Offset(0, toolbar.height));
+
+    final progress = motion.value;
+    final descent = const Interval(
+      0,
+      .72,
+      curve: Curves.easeInOutCubic,
+    ).transform(progress);
+    final expansion = const Interval(
+      .20,
+      1,
+      curve: Curves.easeInOutCubic,
+    ).transform(progress);
+    final panelHeight = (listHeight - 8).clamp(_filterButtonHeight, 224.0);
+    final panelWidth = math.min(420.0, size.width - 2 * inset);
+    final width = lerpDouble(buttonWidth, panelWidth, expansion)!;
+    final height = lerpDouble(_filterButtonHeight, panelHeight, expansion)!;
+    final panelTop = math.min(toolbar.height, size.height - panelHeight);
+    layoutChild(
+      _FirmwareLayoutChild.filters,
+      BoxConstraints.tightFor(width: width, height: height),
+    );
+    positionChild(
+      _FirmwareLayoutChild.filters,
+      Offset(
+        textDirection == TextDirection.ltr ? inset : size.width - width - inset,
+        lerpDouble(_filterTop, panelTop, descent)!,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_FirmwareCatalogLayout oldDelegate) =>
+      oldDelegate.motion != motion ||
+      oldDelegate.inset != inset ||
+      oldDelegate.buttonWidth != buttonWidth ||
+      oldDelegate.textDirection != textDirection;
 }
 
 class _BoardCard extends StatelessWidget {

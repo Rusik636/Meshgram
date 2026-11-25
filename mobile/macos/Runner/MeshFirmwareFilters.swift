@@ -47,38 +47,6 @@ private final class MeshFirmwareFiltersView: NSView {
     facets = (input["facets"] as? [[String: Any]] ?? []).compactMap(Facet.init)
     super.init(frame: .zero)
 
-    let content = NSView()
-    let surface: NSView
-    if #available(macOS 26.0, *), input["glass"] as? Bool == true {
-      let glass = NSGlassEffectView()
-      glass.cornerRadius = 16
-      glass.contentView = content
-      surface = glass
-    } else {
-      let material = NSVisualEffectView()
-      material.material = .popover
-      material.blendingMode = .withinWindow
-      material.state = .active
-      material.wantsLayer = true
-      material.layer?.cornerRadius = 16
-      material.layer?.masksToBounds = true
-      material.addSubview(content)
-      surface = material
-    }
-    surface.translatesAutoresizingMaskIntoConstraints = false
-    content.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(surface)
-    NSLayoutConstraint.activate([
-      surface.topAnchor.constraint(equalTo: topAnchor),
-      surface.bottomAnchor.constraint(equalTo: bottomAnchor),
-      surface.leadingAnchor.constraint(equalTo: leadingAnchor),
-      surface.trailingAnchor.constraint(equalTo: trailingAnchor),
-      content.topAnchor.constraint(equalTo: surface.topAnchor),
-      content.bottomAnchor.constraint(equalTo: surface.bottomAnchor),
-      content.leadingAnchor.constraint(equalTo: surface.leadingAnchor),
-      content.trailingAnchor.constraint(equalTo: surface.trailingAnchor),
-    ])
-
     let tabs = NSSegmentedControl(
       labels: facets.map { $0.title }, trackingMode: .selectOne,
       target: self, action: #selector(changeFacet)
@@ -91,16 +59,30 @@ private final class MeshFirmwareFiltersView: NSView {
     scroll.hasVerticalScroller = true
     scroll.autohidesScrollers = true
     scroll.translatesAutoresizingMaskIntoConstraints = false
-    content.addSubview(tabs)
-    content.addSubview(scroll)
+    let closeLabel = input["closeLabel"] as? String ?? ""
+    let close = NSButton(
+      image: NSImage(systemSymbolName: "xmark", accessibilityDescription: nil) ?? NSImage(),
+      target: self, action: #selector(closePanel)
+    )
+    close.isBordered = false
+    close.setAccessibilityLabel(closeLabel)
+    close.translatesAutoresizingMaskIntoConstraints = false
+
+    addSubview(tabs)
+    addSubview(close)
+    addSubview(scroll)
     NSLayoutConstraint.activate([
-      tabs.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
-      tabs.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      tabs.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+      tabs.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+      tabs.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      tabs.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8),
+      close.centerYAnchor.constraint(equalTo: tabs.centerYAnchor),
+      close.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+      close.widthAnchor.constraint(equalToConstant: 26),
+      close.heightAnchor.constraint(equalToConstant: 26),
       scroll.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 9),
-      scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-      scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-      scroll.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -10),
+      scroll.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      scroll.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+      scroll.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
     ])
 
     update(input)
@@ -118,6 +100,10 @@ private final class MeshFirmwareFiltersView: NSView {
   required init?(coder: NSCoder) { nil }
 
   deinit { channel.setMethodCallHandler(nil) }
+
+  @objc private func closePanel() {
+    channel.invokeMethod("close", arguments: nil)
+  }
 
   @objc private func changeFacet(_ sender: NSSegmentedControl) {
     facetIndex = sender.selectedSegment

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../radio/firmware_catalog.dart';
-import 'desktop_interaction.dart';
 import 'macos_glass.dart';
 import 'style.dart';
 
@@ -53,11 +52,13 @@ class FirmwareFilterPanel extends StatefulWidget {
     required this.options,
     required this.selection,
     required this.onToggle,
+    required this.onClose,
   });
 
   final Map<FirmwareFacet, List<String>> options;
   final FirmwareSelection selection;
   final FirmwareFilterToggle onToggle;
+  final VoidCallback onClose;
 
   @override
   State<FirmwareFilterPanel> createState() => _FirmwareFilterPanelState();
@@ -68,52 +69,56 @@ class _FirmwareFilterPanelState extends State<FirmwareFilterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final style = MeshStyle.of(context);
-    return Material(
-      borderRadius: BorderRadius.circular(16),
-      color: style.surface,
-      elevation: 6,
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        primary: false,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final facet in FirmwareFacet.values)
-                  ChoiceChip(
-                    label: Text(facet.label(context)),
-                    showCheckmark: false,
-                    selected: facet == _facet,
-                    onSelected: (_) => setState(() => _facet = facet),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final value in widget.options[_facet]!)
-                  FilterChip(
-                    label: Text(value),
-                    selected:
-                        widget.selection[_facet]?.contains(value) ?? false,
-                    onSelected: (_) => widget.onToggle(_facet, value),
-                  ),
-              ],
-            ),
-          ],
-        ),
+    return SingleChildScrollView(
+      primary: false,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final facet in FirmwareFacet.values)
+                      ChoiceChip(
+                        label: Text(facet.label(context)),
+                        showCheckmark: false,
+                        selected: facet == _facet,
+                        onSelected: (_) => setState(() => _facet = facet),
+                      ),
+                  ],
+                ),
+              ),
+              MeshIconButton(
+                label: tr(context, 'Свернуть фильтры', 'Close filters'),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: widget.onClose,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final value in widget.options[_facet]!)
+                FilterChip(
+                  label: Text(value),
+                  selected: widget.selection[_facet]?.contains(value) ?? false,
+                  onSelected: (_) => widget.onToggle(_facet, value),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class FirmwareFilterTag extends StatefulWidget {
+class FirmwareFilterTag extends StatelessWidget {
   const FirmwareFilterTag({
     super.key,
     required this.value,
@@ -124,36 +129,22 @@ class FirmwareFilterTag extends StatefulWidget {
   final VoidCallback onRemove;
 
   @override
-  State<FirmwareFilterTag> createState() => _FirmwareFilterTagState();
-}
-
-class _FirmwareFilterTagState extends State<FirmwareFilterTag> {
-  bool _hovered = false;
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
     final style = MeshStyle.of(context);
     final radius = BorderRadius.circular(24);
-    final showRemove = _hovered || _focused || !meshDesktop(context);
     final content = InkWell(
       borderRadius: radius,
       hoverColor: Colors.transparent,
       mouseCursor: SystemMouseCursors.click,
-      onHover: (value) => setState(() => _hovered = value),
-      onFocusChange: (value) => setState(() => _focused = value),
-      onTap: widget.onRemove,
+      onTap: onRemove,
       child: Padding(
         padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 8, 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(child: Text(widget.value)),
+            Flexible(child: Text(value)),
             const SizedBox(width: 6),
-            Opacity(
-              opacity: showRemove ? 1 : 0,
-              child: Icon(Icons.close_rounded, size: 16, color: style.text),
-            ),
+            Icon(Icons.close_rounded, size: 16, color: style.text),
           ],
         ),
       ),
@@ -161,11 +152,11 @@ class _FirmwareFilterTagState extends State<FirmwareFilterTag> {
     return Semantics(
       label: tr(
         context,
-        'Удалить фильтр «${widget.value}»',
-        'Remove filter: ${widget.value}',
+        'Удалить фильтр «$value»',
+        'Remove filter: $value',
       ),
       button: true,
-      onTap: widget.onRemove,
+      onTap: onRemove,
       excludeSemantics: true,
       child: MacGlass.enabled(context)
           ? GlassSurface(radius: 24, child: content)
@@ -185,12 +176,14 @@ class MacFirmwareFilterPanel extends StatefulWidget {
     required this.selection,
     required this.dark,
     required this.onToggle,
+    required this.onClose,
   });
 
   final Map<FirmwareFacet, List<String>> options;
   final FirmwareSelection selection;
   final bool dark;
   final FirmwareFilterToggle onToggle;
+  final VoidCallback onClose;
 
   @override
   State<MacFirmwareFilterPanel> createState() => _MacFirmwareFilterPanelState();
@@ -228,7 +221,12 @@ class _MacFirmwareFilterPanelState extends State<MacFirmwareFilterPanel> {
     final channel = MethodChannel('meshgrame/firmware_filters/$id');
     _channel = channel;
     channel.setMethodCallHandler((call) async {
-      if (call.method != 'toggle' || !mounted) return;
+      if (!mounted) return;
+      if (call.method == 'close') {
+        widget.onClose();
+        return;
+      }
+      if (call.method != 'toggle') return;
       final args = Map<String, String>.from(call.arguments as Map);
       final facet = FirmwareFacet.values.byName(args['facet']!);
       final value = args['value']!;
@@ -239,11 +237,10 @@ class _MacFirmwareFilterPanelState extends State<MacFirmwareFilterPanel> {
 
   @override
   Widget build(BuildContext context) => AppKitView(
-    key: ValueKey(MacGlass.enabled(context)),
     viewType: 'meshgrame/firmware_filters',
     creationParamsCodec: const StandardMessageCodec(),
     creationParams: {
-      'glass': MacGlass.enabled(context),
+      'closeLabel': tr(context, 'Свернуть фильтры', 'Close filters'),
       'facets': [
         for (final facet in FirmwareFacet.values)
           {
