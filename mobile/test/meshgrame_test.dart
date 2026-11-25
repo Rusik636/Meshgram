@@ -8,7 +8,8 @@ import 'dart:typed_data';
 import 'dart:ui' show ImageByteFormat, PointerDeviceKind;
 
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
-import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, kSecondaryMouseButton;
 import 'package:flutter/material.dart' hide Radio;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransition;
 import 'package:flutter/rendering.dart'
@@ -2351,13 +2352,16 @@ void main() {
         final glass = find.byType(AppKitView);
         final label = find.text('Готово');
         expect(
-          tester.getRect(find.byType(FilledButton)),
+          tester
+              .getRect(find.byType(FilledButton))
+              .inflate(MacGlass.controlEdgeOutset),
           tester.getRect(glass),
         );
         expect(tester.getCenter(label), tester.getCenter(glass));
         await tester.tap(label);
         expect(taps, 1);
         final base = tester.getRect(glass);
+        final controlWidth = base.deflate(MacGlass.controlEdgeOutset).width;
         final view = tester.element(glass);
         final button = find.byType(FilledButton);
         expect(
@@ -2370,14 +2374,23 @@ void main() {
         await mouse.addPointer(location: base.center + const Offset(0, 80));
         await mouse.moveTo(base.center);
         await tester.pumpAndSettle();
-        expect(tester.getRect(glass).width, closeTo(base.width * 1.04, .1));
-        expect(tester.getRect(glass), tester.getRect(button));
+        expect(
+          tester.getRect(glass).width,
+          closeTo(controlWidth * 1.04 + 2 * MacGlass.controlEdgeOutset, .1),
+        );
+        expect(
+          tester.getRect(glass),
+          tester.getRect(button).inflate(MacGlass.controlEdgeOutset),
+        );
         expect(tester.element(glass), same(view));
         await mouse.down(base.center);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 55));
         expect(tester.getRect(glass).width, greaterThan(base.width * 1.06));
-        expect(tester.getRect(glass), tester.getRect(button));
+        expect(
+          tester.getRect(glass),
+          tester.getRect(button).inflate(MacGlass.controlEdgeOutset),
+        );
         await mouse.up();
         expect(taps, 2);
         await mouse.moveTo(base.center + const Offset(0, 80));
@@ -2465,10 +2478,14 @@ void main() {
       if (defaultTargetPlatform == TargetPlatform.windows) {
         expect(find.byType(ChatFolderRail), findsOneWidget);
         final rail = find.byType(ChatFolderRail);
-        expect(
-          find.descendant(of: rail, matching: find.byType(DesktopSpring)),
-          findsNothing,
+        final settings = find.descendant(
+          of: rail,
+          matching: find.text('Settings'),
         );
+        DesktopSpring spring(Finder label) => tester.widget<DesktopSpring>(
+          find.ancestor(of: label, matching: find.byType(DesktopSpring)),
+        );
+        expect(spring(settings).enabled, isFalse);
         final panelColor = MeshStyle.of(tester.element(rail)).desktopPanel;
         expect(panelColor.toARGB32(), 0xfff8f9fa);
         final panels = find.byType(DesktopWorkspacePanel);
@@ -2503,6 +2520,7 @@ void main() {
         final indicator = find.byKey(const ValueKey('folder-rail-indicator'));
         final originalTop = tester.getTopLeft(indicator).dy;
         final direct = find.descendant(of: rail, matching: find.text('Direct'));
+        expect(spring(direct).enabled, isTrue);
         final folderInk = find.ancestor(
           of: direct,
           matching: find.byType(InkWell),
@@ -2524,6 +2542,23 @@ void main() {
         expect(
           movingTop,
           inExclusiveRange(originalTop, tester.getTopLeft(indicator).dy),
+        );
+        final directTop = tester.getTopLeft(indicator).dy;
+        await tester.tap(settings);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 90));
+        final movingToSettings = tester.getTopLeft(indicator).dy;
+        await tester.pump(const Duration(milliseconds: 250));
+        final settingsTop = tester.getTopLeft(indicator).dy;
+        expect(movingToSettings, inExclusiveRange(directTop, settingsTop));
+        expect(settingsTop, greaterThan(directTop));
+        expect(find.byType(MeshRow), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(MeshRow),
+            matching: find.byType(DesktopSpring),
+          ),
+          findsNothing,
         );
         expect(
           find.descendant(of: rail, matching: find.byType(Tooltip)),
@@ -2617,6 +2652,11 @@ void main() {
       final rail = find.byType(ChatFolderRail);
       final desktop = defaultTargetPlatform == TargetPlatform.windows;
       if (desktop) {
+        final panels = find.byType(DesktopWorkspacePanel);
+        expect(
+          tester.getBottomLeft(chatButton('Attachments')).dy,
+          tester.getBottomLeft(panels.last).dy,
+        );
         final right = tester.element(chatButton('Close chat'));
         expect(MeshStyle.of(right).canvas, const Color(0xffe1e4e7));
         expect(
@@ -8136,6 +8176,54 @@ void main() {
     },
     variant: const TargetPlatformVariant({TargetPlatform.iOS}),
   );
+
+  testWidgets('mouse wheel moves the desktop quick phrases horizontally', (
+    tester,
+  ) async {
+    final store = MeshStore(await SharedPreferences.getInstance());
+    await store.setQuickPhrases([
+      for (var index = 1; index <= 8; index++) 'Quick phrase $index',
+    ]);
+    var expansions = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.windows),
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 255,
+              child: QuickPhraseStrip(
+                store: store,
+                onSelect: (_) {},
+                onExpand: () => expansions++,
+                progress: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final list = find.byKey(const ValueKey('quick-phrase-scroll'));
+    final scroll = tester.widget<ListView>(list).controller!;
+    void wheel(double dy) => tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: tester.getCenter(list),
+        kind: PointerDeviceKind.mouse,
+        scrollDelta: Offset(0, dy),
+      ),
+    );
+    wheel(120);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 120);
+    wheel(-60);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, 60);
+    wheel(5000);
+    await tester.pumpAndSettle();
+    expect(scroll.offset, scroll.position.maxScrollExtent);
+    expect(expansions, 0);
+  });
 
   testWidgets('radio status replaces the draft counter until connected', (
     tester,

@@ -272,6 +272,7 @@ class GlassSurface extends StatelessWidget {
         radius: radius,
         dark: style.dark,
         tint: color,
+        edgeOutset: MacGlass.controlEdgeOutset,
       );
       final content = Material(type: MaterialType.transparency, child: child);
       if (springEnabled case final enabled?) {
@@ -286,10 +287,7 @@ class GlassSurface extends StatelessWidget {
                 child: FractionallySizedBox(
                   widthFactor: scale,
                   heightFactor: scale,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(radius * scale),
-                    child: background,
-                  ),
+                  child: background,
                 ),
               ),
               Transform.scale(
@@ -302,15 +300,13 @@ class GlassSurface extends StatelessWidget {
           child: content,
         );
       }
-      return ClipRRect(
-        borderRadius: border,
-        child: Stack(
-          fit: StackFit.passthrough,
-          children: [
-            Positioned.fill(child: background),
-            content,
-          ],
-        ),
+      return Stack(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: background),
+          ClipRRect(borderRadius: border, child: content),
+        ],
       );
     }
     if (nativeButtonMaterial && useIosControls) {
@@ -951,55 +947,52 @@ class MeshRow extends StatelessWidget {
     final desktop = meshDesktop(context);
     return Semantics(
       selected: selected ? true : null,
-      child: DesktopSpring(
-        enabled: onTap != null || onLongPress != null,
-        child: ListTile(
-          hoverColor: desktop ? Colors.transparent : null,
-          splashColor: desktop ? Colors.transparent : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-          minTileHeight: 54,
-          leading:
-              leading ??
-              (icon == null
-                  ? null
-                  : MeshRowIcon(icon: icon!, tint: tint ?? style.accent)),
-          title: Text(
-            title,
-            style: TextStyle(color: titleColor ?? style.text, fontSize: 16),
-          ),
-          subtitle: subtitle == null
-              ? null
-              : Text(
-                  subtitle!,
-                  style: TextStyle(color: style.secondary, fontSize: 13),
-                ),
-          trailing:
-              trailing ??
-              (selected
-                  ? Icon(Icons.check_rounded, size: 21, color: style.accent)
-                  : onTap == null || !showChevron
-                  ? null
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (detail != null)
-                          Text(
-                            detail!,
-                            style: TextStyle(
-                              color: style.secondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: style.secondary,
-                          size: 19,
-                        ),
-                      ],
-                    )),
-          onTap: onTap,
-          onLongPress: onLongPress,
+      child: ListTile(
+        hoverColor: desktop ? Colors.transparent : null,
+        splashColor: desktop ? Colors.transparent : null,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+        minTileHeight: 54,
+        leading:
+            leading ??
+            (icon == null
+                ? null
+                : MeshRowIcon(icon: icon!, tint: tint ?? style.accent)),
+        title: Text(
+          title,
+          style: TextStyle(color: titleColor ?? style.text, fontSize: 16),
         ),
+        subtitle: subtitle == null
+            ? null
+            : Text(
+                subtitle!,
+                style: TextStyle(color: style.secondary, fontSize: 13),
+              ),
+        trailing:
+            trailing ??
+            (selected
+                ? Icon(Icons.check_rounded, size: 21, color: style.accent)
+                : onTap == null || !showChevron
+                ? null
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (detail != null)
+                        Text(
+                          detail!,
+                          style: TextStyle(
+                            color: style.secondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: style.secondary,
+                        size: 19,
+                      ),
+                    ],
+                  )),
+        onTap: onTap,
+        onLongPress: onLongPress,
       ),
     );
   }

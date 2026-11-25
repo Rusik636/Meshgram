@@ -349,7 +349,12 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    4,
+                    12,
+                    ChatWorkspacePane.composerBottom(context, 4),
+                  ),
                   child: TextFieldTapRegion(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,

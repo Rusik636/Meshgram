@@ -4,11 +4,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/services.dart' show HardwareKeyboard;
 
 import '../mesh/store.dart';
-import 'desktop_interaction.dart' show meshDesktopButtonStyle;
+import 'desktop_interaction.dart' show meshDesktop, meshDesktopButtonStyle;
 import 'haptics.dart';
 import 'style.dart';
 
@@ -43,8 +45,38 @@ class QuickPhraseStrip extends StatefulWidget {
 
 class _QuickPhraseStripState extends State<QuickPhraseStrip> {
   static const _expandThreshold = 46.0;
+  final _scroll = ScrollController();
   int? _pointer;
   double _pull = 0;
+
+  void _scrollWheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent ||
+        event.scrollDelta.dx != 0 ||
+        event.scrollDelta.dy == 0 ||
+        HardwareKeyboard.instance.isShiftPressed ||
+        !_scroll.hasClients) {
+      return;
+    }
+    final position = _scroll.position;
+    final delta = position.axisDirection == AxisDirection.left
+        ? -event.scrollDelta.dy
+        : event.scrollDelta.dy;
+    final target = position.pixels + delta;
+    if (target.clamp(position.minScrollExtent, position.maxScrollExtent) ==
+        position.pixels) {
+      return;
+    }
+    GestureBinding.instance.pointerSignalResolver.register(
+      event,
+      (_) => position.pointerScroll(delta),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   void _updatePull(double value) {
     final pull = math.max(0.0, value);
@@ -109,6 +141,7 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
               child: ListView.separated(
                 key: const ValueKey('quick-phrase-scroll'),
                 primary: false,
+                controller: _scroll,
                 scrollDirection: Axis.horizontal,
                 physics: const ClampingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
@@ -201,7 +234,13 @@ class _QuickPhraseStripState extends State<QuickPhraseStrip> {
           fit: StackFit.expand,
           children: [
             if (contentOpacity > 0)
-              Opacity(opacity: contentOpacity, child: content),
+              Opacity(
+                opacity: contentOpacity,
+                child: Listener(
+                  onPointerSignal: meshDesktop(context) ? _scrollWheel : null,
+                  child: content,
+                ),
+              ),
             if (iconOpacity > 0)
               Align(
                 alignment: AlignmentDirectional.centerStart,

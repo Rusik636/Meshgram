@@ -9,7 +9,7 @@ import 'package:flutter/semantics.dart';
 
 import '../mesh/store.dart';
 
-import 'desktop_interaction.dart' show meshDesktop;
+import 'desktop_interaction.dart' show DesktopSpring, meshDesktop;
 import 'macos_glass.dart';
 import 'style.dart';
 
@@ -49,6 +49,9 @@ class ChatWorkspacePane extends InheritedWidget {
 
   static double toolbarTop(BuildContext context) =>
       desktopSplit(context) ? meshDesktopWorkspaceInset : 6.0;
+
+  static double composerBottom(BuildContext context, double fallback) =>
+      desktopSplit(context) ? meshDesktopWorkspaceInset : fallback;
 
   @override
   bool updateShouldNotify(ChatWorkspacePane oldWidget) =>
@@ -171,104 +174,135 @@ class ChatFolderRail extends StatelessWidget {
       );
     }
 
+    final header = mac ? MacGlass.windowControlsInset + 8 : 0.0;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final content = SafeArea(
       right: false,
       top: !mac,
       child: Padding(
         padding: EdgeInsets.fromLTRB(6, mac ? 0 : 8, 6, 8),
-        child: Column(
-          children: [
-            if (mac) ...[
-              const SizedBox(
-                height: MacGlass.windowControlsInset,
-                width: double.infinity,
-                child: ExcludeSemantics(
-                  child: IgnorePointer(
-                    child: AppKitView(viewType: 'meshgrame/window_controls'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Expanded(
-              child: editing
-                  ? ReorderableListView.builder(
-                      scrollController: scrollController,
-                      padding: EdgeInsets.zero,
-                      buildDefaultDragHandles: false,
-                      header: Column(
-                        children: [
-                          for (var i = 0; i < builtInCount; i++) item(i),
-                        ],
-                      ),
-                      itemCount: folders.length,
-                      itemBuilder: (context, index) =>
-                          ReorderableDelayedDragStartListener(
-                            key: ValueKey(folders[index].id),
-                            index: index,
-                            child: item(index + builtInCount),
-                          ),
-                      onReorderItem: onReorder,
-                    )
-                  : SingleChildScrollView(
-                      controller: scrollController,
-                      child: Stack(
-                        children: [
-                          AnimatedPositionedDirectional(
-                            key: const ValueKey('folder-rail-indicator'),
-                            duration: MediaQuery.disableAnimationsOf(context)
-                                ? Duration.zero
-                                : const Duration(milliseconds: 240),
-                            curve: Curves.easeOutCubic,
-                            top:
-                                (selected ?? 0) * row +
-                                (row - 5 - markerHeight) / 2,
-                            start: 0,
-                            width: 3,
-                            height: markerHeight,
-                            child: IgnorePointer(
-                              child: AnimatedOpacity(
-                                opacity: selected == null ? 0 : 1,
-                                duration:
-                                    MediaQuery.disableAnimationsOf(context)
-                                    ? Duration.zero
-                                    : const Duration(milliseconds: 150),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: style.accent,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            final settingsTop = bounds.maxHeight - row;
+            return Stack(
+              children: [
+                Column(
+                  children: [
+                    if (mac) ...[
+                      const SizedBox(
+                        height: MacGlass.windowControlsInset,
+                        width: double.infinity,
+                        child: ExcludeSemantics(
+                          child: IgnorePointer(
+                            child: AppKitView(
+                              viewType: 'meshgrame/window_controls',
                             ),
                           ),
-                          Column(
-                            children: [
-                              for (
-                                var i = 0;
-                                i < builtInCount + folders.length;
-                                i++
-                              )
-                                item(i),
-                            ],
-                          ),
-                        ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Expanded(
+                      child: editing
+                          ? ReorderableListView.builder(
+                              scrollController: scrollController,
+                              padding: EdgeInsets.zero,
+                              buildDefaultDragHandles: false,
+                              header: Column(
+                                children: [
+                                  for (var i = 0; i < builtInCount; i++)
+                                    item(i),
+                                ],
+                              ),
+                              itemCount: folders.length,
+                              itemBuilder: (context, index) =>
+                                  ReorderableDelayedDragStartListener(
+                                    key: ValueKey(folders[index].id),
+                                    index: index,
+                                    child: item(index + builtInCount),
+                                  ),
+                              onReorderItem: onReorder,
+                            )
+                          : SingleChildScrollView(
+                              controller: scrollController,
+                              child: Column(
+                                children: [
+                                  for (
+                                    var i = 0;
+                                    i < builtInCount + folders.length;
+                                    i++
+                                  )
+                                    item(i),
+                                ],
+                              ),
+                            ),
+                    ),
+                    SizedBox(
+                      height: row,
+                      child: _destination(
+                        context,
+                        title: tr(context, 'Настройки', 'Settings'),
+                        icon: Icons.settings_outlined,
+                        active: settingsSelected,
+                        count: settingsUnread,
+                        onTap: onSettings,
                       ),
                     ),
-            ),
-            SizedBox(
-              height: row,
-              child: _destination(
-                context,
-                title: tr(context, 'Настройки', 'Settings'),
-                icon: Icons.settings_outlined,
-                active: settingsSelected,
-                count: settingsUnread,
-                fill: settingsSelected,
-                onTap: onSettings,
-              ),
-            ),
-          ],
+                  ],
+                ),
+                ListenableBuilder(
+                  listenable: scrollController,
+                  builder: (context, child) {
+                    final position = scrollController.positions.firstOrNull;
+                    final folderTop =
+                        header +
+                        (selected ?? 0) * row -
+                        (position?.hasPixels == true ? position!.pixels : 0);
+                    final markerOffset = (row - 5 - markerHeight) / 2;
+                    final top =
+                        (settingsSelected ? settingsTop : folderTop) +
+                        markerOffset;
+                    final folderVisible =
+                        !editing &&
+                        selected != null &&
+                        top >= header &&
+                        top + markerHeight <= settingsTop;
+                    final scrolling =
+                        position?.isScrollingNotifier.value ?? false;
+                    return AnimatedPositionedDirectional(
+                      key: const ValueKey('folder-rail-indicator'),
+                      duration: reduceMotion || scrolling
+                          ? Duration.zero
+                          : const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      top: top.clamp(
+                        header,
+                        math.max(header, settingsTop + markerOffset),
+                      ),
+                      start: 0,
+                      width: 3,
+                      height: markerHeight,
+                      child: IgnorePointer(
+                        child: AnimatedOpacity(
+                          opacity: settingsSelected || folderVisible ? 1 : 0,
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 150),
+                          child: child,
+                        ),
+                      ),
+                    );
+                  },
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: style.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -294,7 +328,6 @@ class ChatFolderRail extends StatelessWidget {
     required IconData icon,
     required bool active,
     required int count,
-    bool fill = false,
     bool isFolder = false,
     required VoidCallback onTap,
     VoidCallback? onEdit,
@@ -319,41 +352,44 @@ class ChatFolderRail extends StatelessWidget {
                       label: tr(context, 'Изменить папку', 'Edit folder'),
                     ): onEdit,
                   },
-            child: Material(
-              color: fill ? style.selection : Colors.transparent,
-              borderRadius: shape,
-              child: InkWell(
+            child: DesktopSpring(
+              enabled: isFolder,
+              child: Material(
+                color: Colors.transparent,
                 borderRadius: shape,
-                hoverColor: Colors.transparent,
-                highlightColor: isFolder ? Colors.transparent : null,
-                splashFactory: isFolder ? NoSplash.splashFactory : null,
-                onTap: onTap,
-                onDoubleTap: onEdit,
-                onSecondaryTap: onEdit,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 3,
-                    vertical: 8,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Badge(
-                        isLabelVisible: count > 0,
-                        label: Text(count > 99 ? '99+' : '$count'),
-                        child: Icon(icon, color: foreground, size: 24),
-                      ),
-                      const SizedBox(height: 4),
-                      Flexible(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: labelStyle.copyWith(color: foreground),
+                child: InkWell(
+                  borderRadius: shape,
+                  hoverColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  splashFactory: NoSplash.splashFactory,
+                  onTap: onTap,
+                  onDoubleTap: onEdit,
+                  onSecondaryTap: onEdit,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Badge(
+                          isLabelVisible: count > 0,
+                          label: Text(count > 99 ? '99+' : '$count'),
+                          child: Icon(icon, color: foreground, size: 24),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: labelStyle.copyWith(color: foreground),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

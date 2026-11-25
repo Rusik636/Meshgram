@@ -2797,7 +2797,12 @@ class _ChatState extends State<MeshChatPage>
                     child: _measure(
                       _footerKey,
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 7, 12, 12),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          7,
+                          12,
+                          ChatWorkspacePane.composerBottom(context, 12),
+                        ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [

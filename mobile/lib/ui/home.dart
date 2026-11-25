@@ -23,7 +23,6 @@ import 'chat_folders.dart';
 import 'chat_management.dart';
 import 'chat_setup.dart';
 import 'chat_workspace.dart';
-import 'desktop_interaction.dart' show DesktopSpring;
 import 'firmware_page.dart';
 import 'emoji_text.dart';
 import 'haptics.dart';
@@ -2499,10 +2498,7 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
         ),
       ),
     );
-    final chat = DesktopSpring(
-      enabled: !_removingChats,
-      child: Builder(builder: row),
-    );
+    final chat = Builder(builder: row);
     if (!_split || editing) return chat;
     return Semantics(
       selected: current,

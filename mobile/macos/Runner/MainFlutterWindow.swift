@@ -138,8 +138,23 @@ private final class MeshGlassFactory: NSObject, FlutterPlatformViewFactory {
         alpha: CGFloat(value >> 24) / 255
       )
     }
-    return glass
+    let outset = CGFloat((options?["edgeOutset"] as? NSNumber)?.doubleValue ?? 0)
+    guard outset > 0 else { return glass }
+    let host = MeshGlassHost()
+    glass.translatesAutoresizingMaskIntoConstraints = false
+    host.addSubview(glass)
+    NSLayoutConstraint.activate([
+      glass.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: outset),
+      glass.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -outset),
+      glass.topAnchor.constraint(equalTo: host.topAnchor, constant: outset),
+      glass.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -outset),
+    ])
+    return host
   }
+}
+
+private final class MeshGlassHost: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 @available(macOS 26.0, *)

@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 class MacGlass {
   static const channel = MethodChannel('meshgrame/macos_glass');
   static const windowControlsInset = 30.0;
+  static const controlEdgeOutset = 2.0;
   static bool _supported = false;
   static double _regularFontSize = 13;
   static double _smallFontSize = 11;
@@ -71,25 +72,45 @@ class MacGlassBackground extends StatelessWidget {
     required this.radius,
     required this.dark,
     this.tint,
+    this.edgeOutset = 0,
   });
 
   final double radius;
   final bool dark;
   final Color? tint;
+  final double edgeOutset;
 
   @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: ExcludeSemantics(
-      child: AppKitView(
-        key: ValueKey((radius, dark, tint)),
-        viewType: 'meshgrame/glass',
-        creationParams: {
-          'radius': radius,
-          'dark': dark,
-          'tint': ?tint?.toARGB32(),
-        },
-        creationParamsCodec: const StandardMessageCodec(),
+  Widget build(BuildContext context) {
+    final background = IgnorePointer(
+      child: ExcludeSemantics(
+        child: AppKitView(
+          key: ValueKey((radius, dark, tint, edgeOutset)),
+          viewType: 'meshgrame/glass',
+          creationParams: {
+            'radius': radius,
+            'dark': dark,
+            'tint': ?tint?.toARGB32(),
+            'edgeOutset': edgeOutset,
+          },
+          creationParamsCodec: const StandardMessageCodec(),
+        ),
       ),
-    ),
-  );
+    );
+    if (edgeOutset == 0) return background;
+    // Keep the native bevel and its antialiasing inside the platform view.
+    return LayoutBuilder(
+      builder: (context, bounds) {
+        final width = bounds.maxWidth + 2 * edgeOutset;
+        final height = bounds.maxHeight + 2 * edgeOutset;
+        return OverflowBox(
+          minWidth: width,
+          maxWidth: width,
+          minHeight: height,
+          maxHeight: height,
+          child: background,
+        );
+      },
+    );
+  }
 }
