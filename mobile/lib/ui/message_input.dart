@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'chat_workspace.dart' show meshDesktop;
 import 'ios_control.dart';
 import 'sheet_control_clip.dart';
 import 'style.dart';
@@ -24,6 +25,7 @@ class MessageInput extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onChanged,
+    this.onSend,
     this.enabled = true,
     this.coveredByModal = false,
     this.hidesMovingText = false,
@@ -33,6 +35,7 @@ class MessageInput extends StatefulWidget {
   });
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final VoidCallback? onSend;
   final bool enabled, coveredByModal, hidesMovingText;
   final MessageInputAccessory? accessory;
   final VoidCallback? onOpenAccessory, onDismissAccessory;
@@ -275,6 +278,54 @@ class MessageInputState extends State<MessageInput> {
     super.dispose();
   }
 
+  KeyEventResult _handleDesktopKey(FocusNode node, KeyEvent event) {
+    final key = event.logicalKey;
+    if (!widget.enabled ||
+        widget.coveredByModal ||
+        !_focus.hasPrimaryFocus ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        (key != LogicalKeyboardKey.enter &&
+            key != LogicalKeyboardKey.numpadEnter)) {
+      return KeyEventResult.ignored;
+    }
+    final pressed = LogicalKeyboardKey.collapseSynonyms({
+      ...HardwareKeyboard.instance.logicalKeysPressed,
+      // macOS can report a modifier without its left/right hardware flag.
+      if (Theme.of(context).platform == TargetPlatform.macOS)
+        // ignore: deprecated_member_use
+        ...RawKeyboard.instance.keysPressed,
+    });
+    if (pressed.contains(LogicalKeyboardKey.control) ||
+        pressed.contains(LogicalKeyboardKey.meta) ||
+        pressed.contains(LogicalKeyboardKey.alt)) {
+      return KeyEventResult.ignored;
+    }
+    final value = widget.controller.value;
+    if (value.isComposingRangeValid && !value.composing.isCollapsed) {
+      return KeyEventResult.skipRemainingHandlers;
+    }
+    if (pressed.contains(LogicalKeyboardKey.shift)) {
+      final editorContext = _focus.context;
+      if (editorContext == null || !value.selection.isValid) {
+        return KeyEventResult.ignored;
+      }
+      Actions.maybeInvoke(
+        editorContext,
+        ReplaceTextIntent(
+          value.copyWith(
+            selection: TextSelection.collapsed(offset: value.selection.end),
+          ),
+          '\n',
+          value.selection,
+          SelectionChangedCause.keyboard,
+        ),
+      );
+    } else if (event is KeyDownEvent) {
+      widget.onSend?.call();
+    }
+    return KeyEventResult.handled;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_native) {
@@ -309,6 +360,7 @@ class MessageInputState extends State<MessageInput> {
         ),
       );
     }
+    final desktop = meshDesktop(context);
     final field = TextField(
       key: _flutterEditor,
       controller: widget.controller,
@@ -316,6 +368,7 @@ class MessageInputState extends State<MessageInput> {
       focusNode: _focus,
       minLines: 1,
       maxLines: 4,
+      textAlignVertical: desktop ? TextAlignVertical.center : null,
       textCapitalization: TextCapitalization.sentences,
       onChanged: widget.onChanged,
       style: widget.hidesMovingText
@@ -326,18 +379,28 @@ class MessageInputState extends State<MessageInput> {
         hintText: tr(context, 'Сообщение', 'Message'),
         border: InputBorder.none,
         isDense: true,
+        constraints: desktop
+            ? const BoxConstraints(minHeight: meshGlassButtonExtent)
+            : null,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
         ),
       ),
     );
-    if (MediaQuery.disableAnimationsOf(context)) return field;
+    final editor = desktop
+        ? Focus(
+            canRequestFocus: false,
+            onKeyEvent: _handleDesktopKey,
+            child: field,
+          )
+        : field;
+    if (MediaQuery.disableAnimationsOf(context)) return editor;
     return AnimatedSize(
       alignment: Alignment.bottomCenter,
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      child: field,
+      child: editor,
     );
   }
 }

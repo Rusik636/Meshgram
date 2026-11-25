@@ -18,6 +18,76 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'find_control.dart';
 
 void main() {
+  testWidgets(
+    'Desktop composer aligns with its buttons and sends on Enter',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final mesh = MeshController(
+        store: MeshStore(await SharedPreferences.getInstance()),
+        transport: BleTransport(),
+        adapters: const [MeshtasticAdapter()],
+        preview: true,
+      );
+      final peer = mesh.cache!.peers['ch:0']!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeshChatPage(controller: mesh, peer: peer),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final input = find.byType(MessageInput);
+      final field = find.descendant(
+        of: input,
+        matching: find.byType(TextField),
+      );
+      final draft = tester.widget<TextField>(field).controller!;
+      final attachment = findControl('Attachments');
+      expect(tester.getRect(input).height, tester.getRect(attachment).height);
+      expect(tester.getRect(input).top, tester.getRect(attachment).top);
+
+      await tester.enterText(field, 'First Next');
+      draft.selection = const TextSelection(baseOffset: 5, extentOffset: 6);
+      final previousCount = mesh.messages(peer.id).length;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+      expect(draft.text, 'First\nNext');
+      expect(draft.selection, const TextSelection.collapsed(offset: 6));
+      expect(tester.getSize(input).height, greaterThan(meshGlassButtonExtent));
+      expect(tester.getRect(input).bottom, tester.getRect(attachment).bottom);
+      expect(mesh.draft(peer.id), draft.text);
+      expect(mesh.messages(peer.id), hasLength(previousCount));
+
+      draft.value = draft.value.copyWith(
+        composing: const TextRange(start: 6, end: 10),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(mesh.messages(peer.id), hasLength(previousCount));
+      draft.clearComposing();
+
+      final enter =
+          Theme.of(tester.element(field)).platform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.numpadEnter
+          : LogicalKeyboardKey.enter;
+      await tester.sendKeyDownEvent(enter);
+      await tester.sendKeyRepeatEvent(enter);
+      await tester.sendKeyUpEvent(enter);
+      await tester.pumpAndSettle();
+      expect(mesh.messages(peer.id), hasLength(previousCount + 1));
+      expect(mesh.messages(peer.id).last.text, 'First\nNext');
+      expect(draft.text, isEmpty);
+      expect(tester.getRect(input).height, tester.getRect(attachment).height);
+      await tester.pumpWidget(const SizedBox());
+      mesh.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
   testWidgets('iOS keeps replies and link previews with the same editor', (
     tester,
   ) async {

@@ -3016,6 +3016,7 @@ class _ChatState extends State<MeshChatPage>
       final editor = MessageInput(
         key: _input,
         enabled: controller.connected,
+        onSend: send ? () => unawaited(_send(peer)) : null,
         coveredByModal:
             _controlsCovered || ModalRoute.isCurrentOf(context) == false,
         controller: _draft,
@@ -3047,7 +3048,7 @@ class _ChatState extends State<MeshChatPage>
         child: native
             ? editor
             : GlassSurface(
-                radius: 23,
+                radius: meshDesktop(context) ? meshGlassButtonExtent / 2 : 23,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

@@ -253,6 +253,7 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
     final editor = MessageInput(
       key: _input,
       controller: _draft,
+      onSend: () => unawaited(_saveNote()),
       onChanged: (value) =>
           unawaited(controller.store.setSavedChatDraft(value)),
       coveredByModal: covered,
@@ -356,7 +357,12 @@ class _SavedMessagesPageState extends State<SavedMessagesPage> {
                         Expanded(
                           child: useIosControls
                               ? editor
-                              : GlassSurface(radius: 23, child: editor),
+                              : GlassSurface(
+                                  radius: meshDesktop(context)
+                                      ? meshGlassButtonExtent / 2
+                                      : 23,
+                                  child: editor,
+                                ),
                         ),
                         const SizedBox(width: 8),
                         ValueListenableBuilder(
