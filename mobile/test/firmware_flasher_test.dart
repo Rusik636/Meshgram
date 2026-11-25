@@ -61,6 +61,34 @@ class _TestUsb extends DesktopUsbTransport {
   List<UsbPort> ports() => [(path: 'COM9', name: 'Test board')];
 }
 
+class _ReleaseHttp extends HttpOverrides {
+  _ReleaseHttp(this.port);
+  final int port;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      _ReleaseHttpClient(super.createHttpClient(context), port);
+}
+
+class _ReleaseHttpClient extends Fake implements HttpClient {
+  _ReleaseHttpClient(this.client, this.port);
+  final HttpClient client;
+  final int port;
+
+  @override
+  set connectionTimeout(Duration? value) => client.connectionTimeout = value;
+
+  @override
+  set maxConnectionsPerHost(int? value) => client.maxConnectionsPerHost = value;
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) =>
+      client.getUrl(url.replace(scheme: 'http', host: '127.0.0.1', port: port));
+
+  @override
+  void close({bool force = false}) => client.close(force: force);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -135,6 +163,64 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test(
+    'firmware versions use public release pages when the API is limited',
+    () async {
+      const repository = '/meshcore-dev/MeshCore/releases';
+      const tag = 'companion-v1.18.0';
+      const asset = 'RAK_4631_companion_radio_usb-v1.18.0.uf2';
+      final digest = 'sha256:${List.filled(64, 'a').join()}';
+      final requests = <String>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        final response = request.response;
+        final path = request.uri.path;
+        requests.add(path);
+        switch (path) {
+          case '/repos$repository':
+            response.statusCode = HttpStatus.forbidden;
+            response.headers.set('x-ratelimit-remaining', '0');
+          case repository:
+            response.write('''
+            <section><span class="Label--warning">Pre-release</span>
+              <include-fragment src="$repository/expanded_assets/$tag"></include-fragment>
+            </section>
+            <section><include-fragment src="$repository/expanded_assets/repeater-v1.18.0"></include-fragment></section>
+          ''');
+          case '$repository/expanded_assets/$tag':
+            response.write('''
+            <ul><li><a href="$repository/download/$tag/$asset">$asset</a>
+              <clipboard-copy value="$digest"></clipboard-copy>
+            </li></ul>
+          ''');
+          default:
+            response.statusCode = HttpStatus.notFound;
+        }
+        await response.close();
+      });
+
+      await HttpOverrides.runWithHttpOverrides(() async {
+        final tool = FirmwareFlasher(_TestUsb());
+        final versions = await tool.versions(target);
+        expect(versions.single.version, tag);
+        expect(versions.single.prerelease, isTrue);
+        expect(versions.single.factory.digest, digest);
+        expect(
+          versions.single.factory.url.toString(),
+          'https://github.com$repository/download/$tag/$asset',
+        );
+        expect(versions.single.update, versions.single.factory);
+        await tool.versions(target);
+      }, _ReleaseHttp(server.port));
+      expect(requests, [
+        '/repos$repository',
+        repository,
+        '$repository/expanded_assets/$tag',
+      ]);
+    },
+  );
 
   test('update selects the application asset from the same release', () {
     const target = FirmwareTarget(

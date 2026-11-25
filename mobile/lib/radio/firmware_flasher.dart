@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
+import 'package:html/parser.dart' as html;
 import 'package:path_provider/path_provider.dart';
 
 import 'desktop_usb.dart';
@@ -18,12 +19,19 @@ import 'firmware_catalog.dart';
 
 enum FirmwareInstallMode { update, clean }
 
+const _maxAssetSize = 220 * 1024 * 1024;
+const _maxReleaseMetadataSize = 8 * 1024 * 1024;
+
+class _ReleaseApiLimited implements Exception {
+  const _ReleaseApiLimited();
+}
+
 typedef FirmwareAsset = ({
   String name,
   String version,
   Uri url,
   String? digest,
-  int size,
+  int? size,
 });
 
 class FirmwareRelease {
@@ -45,13 +53,12 @@ FirmwareAsset? _asset(
       .singleOrNull;
   if (entry == null) return null;
   final url = Uri.tryParse(entry['browser_download_url'] as String? ?? '');
-  final size = entry['size'] as int? ?? 0;
+  final size = entry['size'] as int?;
   if (url == null ||
       url.scheme != 'https' ||
       url.host != 'github.com' ||
       !url.path.startsWith('/${target.repository}/releases/download/') ||
-      size <= 0 ||
-      size > 220 * 1024 * 1024) {
+      (size != null && (size <= 0 || size > _maxAssetSize))) {
     return null;
   }
   return (
@@ -151,16 +158,34 @@ class FirmwareFlasher {
   final DesktopUsbTransport usb;
   static const _maxImage = 16 * 1024 * 1024;
   final _releases = <String, Future<List<Map<String, dynamic>>>>{};
+  final _publicReleases =
+      <(String, String), Future<List<Map<String, dynamic>>>>{};
 
   Future<List<FirmwareRelease>> versions(FirmwareTarget target) async {
+    final repository = target.repository;
     try {
       final releases = await _releases.putIfAbsent(
-        target.repository,
-        () => _loadReleases(target.repository),
+        repository,
+        () => _loadReleases(repository),
       );
       return firmwareReleases(target, releases);
+    } on _ReleaseApiLimited {
+      final prefix = target.releasePrefix ?? 'v';
+      final key = (repository, prefix);
+      final pending = _publicReleases.putIfAbsent(
+        key,
+        () => _loadPublicReleases(repository, prefix),
+      );
+      try {
+        return firmwareReleases(target, await pending);
+      } catch (_) {
+        if (identical(_publicReleases[key], pending)) {
+          _publicReleases.remove(key);
+        }
+        rethrow;
+      }
     } catch (_) {
-      _releases.remove(target.repository);
+      _releases.remove(repository);
       rethrow;
     }
   }
@@ -181,23 +206,27 @@ class FirmwareFlasher {
     try {
       final raw = File.fromUri(directory.uri.resolve('download'));
       final response = await _request(client, asset.url);
+      final size = asset.size ?? response.contentLength;
+      if (size <= 0 || size > _maxAssetSize) {
+        throw const FormatException('Incorrect firmware download size');
+      }
       var loaded = 0;
       final sink = raw.openWrite();
       try {
         await sink.addStream(
           response.timeout(const Duration(seconds: 30)).map((chunk) {
             loaded += chunk.length;
-            if (loaded > asset.size) {
+            if (loaded > size) {
               throw const FormatException('Incorrect firmware download size');
             }
-            onProgress(loaded / asset.size);
+            onProgress(loaded / size);
             return chunk;
           }),
         );
       } finally {
         await sink.close();
       }
-      if (loaded != asset.size) {
+      if (loaded != size) {
         throw const FormatException('Incomplete firmware download');
       }
       if (asset.digest case final digest? when digest.startsWith('sha256:')) {
@@ -474,17 +503,9 @@ class FirmwareFlasher {
           'page': '$page',
           'per_page': '$pageSize',
         });
-        final response = await _request(client, uri);
-        final bytes = await response
-            .fold(BytesBuilder(copy: false), (buffer, chunk) {
-              if (buffer.length + chunk.length > 8 * 1024 * 1024) {
-                throw const FormatException('Release metadata is too large');
-              }
-              return buffer..add(chunk);
-            })
-            .timeout(const Duration(seconds: 25));
-        final current = (jsonDecode(utf8.decode(bytes.takeBytes())) as List)
-            .cast<Map<String, dynamic>>();
+        final current = (jsonDecode(
+          await _releaseMetadata(client, uri),
+        ) as List).cast<Map<String, dynamic>>();
         releases.addAll(current);
         if (current.length < pageSize) break;
       }
@@ -494,12 +515,141 @@ class FirmwareFlasher {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> _loadPublicReleases(
+    String slug,
+    String prefix,
+  ) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12)
+      ..maxConnectionsPerHost = 4;
+    final releases = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    final base = Uri.https('github.com', '/$slug/releases');
+    Object? failedAssets;
+    try {
+      for (var page = 1; page <= 2; page++) {
+        final uri = page == 1
+            ? base
+            : base.replace(queryParameters: {'page': '$page'});
+        final document = html.parse(await _releaseMetadata(client, uri));
+        final entries = <({Uri url, String tag, bool prerelease})>[];
+        for (final fragment in document.querySelectorAll(
+          'section include-fragment[src]',
+        )) {
+          final url = base.resolve(fragment.attributes['src']!);
+          if (url.scheme != 'https' ||
+              url.authority != base.authority ||
+              !url.path.startsWith('/$slug/releases/expanded_assets/') ||
+              url.pathSegments.length != 5) {
+            continue;
+          }
+          final tag = url.pathSegments.last;
+          if (!tag.startsWith(prefix) || !seen.add(tag)) continue;
+          var section = fragment.parent;
+          while (section != null && section.localName != 'section') {
+            section = section.parent;
+          }
+          entries.add((
+            url: url,
+            tag: tag,
+            prerelease: section?.querySelector('.Label--warning') != null,
+          ));
+        }
+        final current = await Future.wait(
+          entries.map((entry) async {
+            try {
+              final assets = await _publicReleaseAssets(
+                client,
+                base,
+                entry.url,
+                entry.tag,
+              );
+              return {
+                'tag_name': entry.tag,
+                'prerelease': entry.prerelease,
+                'assets': assets,
+              };
+            } on Object catch (error) {
+              failedAssets ??= error;
+              return null;
+            }
+          }),
+        );
+        releases.addAll(
+          current.nonNulls.where(
+            (release) => (release['assets'] as List).isNotEmpty,
+          ),
+        );
+        if (document.querySelector('.pagination a[rel="next"]') == null) break;
+      }
+      if (releases.isEmpty && failedAssets != null) throw failedAssets!;
+      return releases;
+    } on Object {
+      if (releases.isEmpty) rethrow;
+      return releases;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _publicReleaseAssets(
+    HttpClient client,
+    Uri base,
+    Uri uri,
+    String tag,
+  ) async {
+    final document = html.parseFragment(await _releaseMetadata(client, uri));
+    final assets = <Map<String, dynamic>>[];
+    for (final item in document.querySelectorAll('li')) {
+      final href = item
+          .querySelector('a[href*="/releases/download/"]')
+          ?.attributes['href'];
+      if (href == null) continue;
+      final url = base.resolve(href);
+      final path = url.pathSegments;
+      if (url.scheme != 'https' ||
+          url.authority != base.authority ||
+          !url.path.startsWith('${base.path}/download/') ||
+          path.length != 6 ||
+          path[4] != tag) {
+        continue;
+      }
+      final digest = item
+          .querySelector('clipboard-copy[value^="sha256:"]')
+          ?.attributes['value'];
+      assets.add({
+        'name': path.last,
+        'browser_download_url': url.toString(),
+        'digest': ?digest,
+      });
+    }
+    return assets;
+  }
+
+  static Future<String> _releaseMetadata(HttpClient client, Uri uri) async {
+    final response = await _request(client, uri);
+    final bytes = await response
+        .fold(BytesBuilder(copy: false), (buffer, chunk) {
+          if (buffer.length + chunk.length > _maxReleaseMetadataSize) {
+            throw const FormatException('Release metadata is too large');
+          }
+          return buffer..add(chunk);
+        })
+        .timeout(const Duration(seconds: 25));
+    return utf8.decode(bytes.takeBytes());
+  }
+
   static Future<HttpClientResponse> _request(HttpClient client, Uri uri) async {
     final request = await client
         .getUrl(uri)
         .timeout(const Duration(seconds: 12));
     request.headers.set(HttpHeaders.userAgentHeader, 'Meshgram Firmware');
     final response = await request.close().timeout(const Duration(seconds: 20));
+    if (uri.host == 'api.github.com' &&
+        (response.statusCode == HttpStatus.forbidden ||
+            response.statusCode == HttpStatus.tooManyRequests)) {
+      throw const _ReleaseApiLimited();
+    }
     if (response.statusCode != HttpStatus.ok) {
       throw HttpException(
         'Firmware server returned ${response.statusCode}',

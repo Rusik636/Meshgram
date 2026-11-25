@@ -725,7 +725,9 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
   List<UsbPort> _ports = const [];
   final List<String> _log = [];
   bool _loading = false, _writing = false, _complete = false;
-  bool _versionsLoading = false, _versionsFailed = false;
+  bool _versionsLoading = false;
+  Object? _versionsError;
+  bool get _versionsFailed => _versionsError != null;
   bool get _busy => _loading || _writing;
   bool get _changingBlocked => _busy || _erasedBoard != null;
   bool get _canClean => !_target.chip.usesUf2 || _target.eraser != null;
@@ -752,7 +754,7 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
   Future<void> _loadVersions(FirmwareTarget target) async {
     setState(() {
       _versionsLoading = true;
-      _versionsFailed = false;
+      _versionsError = null;
     });
     try {
       final versions = await widget.tool.versions(target);
@@ -763,8 +765,8 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
             versions.where((version) => !version.prerelease).firstOrNull ??
             versions.firstOrNull;
       });
-    } on Object {
-      if (mounted && _target == target) setState(() => _versionsFailed = true);
+    } on Object catch (error) {
+      if (mounted && _target == target) setState(() => _versionsError = error);
     } finally {
       if (mounted && _target == target) {
         setState(() => _versionsLoading = false);
@@ -1094,11 +1096,18 @@ class _FlashBoardPageState extends State<_FlashBoardPage> {
         ),
         if (_versionsFailed)
           Text(
-            tr(
-              context,
-              'Список релизов недоступен.',
-              'Releases are unavailable.',
-            ),
+            _versionsError is SocketException ||
+                    _versionsError is TimeoutException
+                ? tr(
+                    context,
+                    'Нет связи с GitHub. Проверьте интернет и повторите загрузку.',
+                    'Cannot reach GitHub. Check your connection and try again.',
+                  )
+                : tr(
+                    context,
+                    'Список релизов недоступен.',
+                    'Releases are unavailable.',
+                  ),
           ),
 
         Wrap(
