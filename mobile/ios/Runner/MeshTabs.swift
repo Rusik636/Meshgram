@@ -186,6 +186,11 @@ final class MeshTabs: NSObject, FlutterPlatformView, UITabBarControllerDelegate 
 // Both the tab bar and the segmented control use UIKit's interactive glass.
 // Segments can be sized independently to fit the folder labels.
 final class MeshFolderTabs: NSObject, FlutterPlatformView {
+  // Match the resting UIKit tab bar selection on the light chat canvas.
+  private static let lightSelection = UIColor(
+    red: 227.0 / 255, green: 228.0 / 255, blue: 231.0 / 255, alpha: 1
+  )
+
   private let root: TabControllerContainer
   private let control = MeshFolderSegmentedControl()
   private let boundary = TabTapBoundary(target: nil, action: nil)
@@ -243,7 +248,7 @@ final class MeshFolderTabs: NSObject, FlutterPlatformView {
       let dark = input["dark"] as? Bool == true
       control.overrideUserInterfaceStyle = dark ? .dark : .light
       control.semanticContentAttribute = input["rtl"] as? Bool == true ? .forceRightToLeft : .forceLeftToRight
-      control.selectedSegmentTintColor = dark ? UIColor(white: 0.075, alpha: 1) : .secondarySystemBackground
+      control.selectedSegmentTintColor = dark ? UIColor(white: 0.075, alpha: 1) : Self.lightSelection
       let font = UIFont.systemFont(ofSize: size, weight: .semibold)
       control.setTitleTextAttributes([
         .font: font,
