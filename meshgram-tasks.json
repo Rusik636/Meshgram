@@ -3637,6 +3637,76 @@
           "result": "Запущено окно чатов из сборки 116. Проверены версия приложения, подпись, архитектуры arm64 и x86_64 и целостность архива."
         }
       ]
+    },
+    {
+      "id": "71",
+      "parent_id": null,
+      "title": "Убрать наложение стеклянных кнопок при переходе между чатами и настройками",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["70"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "Нативные элементы уходящего экрана скрываются до появления содержимого следующего экрана. Плавный переход и положение списка чатов сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "source",
+          "url": "https://developer.apple.com/documentation/UIKit/UIVisualEffectView",
+          "result": "UIKit рекомендует не менять альфу стекла и его родительских представлений во время отрисовки."
+        },
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "result": "Покадрово проверены переходы в обоих направлениях. Исходные кнопки исчезают до отрисовки следующего экрана. Тест проверяет видимость UIKit-контролов, растворение и сохранение рабочей области. Прошли все 266 тестов Flutter."
+        }
+      ]
+    },
+    {
+      "id": "72",
+      "parent_id": null,
+      "title": "Согласовать стекло полосы папок и нижнего навбара в светлой теме",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["71"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме полоса папок использует тот же тип нативного стекла, что и нижняя навигация. Горизонтальная прокрутка и индикатор сохраняются."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-glass-117.png",
+          "result": "На снимке в светлой теме стекло полосы и навбара отличается не более чем на два уровня RGB в контрольных участках. Тест проверяет стандартный материал, сохранение рамки и выбор вкладки штатным тапом."
+        }
+      ]
+    },
+    {
+      "id": "73",
+      "parent_id": null,
+      "title": "Согласовать оттенок выбранной папки с нижним навбаром iOS",
+      "platform": ["ios"],
+      "branch": "task/71-ios-chat-settings-glass",
+      "depends_on": ["72"],
+      "status": "verified",
+      "acceptance_criteria": [
+        "В светлой теме индикатор выбранной папки имеет нейтральный серый оттенок выбранной вкладки нижнего навбара и сохраняет штатную анимацию UIKit."
+      ],
+      "evidence": [
+        {
+          "kind": "check",
+          "device": "iPhone 18 Pro Simulator",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/ios-folder-glass-118.png",
+          "result": "В светлой теме на неподвижных участках обоих индикаторов измерен одинаковый оттенок #E3E4E7. Выбор и анимация остаются в UISegmentedControl."
+        },
+        {
+          "kind": "device_check",
+          "device": "iPhone 18 Pro",
+          "path": "/Users/ruslan/Documents/Codex/2026-11-24/meshgram-reply/outputs/Meshgram-0.3.62-118-iOS.zip",
+          "result": "Сборка 0.3.62 (118) установлена поверх 117 и запущена на физическом iPhone. Подпись и целостность архива проверены."
+        }
+      ]
     }
   ]
 }
