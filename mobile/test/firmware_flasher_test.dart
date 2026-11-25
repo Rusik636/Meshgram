@@ -255,6 +255,7 @@ void main() {
       );
       final toolbarY = tester.getCenter(filterButton).dy;
       final collapsedSize = tester.getSize(filterControl);
+      final anchor = tester.getTopLeft(filterControl);
       final board = find.descendant(
         of: find.byType(Card),
         matching: find.text('Heltec V3'),
@@ -267,11 +268,13 @@ void main() {
         tester.getSize(filterControl).width,
         greaterThan(collapsedSize.width),
       );
+      expect(tester.getTopLeft(filterControl), anchor);
       expect(tester.getTopLeft(board), boardPosition);
       await tester.pumpAndSettle();
       expect(filterButton, findsNothing);
       final expandedSize = tester.getSize(filterControl);
       expect(expandedSize.height, greaterThan(collapsedSize.height));
+      expect(tester.getTopLeft(filterControl), anchor);
       expect(tester.getTopLeft(board), boardPosition);
       await tester.tap(find.text('Boards: 1'));
       await tester.pump();
@@ -280,6 +283,7 @@ void main() {
         tester.getSize(filterControl).height,
         lessThan(expandedSize.height),
       );
+      expect(tester.getTopLeft(filterControl), anchor);
       await tester.pumpAndSettle();
       expect(tester.getSize(filterControl), collapsedSize);
       expect(tester.getTopLeft(board), boardPosition);
@@ -319,6 +323,8 @@ void main() {
         of: find.byType(FirmwareFilterTag),
         matching: find.text('nRF52840'),
       );
+      await tester.tap(find.text('Boards: 1'));
+      await tester.pumpAndSettle();
       await tester.tap(selectedChip);
       await tester.pumpAndSettle();
       expect(find.byType(FirmwareFilterTag), findsNWidgets(3));

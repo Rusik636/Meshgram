@@ -440,6 +440,7 @@ class _FirmwarePageState extends State<FirmwarePage>
                 final progress = _filterMotion.value;
                 final buttonOpacity = 1 - _filterLabelFade.transform(progress);
                 final menuOpacity = _filterMenuFade.transform(progress);
+                final corners = BorderRadius.circular(_filterButtonHeight / 2);
                 final content = Stack(
                   fit: StackFit.expand,
                   children: [
@@ -495,17 +496,18 @@ class _FirmwarePageState extends State<FirmwarePage>
                   ],
                 );
                 return macGlass
-                    ? GlassSurface(
-                        radius: _filterButtonHeight / 2,
-                        child: content,
+                    ? ClipRRect(
+                        borderRadius: corners,
+                        child: GlassSurface(
+                          radius: _filterButtonHeight / 2,
+                          child: content,
+                        ),
                       )
                     : Material(
                         color: style.surface,
                         elevation: 4 * progress,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            _filterButtonHeight / 2,
-                          ),
+                          borderRadius: corners,
                           side: BorderSide(color: style.separator),
                         ),
                         clipBehavior: Clip.antiAlias,
@@ -553,22 +555,14 @@ class _FirmwareCatalogLayout extends MultiChildLayoutDelegate {
     );
     positionChild(_FirmwareLayoutChild.catalogue, Offset(0, toolbar.height));
 
-    final progress = motion.value;
-    final descent = const Interval(
-      0,
-      .72,
-      curve: Curves.easeInOutCubic,
-    ).transform(progress);
-    final expansion = const Interval(
-      .20,
-      1,
-      curve: Curves.easeInOutCubic,
-    ).transform(progress);
-    final panelHeight = (listHeight - 8).clamp(_filterButtonHeight, 224.0);
+    final expansion = Curves.easeInOutCubic.transform(motion.value);
+    final panelHeight = (size.height - _filterTop - 8).clamp(
+      _filterButtonHeight,
+      224.0,
+    );
     final panelWidth = math.min(420.0, size.width - 2 * inset);
     final width = lerpDouble(buttonWidth, panelWidth, expansion)!;
     final height = lerpDouble(_filterButtonHeight, panelHeight, expansion)!;
-    final panelTop = math.min(toolbar.height, size.height - panelHeight);
     layoutChild(
       _FirmwareLayoutChild.filters,
       BoxConstraints.tightFor(width: width, height: height),
@@ -577,7 +571,7 @@ class _FirmwareCatalogLayout extends MultiChildLayoutDelegate {
       _FirmwareLayoutChild.filters,
       Offset(
         textDirection == TextDirection.ltr ? inset : size.width - width - inset,
-        lerpDouble(_filterTop, panelTop, descent)!,
+        _filterTop,
       ),
     );
   }
