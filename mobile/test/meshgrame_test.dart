@@ -2618,15 +2618,18 @@ void main() {
         tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(1);
       }
       await tester.pump();
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isFalse);
       await tester.pump(const Duration(milliseconds: 120));
       final settingsFade = find.byKey(const ValueKey('settings-fade'));
+      final settings = find.byType(ProfilePage);
       expect(
         tester.widget<FadeTransition>(settingsFade).opacity.value,
         inExclusiveRange(0, 1),
       );
       expect(trail, findsWidgets);
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isFalse);
       await tester.pump(const Duration(milliseconds: 400));
-      final settings = find.byType(ProfilePage);
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isTrue);
       final title = find.descendant(
         of: settings,
         matching: find.text('Settings'),
@@ -2649,7 +2652,12 @@ void main() {
       } else {
         tester.widget<MeshNavigation>(find.byType(MeshNavigation)).onSelect(0);
       }
+      await tester.pump();
+      expect(IosControlVisibility.visibleOf(tester.element(settings)), isFalse);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isFalse);
       await tester.pumpAndSettle();
+      expect(IosControlVisibility.visibleOf(tester.element(trail)), isTrue);
       expect(tester.widget<MeshChatPage>(chat).peer.name, 'Тропа');
       expect(mira.hitTestable(), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Мира Соколова')), findsWidgets);

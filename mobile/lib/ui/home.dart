@@ -1275,7 +1275,10 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                           excluding: !showingChats,
                           child: IgnorePointer(
                             ignoring: !showingChats,
-                            child: chats,
+                            child: IosControlVisibility(
+                              visible: showingChats && _settingsFade.value == 0,
+                              child: chats!,
+                            ),
                           ),
                         ),
                       ),
@@ -1292,7 +1295,11 @@ class _HomeState extends State<MeshHome> with TickerProviderStateMixin {
                               ignoring: showingChats,
                               child: ColoredBox(
                                 color: background,
-                                child: _settings(style),
+                                child: IosControlVisibility(
+                                  visible:
+                                      !showingChats && _settingsFade.value == 1,
+                                  child: _settings(style),
+                                ),
                               ),
                             ),
                           ),

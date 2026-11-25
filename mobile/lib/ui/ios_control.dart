@@ -17,6 +17,27 @@ bool get useIosControls =>
 
 const meshIosGlassOutset = 8.0;
 
+/// Keeps UIKit controls out of a scene's opacity transition.
+class IosControlVisibility extends InheritedWidget {
+  const IosControlVisibility({
+    super.key,
+    required this.visible,
+    required super.child,
+  });
+
+  final bool visible;
+
+  static bool visibleOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<IosControlVisibility>()
+          ?.visible ??
+      true;
+
+  @override
+  bool updateShouldNotify(IosControlVisibility oldWidget) =>
+      visible != oldWidget.visible;
+}
+
 class MeshIosGlassFrame extends StatelessWidget {
   const MeshIosGlassFrame({
     super.key,
@@ -150,7 +171,13 @@ class IosControlState extends State<IosControl> {
         unawaited(_send('update', widget.properties));
       },
     );
-    final clippedView = MeshSheetControlClip(child: view);
+    final clippedView = Visibility(
+      visible: IosControlVisibility.visibleOf(context),
+      maintainState: true,
+      maintainAnimation: true,
+      maintainSize: true,
+      child: MeshSheetControlClip(child: view),
+    );
     return hasGlassOutset
         ? MeshIosGlassFrame(verticalOutset: verticalOutset, child: clippedView)
         : clippedView;
