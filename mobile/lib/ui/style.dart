@@ -254,6 +254,7 @@ class GlassSurface extends StatelessWidget {
     this.color,
     this.nativeButtonMaterial = false,
     this.springEnabled,
+    this.clearMacGlass = false,
   });
   final Widget child;
   final double radius;
@@ -261,6 +262,7 @@ class GlassSurface extends StatelessWidget {
   final Color? color;
   final bool nativeButtonMaterial;
   final bool? springEnabled;
+  final bool clearMacGlass;
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +275,7 @@ class GlassSurface extends StatelessWidget {
         dark: style.dark,
         tint: color,
         edgeOutset: MacGlass.controlEdgeOutset,
+        clear: clearMacGlass,
       );
       final content = Material(type: MaterialType.transparency, child: child);
       if (springEnabled case final enabled?) {

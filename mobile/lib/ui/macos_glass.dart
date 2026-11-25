@@ -76,25 +76,28 @@ class MacGlassBackground extends StatelessWidget {
     required this.dark,
     this.tint,
     this.edgeOutset = 0,
+    this.clear = false,
   });
 
   final double radius;
   final bool dark;
   final Color? tint;
   final double edgeOutset;
+  final bool clear;
 
   @override
   Widget build(BuildContext context) {
     final background = IgnorePointer(
       child: ExcludeSemantics(
         child: AppKitView(
-          key: ValueKey((radius, dark, tint, edgeOutset)),
+          key: ValueKey((radius, dark, tint, edgeOutset, clear)),
           viewType: 'meshgrame/glass',
           creationParams: {
             'radius': radius,
             'dark': dark,
             'tint': ?tint?.toARGB32(),
             'edgeOutset': edgeOutset,
+            'clear': clear,
           },
           creationParamsCodec: const StandardMessageCodec(),
         ),

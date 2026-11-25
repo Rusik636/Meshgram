@@ -308,9 +308,11 @@ class MeshSearchEditor extends StatelessWidget {
       ),
     );
     if (onActivate == null) {
+      final clearMacGlass = MacGlass.enabled(context) && !style.dark;
       return GlassSurface(
         radius: 100,
-        color: style.searchField,
+        color: clearMacGlass ? null : style.searchField,
+        clearMacGlass: clearMacGlass,
         child: editor(),
       );
     }

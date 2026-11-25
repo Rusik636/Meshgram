@@ -131,6 +131,9 @@ private final class MeshGlassFactory: NSObject, FlutterPlatformViewFactory {
     let glass = MeshGlassView()
     let radius = options?["radius"] as? NSNumber
     glass.cornerRadius = CGFloat(radius?.doubleValue ?? 22)
+    if options?["clear"] as? Bool == true {
+      glass.style = .clear
+    }
     if let dark = options?["dark"] as? Bool {
       glass.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     }
