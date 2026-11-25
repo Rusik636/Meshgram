@@ -368,6 +368,7 @@ class _EmojiPickerState extends State<EmojiPicker> {
                 return MeshScrollViewport(
                   tint: style.surface,
                   edgeExtent: 12,
+                  fadeContent: !style.dark,
                   child: GridView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),

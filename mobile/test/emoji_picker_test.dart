@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meshgrame/ui/emoji_picker.dart';
+import 'package:meshgrame/ui/mesh_scroll_edge.dart';
 
 void main() {
   testWidgets('search groups skin tones and a hold opens the variants', (
@@ -29,6 +30,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final grid = find.byType(GridView);
+    await tester.drag(grid, const Offset(0, -100));
+    await tester.pumpAndSettle();
+    expect(tester.widget<GridView>(grid).controller!.offset, greaterThan(0));
+    expect(
+      find.ancestor(of: grid, matching: find.byType(ShaderMask)),
+      findsOneWidget,
+    );
+    expect(find.byType(MeshScrollEdge), findsNothing);
+
     final search = find.byType(TextField);
     await tester.enterText(search, 'thumbs up');
     await tester.pumpAndSettle();
