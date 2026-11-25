@@ -72,6 +72,15 @@ class MessageInputState extends State<MessageInput> {
     if (box is! RenderBox || !box.hasSize) return null;
     final origin = box.localToGlobal(Offset.zero, ancestor: ancestor);
     if (!_native) {
+      if (meshDesktop(context)) {
+        final editor = _focus.context
+            ?.findAncestorStateOfType<EditableTextState>()
+            ?.renderEditable;
+        if (editor != null && editor.hasSize) {
+          return editor.localToGlobal(Offset.zero, ancestor: ancestor) &
+              editor.size;
+        }
+      }
       return Rect.fromLTWH(
         origin.dx + 16,
         origin.dy + 14,
@@ -368,7 +377,6 @@ class MessageInputState extends State<MessageInput> {
       focusNode: _focus,
       minLines: 1,
       maxLines: 4,
-      textAlignVertical: desktop ? TextAlignVertical.center : null,
       textCapitalization: TextCapitalization.sentences,
       onChanged: widget.onChanged,
       style: widget.hidesMovingText
@@ -378,10 +386,8 @@ class MessageInputState extends State<MessageInput> {
       decoration: InputDecoration(
         hintText: tr(context, 'Сообщение', 'Message'),
         border: InputBorder.none,
-        isDense: true,
-        constraints: desktop
-            ? const BoxConstraints(minHeight: meshGlassButtonExtent)
-            : null,
+        // The non-dense decorator centers short lines within its 48 pt height.
+        isDense: !desktop,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,

@@ -9,6 +9,7 @@ import 'package:meshgrame/mesh/store.dart';
 import 'package:meshgrame/radio/ble_transport.dart';
 import 'package:meshgrame/radio/meshtastic.dart';
 import 'package:meshgrame/ui/chat.dart';
+import 'package:meshgrame/ui/macos_glass.dart';
 import 'package:meshgrame/ui/message_input.dart';
 import 'package:meshgrame/ui/message_link_metadata.dart';
 import 'package:meshgrame/ui/message_links.dart';
@@ -31,6 +32,12 @@ void main() {
       final peer = mesh.cache!.peers['ch:0']!;
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: MacGlass.textScaler(TextScaler.noScaling)),
+            child: child!,
+          ),
           home: MeshChatPage(controller: mesh, peer: peer),
         ),
       );
@@ -44,8 +51,16 @@ void main() {
       final attachment = findControl('Attachments');
       expect(tester.getRect(input).height, tester.getRect(attachment).height);
       expect(tester.getRect(input).top, tester.getRect(attachment).top);
+      final center = tester.getCenter(input).dy;
+      expect(tester.getCenter(find.text('Message')).dy, closeTo(center, .5));
 
       await tester.enterText(field, 'First Next');
+      await tester.pumpAndSettle();
+      final editor = find.descendant(
+        of: field,
+        matching: find.byType(EditableText),
+      );
+      expect(tester.getCenter(editor).dy, closeTo(center, .5));
       draft.selection = const TextSelection(baseOffset: 5, extentOffset: 6);
       final previousCount = mesh.messages(peer.id).length;
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
